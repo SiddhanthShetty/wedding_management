@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z, ZodError } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
 import { createGuestPlusOne, createHouseholdPortalLink, exportWeddingGuests, getGuestWorkspace, importGuestRows, recordGuestRsvp, resolveGuestImportDuplicate, revokeHouseholdPortalLink, saveGuest, saveGuestHousehold, setGuestInvitation, suggestGuestDuplicates, type GuestImportRecord } from "@/lib/data/guests";
-import { guestImportRows, guestInput, householdInput, invitationInput, plusOneInput, rsvpInput } from "@/lib/planning/guest-inputs";
+import { guestImportRows, guestInput, householdInput, invitationInput, isoTimestampInput, plusOneInput, rsvpInput } from "@/lib/planning/guest-inputs";
 import { recordPortalGuestProfile, recordPortalRsvp } from "@/lib/guest-portal/server";
 import { z as portalZ } from "zod";
 
@@ -30,7 +30,7 @@ export async function saveHouseholdAction(_state:GuestActionState,form:FormData)
 }
 
 export async function saveGuestAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
-  const wedding=weddingId(form);const parsed=values(form,guestInput);const id=z.union([z.literal(""),z.uuid()]).safeParse(read(form,"guestId"));const expected=z.union([z.literal(""),z.string().datetime()]).safeParse(read(form,"expectedUpdatedAt"));
+  const wedding=weddingId(form);const parsed=values(form,guestInput);const id=z.union([z.literal(""),z.uuid()]).safeParse(read(form,"guestId"));const expected=z.union([z.literal(""),isoTimestampInput]).safeParse(read(form,"expectedUpdatedAt"));
   if(!wedding.success||!parsed.success||!id.success||!expected.success)return {error:parsed.success?"Invalid guest selection.":actionError(parsed.error)};
   try{const savedId=await saveGuest(wedding.data,id.data||null,{household_id:parsed.data.householdId||null,full_name:parsed.data.fullName,email:parsed.data.email,phone:parsed.data.phone,family_side:parsed.data.familySide,follow_up_owner_user_id:parsed.data.followUpOwnerUserId||null,meal_preference:parsed.data.mealPreference,allergies:parsed.data.allergies,assistance_needs:parsed.data.assistanceNeeds,notes:parsed.data.notes},expected.data||null);await revalidate();return {message:id.data?"Guest updated.":"Guest created.",savedId};}catch(error){return {error:actionError(error)};}
 }
@@ -97,8 +97,8 @@ export async function refreshGuestsAction(wedding:string){
   return getGuestWorkspace(z.uuid().parse(wedding));
 }
 
-const portalRsvpSchema=portalZ.object({invitationId:portalZ.uuid(),response:portalZ.enum(["yes","no","maybe"]),note:portalZ.string().max(2000),expectedUpdatedAt:portalZ.union([portalZ.literal(""),portalZ.string().datetime()]),submissionKey:portalZ.uuid()});
-const portalProfileSchema=portalZ.object({guestId:portalZ.uuid(),mealPreference:portalZ.string().max(500),allergies:portalZ.string().max(2000),assistanceNeeds:portalZ.string().max(2000),expectedUpdatedAt:portalZ.string().datetime(),submissionKey:portalZ.uuid()});
+const portalRsvpSchema=portalZ.object({invitationId:portalZ.uuid(),response:portalZ.enum(["yes","no","maybe"]),note:portalZ.string().max(2000),expectedUpdatedAt:portalZ.union([portalZ.literal(""),isoTimestampInput]),submissionKey:portalZ.uuid()});
+const portalProfileSchema=portalZ.object({guestId:portalZ.uuid(),mealPreference:portalZ.string().max(500),allergies:portalZ.string().max(2000),assistanceNeeds:portalZ.string().max(2000),expectedUpdatedAt:isoTimestampInput,submissionKey:portalZ.uuid()});
 
 function portalResultError(status:string){
   if(status==="conflict")return "These details changed since this page opened. Refresh to review the latest response before submitting again.";

@@ -1,10 +1,13 @@
 import { z } from "zod";
 
+// PostgreSQL/PostgREST may serialize timestamptz values with an explicit
+// offset (for example, +00:00) instead of the equivalent UTC "Z" suffix.
+export const isoTimestampInput = z.string().datetime({ offset: true });
 const blankableEmail=z.string().trim().max(320).refine((value)=>value===""||z.email().safeParse(value).success,"Enter a valid email address.");
 export const householdInput=z.object({name:z.string().trim().min(1).max(180),contactName:z.string().max(160),contactEmail:blankableEmail,contactPhone:z.string().max(80),address:z.string().max(1200),notes:z.string().max(4000)});
 export const guestInput=z.object({householdId:z.union([z.literal(""),z.uuid()]),fullName:z.string().trim().min(1).max(180),email:blankableEmail,phone:z.string().max(80),familySide:z.enum(["couple_one","couple_two","shared","unknown"]),followUpOwnerUserId:z.union([z.literal(""),z.uuid()]),mealPreference:z.string().max(500),allergies:z.string().max(2000),assistanceNeeds:z.string().max(2000),notes:z.string().max(4000)});
 export const invitationInput=z.object({guestId:z.uuid(),functionId:z.uuid(),invited:z.enum(["true","false"]),plusOneAllowed:z.enum(["true","false"])});
-export const rsvpInput=z.object({invitationId:z.uuid(),response:z.enum(["yes","no","maybe"]),source:z.enum(["phone","email","in_person","other"]),note:z.string().max(2000),expectedUpdatedAt:z.union([z.literal(""),z.string().datetime()])});
+export const rsvpInput=z.object({invitationId:z.uuid(),response:z.enum(["yes","no","maybe"]),source:z.enum(["phone","email","in_person","other"]),note:z.string().max(2000),expectedUpdatedAt:z.union([z.literal(""),isoTimestampInput])});
 export const plusOneInput=z.object({primaryGuestId:z.uuid(),fullName:z.string().trim().min(1).max(180),functionIds:z.array(z.uuid()).min(1).max(30).refine((ids)=>new Set(ids).size===ids.length,"Choose each function once.")});
 
 export const guestImportRow=z.object({rowNumber:z.number().int().positive(),raw:z.record(z.string(),z.string()),fullName:z.string().trim().max(180),householdName:z.string().trim().max(180),email:z.string().max(320),phone:z.string().max(80),familySide:z.enum(["couple_one","couple_two","shared","unknown"]),mealPreference:z.string().max(500),allergies:z.string().max(2000),assistanceNeeds:z.string().max(2000),errors:z.array(z.string()).max(20),allowDuplicate:z.boolean().default(false)}).superRefine((row,ctx)=>{if(row.errors.length===0){if(!row.fullName)ctx.addIssue({code:"custom",path:["fullName"],message:"Name is required."});if(row.email&&!z.email().safeParse(row.email).success)ctx.addIssue({code:"custom",path:["email"],message:"Enter a valid email address."});}});

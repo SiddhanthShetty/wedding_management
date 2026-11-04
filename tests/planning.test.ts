@@ -7,6 +7,7 @@ import { compareSuppliers, filterSuppliers } from "../src/lib/planning/supplier-
 import { allocationDifference, calculateFinanceTotals, formatMoney, fromMinorUnits, isOverpaid, outstandingBalance, refundOutstanding, scheduledPaymentRemaining, sumMoney, toMinorUnits } from "../src/lib/planning/money";
 import { bookingInput, transactionInput } from "../src/lib/planning/finance-inputs";
 import { createCsv, parseCsv, protectSpreadsheetCell } from "../src/lib/planning/guest-csv";
+import { isoTimestampInput, rsvpInput } from "../src/lib/planning/guest-inputs";
 import type { WeddingSupplier } from "../src/lib/data/suppliers";
 
 const WEDDING_A = "a0000000-0000-4000-8000-000000000001";
@@ -87,6 +88,18 @@ describe("function schedule rules", () => {
   it("allows a date-only tentative function while requiring a start before an end", () => {
     expect(resolveFunctionSchedule({ date: "2027-06-18", startTime: "", endTime: "", timezone: "Europe/Dublin" }).functionDate).toBe("2027-06-18");
     expect(() => resolveFunctionSchedule({ date: "2027-06-18", startTime: "", endTime: "20:00", timezone: "Europe/Dublin" })).toThrow(/start time/i);
+  });
+});
+
+describe("guest edit timestamps", () => {
+  it("accepts PostgreSQL offset timestamps and UTC timestamps for optimistic concurrency", () => {
+    expect(isoTimestampInput.safeParse("2026-11-04T00:00:00+00:00").success).toBe(true);
+    expect(isoTimestampInput.safeParse("2026-11-04T00:00:00.000Z").success).toBe(true);
+    expect(isoTimestampInput.safeParse("not-a-timestamp").success).toBe(false);
+    expect(rsvpInput.safeParse({
+      invitationId: "a4000000-0000-4000-8000-000000000001", response: "yes", source: "other", note: "",
+      expectedUpdatedAt: "2026-11-04T00:00:00+00:00",
+    }).success).toBe(true);
   });
 });
 
