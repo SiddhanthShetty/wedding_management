@@ -1,0 +1,11 @@
+{
+	"mcpServers": {
+		"perplexity": {
+			"type": "http",
+			"url": "https://api.perplexity.ai/mcp",
+			"tools": [
+				"*"
+			]
+		}
+	}
+}
