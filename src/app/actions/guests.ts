@@ -4,10 +4,11 @@ import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z, ZodError } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
-import { createGuestPlusOne, createHouseholdPortalLink, exportWeddingGuests, getGuestWorkspace, importGuestRows, recordGuestRsvp, resolveGuestImportDuplicate, revokeHouseholdPortalLink, saveGuest, saveGuestHousehold, setGuestInvitation, suggestGuestDuplicates, type GuestImportRecord } from "@/lib/data/guests";
-import { guestImportRows, guestInput, householdInput, invitationInput, isoTimestampInput, plusOneInput, rsvpInput } from "@/lib/planning/guest-inputs";
-import { recordPortalGuestProfile, recordPortalRsvp } from "@/lib/guest-portal/server";
+import { createGuestPlusOne, createHouseholdPortalLink, exportWeddingGuests, getGuestWorkspace, importGuestRows, recordGuestRsvp, resolveGuestImportDuplicate, revokeHouseholdPortalLink, saveGuest, saveGuestHousehold, setGuestInvitation, setGuestInvitationsBulk, suggestGuestDuplicates, type GuestImportRecord } from "@/lib/data/guests";
+import { guestImportRows, guestInput, guestInvitationChangesInput, householdInput, invitationInput, isoTimestampInput, plusOneInput, rsvpInput } from "@/lib/planning/guest-inputs";
+import { recordPortalGuestProfile, recordPortalRsvps } from "@/lib/guest-portal/server";
 import { z as portalZ } from "zod";
+import { guestPortalRsvpBatchInput } from "@/lib/planning/guest-inputs";
 
 export type GuestActionState={error?:string;message?:string;savedId?:string;data?:unknown};
 const read=(form:FormData,key:string)=>{const value=form.get(key);return typeof value==="string"?value:"";};
@@ -51,6 +52,21 @@ export async function setGuestInvitationAction(_state:GuestActionState,form:Form
   const wedding=weddingId(form);const parsed=values(form,invitationInput);
   if(!wedding.success||!parsed.success)return {error:parsed.success?"Invalid invitation selection.":actionError(parsed.error)};
   try{await setGuestInvitation(wedding.data,parsed.data.guestId,parsed.data.functionId,parsed.data.invited==="true",parsed.data.plusOneAllowed==="true");await revalidate();return {message:"Invitation updated."};}catch(error){return {error:actionError(error)};}
+}
+
+export async function saveGuestInvitationsBulkAction(wedding:string,entries:unknown):Promise<GuestActionState>{
+  const weddingResult=z.uuid().safeParse(wedding);
+  const parsed=guestInvitationChangesInput.safeParse(entries);
+  if(!weddingResult.success)return {error:"Invalid wedding selection."};
+  if(!parsed.success)return {error:parsed.error.issues[0]?.message??"Check the invitation changes and try again."};
+  try{
+    const count=await setGuestInvitationsBulk(weddingResult.data,parsed.data);
+    await revalidate();
+    return {message:`${count} invitation changes saved together.`};
+  }catch(error){
+    if(error instanceof AuthorizationDeniedError)return {error:"Your guest edit access is no longer available. Refresh and try again."};
+    return {error:error instanceof Error?error.message:"Could not save the invitation changes."};
+  }
 }
 
 export async function recordGuestRsvpAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
@@ -97,7 +113,6 @@ export async function refreshGuestsAction(wedding:string){
   return getGuestWorkspace(z.uuid().parse(wedding));
 }
 
-const portalRsvpSchema=portalZ.object({invitationId:portalZ.uuid(),response:portalZ.enum(["yes","no","maybe"]),note:portalZ.string().max(2000),expectedUpdatedAt:portalZ.union([portalZ.literal(""),isoTimestampInput]),submissionKey:portalZ.uuid()});
 const portalProfileSchema=portalZ.object({guestId:portalZ.uuid(),mealPreference:portalZ.string().max(500),allergies:portalZ.string().max(2000),assistanceNeeds:portalZ.string().max(2000),expectedUpdatedAt:isoTimestampInput,submissionKey:portalZ.uuid()});
 
 function portalResultError(status:string){
@@ -106,11 +121,22 @@ function portalResultError(status:string){
   return "This invitation link is no longer available. Please contact your hosts.";
 }
 
-export async function recordGuestPortalRsvpAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
-  const parsed=portalRsvpSchema.safeParse(Object.fromEntries(form.entries()));
-  if(!parsed.success)return {error:parsed.error.issues[0]?.message??"Check your response."};
-  const result=await recordPortalRsvp({...parsed.data,expectedUpdatedAt:parsed.data.expectedUpdatedAt||null});
-  if(result.status==="saved"||result.status==="duplicate"){revalidatePath("/guest");return {message:"Your response has been recorded.",savedId:parsed.data.submissionKey};}
+export async function recordGuestPortalRsvpBatchAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
+  const raw=form.get("responsesJson");
+  if(typeof raw!=="string"||raw.length>32_000)return {error:"Check the responses and try again."};
+  let payload:unknown;
+  try{payload=JSON.parse(raw);}catch{return {error:"Check the responses and try again."};}
+  const parsed=guestPortalRsvpBatchInput.safeParse(payload);
+  if(!parsed.success)return {error:parsed.error.issues[0]?.message??"Choose a response for each invited function."};
+  const result=await recordPortalRsvps({
+    guestId:parsed.data.guestId,
+    responses:parsed.data.responses.map((entry)=>({...entry,expectedUpdatedAt:entry.expectedUpdatedAt||null})),
+  });
+  if(result.status==="saved"||result.status==="duplicate"){
+    revalidatePath("/guest");
+    const count=result.saved_count??parsed.data.responses.length;
+    return {message:result.status==="duplicate"?"These responses were already saved.":`${count} response${count===1?"":"s"} saved together.`,savedId:parsed.data.submissionKey};
+  }
   return {error:portalResultError(result.status)};
 }
 

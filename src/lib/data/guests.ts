@@ -3,7 +3,7 @@ import "server-only";
 import { authorizeWeddingOperation } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createCsv } from "@/lib/planning/guest-csv";
-import { guestImportRows } from "@/lib/planning/guest-inputs";
+import { guestImportRows, guestInvitationChangesInput } from "@/lib/planning/guest-inputs";
 import { digestGuestPortalValue, newGuestPortalToken } from "@/lib/guest-portal/crypto";
 
 type Row=Record<string,any>;
@@ -76,6 +76,17 @@ export async function setGuestInvitation(weddingId:string,guestId:string,functio
   await authorizeWeddingOperation(weddingId,"guests","edit");const supabase=await createSupabaseServerClient();
   const {data,error}=await supabase.rpc("set_guest_invitation",{p_wedding_id:weddingId,p_guest_id:guestId,p_function_id:functionId,p_invited:invited,p_plus_one_allowed:plusOneAllowed});
   if(error||!data)throw new Error("Could not update this invitation. Confirm the guest and function are active.");return data as string;
+}
+export async function setGuestInvitationsBulk(weddingId:string,entries:unknown){
+  await authorizeWeddingOperation(weddingId,"guests","edit");
+  const parsed=guestInvitationChangesInput.parse(entries);
+  const supabase=await createSupabaseServerClient();
+  const {data,error}=await supabase.rpc("set_guest_invitations_bulk",{
+    p_wedding_id:weddingId,
+    p_invitations:parsed.map(entry=>({guest_id:entry.guestId,function_id:entry.functionId,invited:entry.invited,plus_one_allowed:entry.plusOneAllowed})),
+  });
+  if(error||data!==parsed.length)throw new Error("Could not save all invitation changes. No changes were saved; check active functions and approved plus-ones, then retry.");
+  return data as number;
 }
 export async function createGuestPlusOne(weddingId:string,primaryGuestId:string,name:string,functionIds:string[]){
   await authorizeWeddingOperation(weddingId,"guests","edit");const supabase=await createSupabaseServerClient();

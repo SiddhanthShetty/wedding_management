@@ -7,6 +7,12 @@ const blankableEmail=z.string().trim().max(320).refine((value)=>value===""||z.em
 export const householdInput=z.object({name:z.string().trim().min(1).max(180),contactName:z.string().max(160),contactEmail:blankableEmail,contactPhone:z.string().max(80),address:z.string().max(1200),notes:z.string().max(4000)});
 export const guestInput=z.object({householdId:z.union([z.literal(""),z.uuid()]),fullName:z.string().trim().min(1).max(180),email:blankableEmail,phone:z.string().max(80),familySide:z.enum(["couple_one","couple_two","shared","unknown"]),followUpOwnerUserId:z.union([z.literal(""),z.uuid()]),mealPreference:z.string().max(500),allergies:z.string().max(2000),assistanceNeeds:z.string().max(2000),notes:z.string().max(4000)});
 export const invitationInput=z.object({guestId:z.uuid(),functionId:z.uuid(),invited:z.enum(["true","false"]),plusOneAllowed:z.enum(["true","false"])});
+export const guestInvitationChangesInput=z.array(z.object({guestId:z.uuid(),functionId:z.uuid(),invited:z.boolean(),plusOneAllowed:z.boolean()})).min(1).max(500).refine((entries)=>new Set(entries.map((entry)=>`${entry.guestId}:${entry.functionId}`)).size===entries.length,"A person and function can only appear once in a save.");
+export const guestPortalRsvpEntryInput=z.object({invitationId:z.uuid(),response:z.enum(["yes","no","maybe"]),note:z.string().max(2000),expectedUpdatedAt:z.union([z.literal(""),isoTimestampInput]),submissionKey:z.uuid()});
+export const guestPortalRsvpBatchInput=z.object({guestId:z.uuid(),submissionKey:z.uuid(),responses:z.array(guestPortalRsvpEntryInput).min(1).max(50)}).superRefine((batch,ctx)=>{
+  if(new Set(batch.responses.map((entry)=>entry.invitationId)).size!==batch.responses.length)ctx.addIssue({code:"custom",path:["responses"],message:"Each function response can only appear once."});
+  if(new Set(batch.responses.map((entry)=>entry.submissionKey)).size!==batch.responses.length)ctx.addIssue({code:"custom",path:["responses"],message:"Each function response needs its own submission key."});
+});
 export const rsvpInput=z.object({invitationId:z.uuid(),response:z.enum(["yes","no","maybe"]),source:z.enum(["phone","email","in_person","other"]),note:z.string().max(2000),expectedUpdatedAt:z.union([z.literal(""),isoTimestampInput])});
 export const plusOneInput=z.object({primaryGuestId:z.uuid(),fullName:z.string().trim().min(1).max(180),functionIds:z.array(z.uuid()).min(1).max(30).refine((ids)=>new Set(ids).size===ids.length,"Choose each function once.")});
 

@@ -9,6 +9,7 @@ import { bookingInput, transactionInput } from "../src/lib/planning/finance-inpu
 import { createCsv, parseCsv, protectSpreadsheetCell } from "../src/lib/planning/guest-csv";
 import { isoTimestampInput, rsvpInput } from "../src/lib/planning/guest-inputs";
 import type { WeddingSupplier } from "../src/lib/data/suppliers";
+import { calculateCateringCount, calculatePlateEstimate, countCateringGuests } from "../src/lib/planning/catering";
 
 const WEDDING_A = "a0000000-0000-4000-8000-000000000001";
 const WEDDING_B = "b0000000-0000-4000-8000-000000000001";
@@ -57,6 +58,9 @@ beforeEach(async () => {
     "supabase/migrations/20261104150000_financial_tracking.sql",
     "supabase/migrations/20261104160000_guest_management.sql",
     "supabase/migrations/20261104170000_private_guest_portal.sql",
+    "supabase/migrations/20261104180000_bulk_guest_invitations.sql",
+    "supabase/migrations/20261104190000_private_guest_portal_bulk_rsvp.sql",
+    "supabase/migrations/20261104200000_catering_planning.sql",
   ]) {
     await db.exec(await readFile(path, "utf8"));
   }
@@ -337,6 +341,31 @@ describe("guest household, invitation, RSVP and import rules",()=>{
     expect(history.rows[0]?.count).toBe("2");
   });
 
+  it("saves invitation changes for multiple functions atomically",async()=>{
+    await assumeUser(OWNER_A);
+    const household=await db.query<{id:string}>("select public.save_guest_household($1,null,$2::jsonb) as id",[WEDDING_A,JSON.stringify({name:"Batch invitation household"})]);
+    const first=await addGuest(household.rows[0]!.id,"Batch Guest One");
+    const second=await addGuest(household.rows[0]!.id,"Batch Guest Two");
+    const payload=[
+      {guest_id:first,function_id:FUNCTION_A,invited:true,plus_one_allowed:false},
+      {guest_id:second,function_id:"a2000000-0000-4000-8000-000000000002",invited:true,plus_one_allowed:true},
+    ];
+    const saved=await db.query<{count:number}>("select public.set_guest_invitations_bulk($1,$2::jsonb) as count",[WEDDING_A,JSON.stringify(payload)]);
+    expect(saved.rows[0]?.count).toBe(2);
+    const persisted=await db.query<{guest_id:string;function_id:string;status:string;plus_one_allowed:boolean}>("select guest_id,function_id,status,plus_one_allowed from public.guest_invitations where wedding_id=$1 and guest_id=any($2::uuid[]) order by guest_id",[WEDDING_A,[first,second]]);
+    expect(persisted.rows).toHaveLength(2);
+    expect(persisted.rows.map(row=>row.status)).toEqual(["invited","invited"]);
+
+    await db.query("select public.set_guest_invitation($1,$2,$3,false,false)",[WEDDING_A,first,FUNCTION_A]);
+    const invalidBatch=[
+      {guest_id:first,function_id:FUNCTION_A,invited:true,plus_one_allowed:false},
+      {guest_id:second,function_id:FUNCTION_B,invited:true,plus_one_allowed:false},
+    ];
+    await expectDenied(db.query("select public.set_guest_invitations_bulk($1,$2::jsonb)",[WEDDING_A,JSON.stringify(invalidBatch)]));
+    const afterRollback=await db.query<{status:string}>("select status from public.guest_invitations where wedding_id=$1 and guest_id=$2 and function_id=$3",[WEDDING_A,first,FUNCTION_A]);
+    expect(afterRollback.rows[0]?.status).toBe("withdrawn");
+  });
+
   it("limits plus-ones to one named person per primary guest and approved function",async()=>{
     await assumeUser(OWNER_A);
     const household=await db.query<{id:string}>("select public.save_guest_household($1,null,$2::jsonb) as id",[WEDDING_A,JSON.stringify({name:"Plus-one family"})]);
@@ -370,6 +399,91 @@ describe("guest household, invitation, RSVP and import rules",()=>{
     expect((await db.query("select id from public.guests where wedding_id=$1",[WEDDING_A])).rows).toHaveLength(1);
     expect((await db.query("select id from public.guests where wedding_id=$1",[WEDDING_B])).rows).toHaveLength(0);
     await expectDenied(db.query("select public.save_guest_household($1,null,$2::jsonb)",[WEDDING_A,JSON.stringify({name:"Read-only write"})]));
+  });
+});
+
+describe("per-function catering counts, guarantees and snapshots",()=>{
+  async function createCateringFixture(){
+    await assumeUser(OWNER_A);
+    const household=await db.query<{id:string}>("select public.save_guest_household($1,null,$2::jsonb) id",[WEDDING_A,JSON.stringify({name:"Catering count family"})]);
+    const people:string[]=[];
+    for(const name of ["Adult One","Child One","Adult Two","Child Two"]) {
+      const row=await db.query<{id:string}>("select public.save_guest($1,null,$2::jsonb,null) id",[WEDDING_A,JSON.stringify({household_id:household.rows[0]!.id,full_name:name,email:"",phone:"",family_side:"shared",meal_preference:name==="Adult One"?"Vegetarian":"",allergies:name==="Adult One"?"Peanuts":"",assistance_needs:"",notes:""})]);
+      people.push(row.rows[0]!.id);
+      await db.query("select public.set_guest_invitation($1,$2,$3,true,false)",[WEDDING_A,row.rows[0]!.id,FUNCTION_A]);
+    }
+    const invitations=await db.query<{id:string;guest_id:string}>("select id,guest_id from public.guest_invitations where wedding_id=$1 and function_id=$2 and guest_id=any($3::uuid[])",[WEDDING_A,FUNCTION_A,people]);
+    for(let i=0;i<invitations.rows.length;i++){
+      const response=i===0?"yes":i===1?"yes":i===2?"no":"maybe";
+      await db.query("select public.record_guest_rsvp($1,$2,$3,'phone','Recorded response',null)",[WEDDING_A,invitations.rows[i]!.id,response]);
+    }
+    const service=await db.query<{id:string}>("insert into public.catering_meal_services(wedding_id,function_id,name,final_count_deadline,currency,created_by_user_id) values($1,$2,'Dinner',now()-interval '1 day','EUR',$3) returning id",[WEDDING_A,FUNCTION_A,OWNER_A]);
+    for(const category of ["adult","child","vendor","staff"])await db.query("insert into public.catering_service_counts(wedding_id,meal_service_id,category) values($1,$2,$3)",[WEDDING_A,service.rows[0]!.id,category]);
+    await db.query("insert into public.catering_guest_assignments(wedding_id,meal_service_id,guest_id,category) values($1,$2,$3,'adult'),($1,$2,$4,'child'),($1,$2,$5,'adult'),($1,$2,$6,'child')",[WEDDING_A,service.rows[0]!.id,...people]);
+    await db.query("update public.catering_service_counts set manual_expected_count=1,per_plate_rate=\n      case category when 'vendor' then 18.50 when 'staff' then 12.25 else null end where wedding_id=$1 and meal_service_id=$2 and category in ('vendor','staff')",[WEDDING_A,service.rows[0]!.id]);
+    await expectDenied(db.query("update public.catering_meal_services set currency='GBP' where wedding_id=$1 and id=$2",[WEDDING_A,service.rows[0]!.id]));
+    await db.query("select public.approve_catering_guarantee($1,$2,7,2)",[WEDDING_A,service.rows[0]!.id]);
+    return {people,serviceId:service.rows[0]!.id,invitations:invitations.rows};
+  }
+
+  it("counts mixed household responses by distinct person and includes manual staff/vendor meals once",async()=>{
+    const {people,serviceId}=await createCateringFixture();
+    const invites=await db.query<{invited:string;confirmed:string}>("select count(distinct guest_id)::text invited,count(distinct guest_id) filter(where r.response='yes')::text confirmed from public.guest_invitations i left join public.guest_rsvps r on r.wedding_id=i.wedding_id and r.invitation_id=i.id where i.wedding_id=$1 and i.function_id=$2 and i.status='invited' and guest_id=any($3::uuid[])",[WEDDING_A,FUNCTION_A,people]);
+    expect(invites.rows[0]).toEqual({invited:"4",confirmed:"2"});
+    await expectDenied(db.query("insert into public.catering_guest_assignments(wedding_id,meal_service_id,guest_id,category) values($1,$2,$3,'child')",[WEDDING_A,serviceId,people[0]]));
+    const snapId=await db.query<{id:string}>("select public.capture_catering_count_snapshot($1,$2) id",[WEDDING_A,serviceId]);
+    const snap=await db.query<{id:string;invited_count:number;confirmed_count:number;final_catering_count:number;approved_guarantee:number;category_totals:any}>("select id,invited_count,confirmed_count,final_catering_count,approved_guarantee,category_totals from public.catering_count_snapshots where id=$1",[snapId.rows[0]!.id]);
+    expect(snap.rows[0]).toMatchObject({invited_count:4,confirmed_count:2,approved_guarantee:7,final_catering_count:9});
+    expect(snap.rows[0]?.category_totals.vendor.manual_expected).toBe(1);
+    expect(snap.rows[0]?.category_totals.staff.manual_expected).toBe(1);
+  });
+
+  it("does not mutate an approved guarantee or prior snapshot when an RSVP changes after deadline",async()=>{
+    const {people,serviceId,invitations}=await createCateringFixture();
+    const first=await db.query<{id:string}> ("select public.capture_catering_count_snapshot($1,$2) id",[WEDDING_A,serviceId]);
+    const original=await db.query<{final_catering_count:number;confirmed_count:number}> ("select final_catering_count,confirmed_count from public.catering_count_snapshots where id=$1",[first.rows[0]!.id]);
+    const noResponse=await db.query<{id:string}> ("select i.id from public.guest_invitations i join public.guest_rsvps r on r.wedding_id=i.wedding_id and r.invitation_id=i.id where i.wedding_id=$1 and i.function_id=$2 and r.response='no' limit 1",[WEDDING_A,FUNCTION_A]);
+    const responseVersion=await db.query<{updated_at:string}>("select updated_at from public.guest_rsvps where invitation_id=$1",[noResponse.rows[0]!.id]);
+    await db.query("select public.record_guest_rsvp($1,$2,'yes','phone','Changed after deadline',$3::timestamptz)",[WEDDING_A,noResponse.rows[0]!.id,responseVersion.rows[0]!.updated_at]);
+    const service=await db.query<{approved_guarantee:number;agreed_buffer:number}> ("select approved_guarantee,agreed_buffer from public.catering_meal_services where id=$1",[serviceId]);
+    const prior=await db.query<{final_catering_count:number;confirmed_count:number}> ("select final_catering_count,confirmed_count from public.catering_count_snapshots where id=$1",[first.rows[0]!.id]);
+    expect(service.rows[0]).toEqual({approved_guarantee:7,agreed_buffer:2});
+    expect(prior.rows[0]).toEqual(original.rows[0]);
+    const newerId=await db.query<{id:string}> ("select public.capture_catering_count_snapshot($1,$2) id",[WEDDING_A,serviceId]);
+    const newer=await db.query<{confirmed_count:number}>("select confirmed_count from public.catering_count_snapshots where id=$1",[newerId.rows[0]!.id]);
+    expect(newer.rows[0]?.confirmed_count).toBe(3);
+  });
+
+  it("keeps individual allergy details restricted to owners or guest editors",async()=>{
+    const fixture=await createCateringFixture();
+    await db.exec("reset role");
+    await db.query("update public.guests set allergies='' where wedding_id=$1",[WEDDING_A]);
+    await db.query("update public.guests set allergies='Peanuts' where wedding_id=$1 and id=(select i.guest_id from public.guest_invitations i join public.guest_rsvps r on r.wedding_id=i.wedding_id and r.invitation_id=i.id where i.wedding_id=$1 and i.function_id=$2 and r.response='yes' order by i.guest_id limit 1)",[WEDDING_A,FUNCTION_A]);
+    await assumeUser("10000000-0000-4000-8000-000000000003");
+    await expectDenied(db.query("select * from public.get_catering_allergy_details($1,$2)",[WEDDING_A,fixture.serviceId]));
+    await expectDenied(db.query("select public.approve_catering_guarantee($1,$2,9,2)",[WEDDING_A,fixture.serviceId]));
+    await expectDenied(db.query("select public.save_catering_category_count($1,$2,'vendor',$3::jsonb)",[WEDDING_A,fixture.serviceId,JSON.stringify({manual_expected_count:3})]));
+    await assumeUser(OWNER_A);
+    const detail=await db.query<{guest_name:string;allergies:string}>("select * from public.get_catering_allergy_details($1,$2)",[WEDDING_A,fixture.serviceId]);
+    expect(detail.rows).toHaveLength(1);
+    expect(detail.rows[0]?.allergies).toBe("Peanuts");
+  });
+});
+
+describe("catering count calculations",()=>{
+  it("uses the accepted count, enforces the minimum guarantee, then adds buffer",()=>{
+    expect(calculateCateringCount({invited:10,confirmed:6,manuallyExpected:null,guarantee:8,buffer:2})).toEqual({expected:6,guaranteeFloor:8,finalCount:10});
+    expect(calculateCateringCount({invited:10,confirmed:6,manuallyExpected:9,guarantee:8,buffer:2}).finalCount).toBe(11);
+  });
+  it("counts repeated rows for one person once and keeps invited separate from confirmed",()=>{
+    expect(countCateringGuests([{guestId:"a",invited:true,response:"yes"},{guestId:"a",invited:true,response:"yes"},{guestId:"b",invited:true,response:"no"},{guestId:"c",invited:false,response:"yes"}])).toEqual({invited:2,confirmed:1});
+  });
+  it("does not treat an unknown manual count or guarantee as an explicit zero",()=>{
+    expect(calculateCateringCount({invited:4,confirmed:2,manuallyExpected:null,guarantee:null,buffer:0})).toMatchObject({expected:2,finalCount:2});
+  });
+  it("multiplies per-plate rates using exact minor units",()=>{
+    expect(calculatePlateEstimate(3,"18.50")).toBe("55.50");
+    expect(calculatePlateEstimate(4,"12.25")).toBe("49.00");
   });
 });
 
@@ -445,6 +559,60 @@ describe("private guest household portal",()=>{
     expect(counts.rows[0]).toEqual({yes:"1",rows:"1",history:"1"});
     await assumeUser(OWNER_A);
     await expectDenied(db.query("select public.record_guest_rsvp($1,$2,'no','phone','Stale planner form',null)",[WEDDING_A,invitationId]));
+  });
+
+  it("saves one person's function responses in a single idempotent batch",async()=>{
+    const {guestId,invitationId}=await portalFixture();
+    await assumeUser(OWNER_A);
+    await db.query("select public.set_guest_invitation($1,$2,$3,true,false)",[WEDDING_A,guestId,"a2000000-0000-4000-8000-000000000002"]);
+    const second=await db.query<{id:string}>("select id from public.guest_invitations where wedding_id=$1 and guest_id=$2 and function_id=$3",[WEDDING_A,guestId,"a2000000-0000-4000-8000-000000000002"]);
+    await assumeUser(null,"anon");
+    const payload=[
+      {invitation_id:invitationId,response:"yes",note:"Wedding response",expected_updated_at:null,submission_key:"c3000000-0000-4000-8000-000000000001"},
+      {invitation_id:second.rows[0]!.id,response:"no",note:"Mehendi response",expected_updated_at:null,submission_key:"c3000000-0000-4000-8000-000000000002"},
+    ];
+    const saved=await db.query<{result:{status:string;saved_count:number}}>("select public.record_guest_portal_rsvps($1,$2,$3::jsonb) result",["b".repeat(64),guestId,JSON.stringify(payload)]);
+    expect(saved.rows[0]?.result).toEqual({status:"saved",saved_count:2});
+    const retry=await db.query<{result:{status:string;saved_count:number}}>("select public.record_guest_portal_rsvps($1,$2,$3::jsonb) result",["b".repeat(64),guestId,JSON.stringify(payload)]);
+    expect(retry.rows[0]?.result).toEqual({status:"duplicate",saved_count:0});
+    await db.exec("reset role");
+    const rows=await db.query<{response:string;count:string;history:string}>("select r.response,count(*)::text count,(select count(*)::text from public.guest_rsvp_history h where h.invitation_id=r.invitation_id) history from public.guest_rsvps r where r.invitation_id=any($1::uuid[]) group by r.invitation_id,r.response order by r.response",[[invitationId,second.rows[0]!.id]]);
+    expect(rows.rows).toHaveLength(2);
+    expect(rows.rows.map((row)=>row.response)).toEqual(["no","yes"]);
+    expect(rows.rows.every((row)=>row.count==="1"&&row.history==="1")).toBe(true);
+  });
+
+  it("rolls back every RSVP in a batch when one response has a stale version",async()=>{
+    const {guestId,invitationId}=await portalFixture();
+    await assumeUser(OWNER_A);
+    await db.query("select public.set_guest_invitation($1,$2,$3,true,false)",[WEDDING_A,guestId,"a2000000-0000-4000-8000-000000000002"]);
+    const second=await db.query<{id:string}>("select id from public.guest_invitations where wedding_id=$1 and guest_id=$2 and function_id=$3",[WEDDING_A,guestId,"a2000000-0000-4000-8000-000000000002"]);
+    await assumeUser(null,"anon");
+    const payload=[
+      {invitation_id:invitationId,response:"yes",note:"Should roll back",expected_updated_at:null,submission_key:"c4000000-0000-4000-8000-000000000001"},
+      {invitation_id:second.rows[0]!.id,response:"no",note:"Stale entry",expected_updated_at:"2026-11-04T00:00:00+00:00",submission_key:"c4000000-0000-4000-8000-000000000002"},
+    ];
+    const result=await db.query<{result:{status:string}}>("select public.record_guest_portal_rsvps($1,$2,$3::jsonb) result",["b".repeat(64),guestId,JSON.stringify(payload)]);
+    expect(result.rows[0]?.result.status).toBe("conflict");
+    await db.exec("reset role");
+    const count=await db.query<{rows:string;history:string}>("select (select count(*)::text from public.guest_rsvps where invitation_id=any($1::uuid[])) rows,(select count(*)::text from public.guest_rsvp_history where invitation_id=any($1::uuid[])) history",[[invitationId,second.rows[0]!.id]]);
+    expect(count.rows[0]).toEqual({rows:"0",history:"0"});
+  });
+
+  it("does not allow a household session to batch another household member's invitation",async()=>{
+    const {guestId}=await portalFixture();
+    await assumeUser(OWNER_A);
+    const household=await db.query<{id:string}>("select public.save_guest_household($1,null,$2::jsonb) id",[WEDDING_A,JSON.stringify({name:"Separate Portal Family"})]);
+    const otherGuest=await db.query<{id:string}>("select public.save_guest($1,null,$2::jsonb,null) id",[WEDDING_A,JSON.stringify({household_id:household.rows[0]!.id,full_name:"Separate Invited Person",meal_preference:"",allergies:"",assistance_needs:"",family_side:"shared",email:"",phone:"",notes:""})]);
+    await db.query("select public.set_guest_invitation($1,$2,$3,true,false)",[WEDDING_A,otherGuest.rows[0]!.id,FUNCTION_A]);
+    const otherInvitation=await db.query<{id:string}>("select id from public.guest_invitations where wedding_id=$1 and guest_id=$2 and function_id=$3",[WEDDING_A,otherGuest.rows[0]!.id,FUNCTION_A]);
+    await assumeUser(null,"anon");
+    const payload=[{invitation_id:otherInvitation.rows[0]!.id,response:"yes",note:"",expected_updated_at:null,submission_key:"c5000000-0000-4000-8000-000000000001"}];
+    const result=await db.query<{result:{status:string}}>("select public.record_guest_portal_rsvps($1,$2,$3::jsonb) result",["b".repeat(64),guestId,JSON.stringify(payload)]);
+    expect(result.rows[0]?.result.status).toBe("unavailable");
+    await db.exec("reset role");
+    const stored=await db.query<{count:string}>("select count(*)::text count from public.guest_rsvps where invitation_id=$1",[otherInvitation.rows[0]!.id]);
+    expect(stored.rows[0]?.count).toBe("0");
   });
 
   it("rejects stale planner and guest profile edits instead of overwriting",async()=>{

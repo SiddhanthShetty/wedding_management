@@ -309,6 +309,8 @@ textarea.field-control { min-height: 86px; resize: vertical; padding-top: 9px; }
 .guest-function-summary span { color: var(--muted); font-size: 10px; }
 .guest-function-summary.selected { border-color: var(--sage); box-shadow: inset 0 0 0 1px var(--sage); }
 .guest-count-line { color: var(--muted); font-size: 11px; }
+.guest-invitation-batch-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.guest-invitation-batch-actions p { margin: 0; }
 .guest-invitation-cell, .guest-invite-form, .guest-rsvp-form { display: grid; gap: 8px; min-width: 210px; }
 .guest-invite-form { border-bottom: 1px solid var(--line); padding-bottom: 9px; }
 .guest-invite-form .field-label { display: flex; align-items: center; gap: 7px; }
@@ -346,6 +348,8 @@ textarea.field-control { min-height: 86px; resize: vertical; padding-top: 9px; }
 .guest-portal-person-heading h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 22px; font-weight: 500; }
 .guest-portal-person-heading > span { color: var(--muted); font-size: 11px; }
 .guest-portal-functions { display: grid; gap: 12px; }
+.guest-portal-rsvp-batch { display: grid; gap: 10px; margin-top: 12px; }
+.guest-portal-rsvp-batch > .button { justify-self: start; margin-top: 4px; }
 .guest-portal-function { border: 1px solid #efeee8; border-radius: 12px; background: #fdfdfa; padding: 15px; }
 .guest-portal-function-heading h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 19px; font-weight: 500; }
 .guest-portal-status { flex: 0 0 auto; border-radius: 999px; background: #f6f0e3; padding: 4px 8px; color: #765f35; font-size: 10px; }
@@ -370,6 +374,43 @@ textarea.field-control { min-height: 86px; resize: vertical; padding-top: 9px; }
 .guest-portal-state p, .guest-portal-help p { margin: 0; }
 .guest-portal-footer { margin-top: 24px; color: #96988f; font-size: 10px; text-align: center; }
 
+.catering-page { display: grid; gap: 18px; }
+.catering-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; align-items: end; }
+.catering-form > .button { align-self: end; }
+.catering-category-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin-top: 12px; }
+.catering-category-form { border: 1px solid var(--line); border-radius: 12px; background: #fdfdfb; padding: 14px; }
+.catering-person-row { display: grid; grid-template-columns: minmax(150px,1fr) minmax(160px,.7fr) auto; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding: 9px 0; }
+.catering-person-row > span { display: grid; }
+.catering-person-row small, .catering-counts small { display: block; color: var(--muted); font-size: 11px; }
+.catering-details { margin-top: 15px; border-top: 1px solid var(--line); padding-top: 12px; }
+.catering-details summary, .catering-dietary summary { cursor: pointer; color: var(--sage); font-weight: 650; }
+.catering-counts { overflow-x: auto; }
+.catering-counts dl { display: grid; grid-template-columns: repeat(5,minmax(120px,1fr)); gap: 8px; }
+.catering-counts dl > div { border: 1px solid var(--line); border-radius: 10px; padding: 11px; }
+.catering-counts dt { color: var(--muted); font-size: 11px; }
+.catering-counts dd { margin: 4px 0 0; font-size: 20px; font-weight: 700; }
+.catering-counts dd small { font-weight: 400; line-height: 1.4; }
+.catering-warning { border: 1px solid #eadbb7; border-radius: 9px; background: #fdf9ee; color: #695631; padding: 11px 13px; }
+.catering-dietary { margin-top: 15px; border-top: 1px solid var(--line); padding-top: 12px; }
+.catering-dietary h3, .catering-menu h3 { margin: 0 0 6px; font-family: Georgia,serif; font-size: 18px; }
+.catering-menu { border-top: 1px solid var(--line); padding: 12px 0; }
+.catering-menu > div { display: flex; justify-content: space-between; gap: 12px; }
+.field-success { margin: 0; color: #3f6948; font-size: 12px; }
+@media print {
+  body { background: white; }
+  .sidebar, .topbar, .demo-banner, .catering-page .page-heading .button, .catering-create-card, .catering-details .button, .catering-details form, .catering-details summary { display: none !important; }
+  .main-column { margin: 0 !important; }
+  .main-content { padding: 0 !important; }
+  .catering-page { display: block; }
+  .catering-page > .page-heading { display: block; margin: 0 0 18px; }
+  .catering-service { display: block !important; break-inside: avoid; box-shadow: none !important; margin-bottom: 15px; }
+  .catering-service.print-hidden { display: none !important; }
+  .catering-service .card-body { padding: 12px !important; }
+  .catering-details { display: block !important; }
+  .catering-details:not([open]) > :not(summary) { display: block !important; }
+  .catering-details > * { display: block !important; }
+  .catering-person-row { display: none !important; }
+}
 @media (max-width: 1100px) {
   .sidebar { width: 228px; }
   .main-column { margin-left: 228px; }
@@ -413,6 +454,9 @@ textarea.field-control { min-height: 86px; resize: vertical; padding-top: 9px; }
   .supplier-quote-heading { flex-direction: column; }
   .auth-card { padding: 24px 19px; }
   .finance-grid { grid-template-columns: 1fr; }
+  .catering-form, .catering-category-grid { grid-template-columns: 1fr; }
+  .catering-person-row { grid-template-columns: 1fr; align-items: stretch; }
+  .catering-counts dl { grid-template-columns: repeat(2,minmax(120px,1fr)); }
   .finance-allocation-row { grid-template-columns: 1fr; }
   .guest-header-actions { width: 100%; }
   .guest-header-actions .button { flex: 1; }

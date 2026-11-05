@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Heart, MapPin } from "lucide-react";
-import { recordGuestPortalRsvpAction, saveGuestPortalProfileAction, type GuestActionState } from "@/app/actions/guests";
+import { recordGuestPortalRsvpBatchAction, saveGuestPortalProfileAction, type GuestActionState } from "@/app/actions/guests";
 import type { GuestPortalData, PortalGuest, PortalInvitation } from "@/lib/guest-portal/server";
 import { Button } from "@/components/ui";
 
@@ -50,22 +50,56 @@ function formatTime(value:string|null) {
   return new Intl.DateTimeFormat("en-IE",{hour:"numeric",minute:"2-digit",timeZone:"UTC"}).format(parsed);
 }
 
-function RsvpForm({person,invitation}:{person:PortalGuest;invitation:PortalInvitation}) {
-  const [state,action,pending]=useActionState(recordGuestPortalRsvpAction,initial);
-  const [submissionKey,setSubmissionKey]=useState("");
-  const router=useRouter();
-  useEffect(()=>setSubmissionKey(crypto.randomUUID()),[]);
-  useEffect(()=>{if(state.message&&state.savedId===submissionKey){setSubmissionKey(crypto.randomUUID());router.refresh();}},[state.message,state.savedId,submissionKey,router]);
-  return <form key={invitation.updated_at??"pending"} action={action} className="guest-portal-form">
-    <input type="hidden" name="invitationId" value={invitation.id}/><input type="hidden" name="expectedUpdatedAt" value={invitation.updated_at??""}/><input type="hidden" name="submissionKey" value={submissionKey}/>
-    <label className="guest-portal-label" htmlFor={`rsvp-${invitation.id}`}>Your response</label>
-    <select id={`rsvp-${invitation.id}`} className="guest-portal-input" name="response" defaultValue={invitation.response??""} required>
+type PortalRsvpDraft={response:""|"yes"|"no"|"maybe";note:string};
+
+function RsvpFields({invitation,draft,onChange}:{invitation:PortalInvitation;draft:PortalRsvpDraft;onChange:(next:PortalRsvpDraft)=>void}){
+  return <div className="guest-portal-form">
+    <label className="guest-portal-label" htmlFor={`rsvp-${invitation.id}`}>Your response for {invitation.function.name}</label>
+    <select id={`rsvp-${invitation.id}`} className="guest-portal-input" value={draft.response} required onChange={(event)=>onChange({...draft,response:event.currentTarget.value as PortalRsvpDraft["response"]})}>
       <option value="" disabled>Choose a response</option><option value="yes">Accept invitation</option><option value="no">Decline invitation</option><option value="maybe">Not sure yet</option>
     </select>
     <label className="guest-portal-label" htmlFor={`rsvp-note-${invitation.id}`}>Note for your hosts (optional)</label>
-    <textarea id={`rsvp-note-${invitation.id}`} className="guest-portal-input" name="note" rows={2} maxLength={2000} defaultValue={invitation.response_note??""}/>
+    <textarea id={`rsvp-note-${invitation.id}`} className="guest-portal-input" rows={2} maxLength={2000} value={draft.note} onChange={(event)=>onChange({...draft,note:event.currentTarget.value})}/>
+  </div>;
+}
+
+function PersonRsvpForm({person}:{person:PortalGuest}){
+  const [state,action,pending]=useActionState(recordGuestPortalRsvpBatchAction,initial);
+  const [drafts,setDrafts]=useState<Record<string,PortalRsvpDraft>>(()=>Object.fromEntries(person.invitations.map((invitation)=>[invitation.id,{response:invitation.response??"",note:invitation.response_note??""}])));
+  const [submissionKeys,setSubmissionKeys]=useState<Record<string,string>>({});
+  const [batchSubmissionKey,setBatchSubmissionKey]=useState("");
+  const router=useRouter();
+  useEffect(()=>{
+    setSubmissionKeys(Object.fromEntries(person.invitations.map((invitation)=>[invitation.id,crypto.randomUUID()])));
+    setBatchSubmissionKey(crypto.randomUUID());
+  },[person.id]);
+  useEffect(()=>{
+    if(state.message&&state.savedId===batchSubmissionKey){
+      setSubmissionKeys(Object.fromEntries(person.invitations.map((invitation)=>[invitation.id,crypto.randomUUID()])));
+      setBatchSubmissionKey(crypto.randomUUID());
+      router.refresh();
+    }
+  },[state.message,state.savedId,batchSubmissionKey,person.invitations,router]);
+  const changed=person.invitations.filter((invitation)=>{
+    const draft=drafts[invitation.id];
+    return draft&&(draft.response!==(invitation.response??"")||draft.note!==(invitation.response_note??""));
+  });
+  const responses=JSON.stringify({
+    guestId:person.id,
+    submissionKey:batchSubmissionKey,
+    responses:changed.map((invitation)=>({
+      invitationId:invitation.id,
+      response:drafts[invitation.id]!.response,
+      note:drafts[invitation.id]!.note,
+      expectedUpdatedAt:invitation.updated_at??"",
+      submissionKey:submissionKeys[invitation.id]??"",
+    })),
+  });
+  return <form action={action} className="guest-portal-rsvp-batch">
+    <div className="guest-portal-functions">{person.invitations.map((invitation)=><FunctionCard key={invitation.id} invitation={invitation}><RsvpFields invitation={invitation} draft={drafts[invitation.id]??{response:"",note:""}} onChange={(next)=>setDrafts((current)=>({...current,[invitation.id]:next}))}/></FunctionCard>)}</div>
+    <input type="hidden" name="responsesJson" value={responses}/>
     {state.error&&<p className="guest-portal-error" role="alert">{state.error}</p>}{state.message&&<p className="guest-portal-success" role="status">{state.message}</p>}
-    <Button type="submit" disabled={pending||!submissionKey}>{pending?"Saving…":"Save response"}</Button>
+    <Button type="submit" disabled={pending||!batchSubmissionKey||!changed.length}>{pending?"Saving responses…":"Save all responses"}</Button>
   </form>;
 }
 
@@ -87,7 +121,7 @@ function GuestProfileForm({person}:{person:PortalGuest}) {
   </details>;
 }
 
-function FunctionCard({person,invitation}:{person:PortalGuest;invitation:PortalInvitation}) {
+function FunctionCard({invitation,children}:{invitation:PortalInvitation;children:React.ReactNode}) {
   const fn=invitation.function;
   const start=fn.start_time?formatTime(fn.start_time):"";
   const end=fn.end_time?formatTime(fn.end_time):"";
@@ -98,7 +132,7 @@ function FunctionCard({person,invitation}:{person:PortalGuest;invitation:PortalI
     {fn.location&&<p className="guest-portal-meta"><MapPin size={15} aria-hidden="true"/> {fn.location}</p>}
     {fn.dress_code&&<p className="guest-portal-meta"><strong>Dress code:</strong> {fn.dress_code}</p>}
     {fn.map_url&&<a className="guest-portal-map" href={fn.map_url} target="_blank" rel="noopener noreferrer">Open map <ArrowUpRight size={14}/></a>}
-    <RsvpForm person={person} invitation={invitation}/>
+    {children}
   </article>;
 }
 
@@ -108,7 +142,7 @@ export function GuestPortal({data}:{data:GuestPortalData|null}) {
     <header className="guest-portal-welcome"><p className="guest-portal-eyebrow">A celebration with</p><h1>{data.couple_names.length?data.couple_names.join(" & "):"Our family"}</h1><p>Welcome, {data.household.name}. Please respond separately for each invited person and function.</p></header>
     {!data.people.length?<section className="guest-portal-state"><h2>Invitation details are not available</h2><p>{unavailableCopy}</p></section>:data.people.map(person=><section className="guest-portal-person" key={person.id}>
       <div className="guest-portal-person-heading"><h2>{person.full_name}</h2><span>{person.invitations.length} {person.invitations.length===1?"invitation":"invitations"}</span></div>
-      <div className="guest-portal-functions">{person.invitations.map(invitation=><FunctionCard key={invitation.id} person={person} invitation={invitation}/>)}</div>
+      <PersonRsvpForm key={`${person.id}:${person.invitations.map((invitation)=>`${invitation.id}:${invitation.updated_at??"new"}`).join("|")}`} person={person}/>
       <GuestProfileForm person={person}/>
     </section>)}
     <aside className="guest-portal-help"><p>Need to update who is invited or have a question? Please contact your hosts.</p></aside>

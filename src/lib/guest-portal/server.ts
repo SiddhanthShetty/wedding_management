@@ -66,18 +66,25 @@ export async function getGuestPortalData(): Promise<GuestPortalData | null> {
   } catch { return null; }
 }
 
-export async function recordPortalRsvp(input: { invitationId: string; response: "yes" | "no" | "maybe"; note: string; expectedUpdatedAt: string | null; submissionKey: string }) {
+export async function recordPortalRsvps(input: { guestId: string; responses: Array<{ invitationId: string; response: "yes" | "no" | "maybe"; note: string; expectedUpdatedAt: string | null; submissionKey: string }> }) {
   try {
     if (!(await consumePortalRateLimit("submit"))) return { status: "unavailable" } as const;
     const sessionDigest = await getGuestPortalSessionDigest();
     if (!sessionDigest) return { status: "unavailable" } as const;
     const supabase = publicSupabase();
-    const { data, error } = await supabase.rpc("record_guest_portal_rsvp", {
-      p_session_digest: sessionDigest, p_invitation_id: input.invitationId, p_response: input.response,
-      p_note: input.note, p_expected_updated_at: input.expectedUpdatedAt, p_submission_key: input.submissionKey,
+    const { data, error } = await supabase.rpc("record_guest_portal_rsvps", {
+      p_session_digest: sessionDigest,
+      p_guest_id: input.guestId,
+      p_responses: input.responses.map((entry) => ({
+        invitation_id: entry.invitationId,
+        response: entry.response,
+        note: entry.note,
+        expected_updated_at: entry.expectedUpdatedAt,
+        submission_key: entry.submissionKey,
+      })),
     });
     if (error || !data || typeof data !== "object") return { status: "unavailable" } as const;
-    return data as { status: "saved" | "duplicate" | "conflict" | "invalid" | "unavailable" };
+    return data as { status: "saved" | "duplicate" | "conflict" | "invalid" | "unavailable"; saved_count?: number };
   } catch { return { status: "unavailable" } as const; }
 }
 
