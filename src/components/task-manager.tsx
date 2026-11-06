@@ -1,4 +1,5 @@
 "use client";
+import { matchesTaskView, type TaskView } from "@/lib/planning/task-rules";
 
 import { useActionState, useCallback, useEffect, useState } from "react";
 import { CheckSquare2, CirclePlus, Pencil } from "lucide-react";
@@ -39,6 +40,7 @@ export function TaskManager({
   functions,
   assignees,
   canEdit,
+  initialView = "all",
 }: {
   weddingId: string;
   currentUserId: string;
@@ -48,19 +50,15 @@ export function TaskManager({
   functions: WeddingFunction[];
   assignees: Assignee[];
   canEdit: boolean;
+  initialView?: string;
 }) {
-  const [view, setView] = useState("all");
+  const [view, setView] = useState(initialView);
   const [groupBy, setGroupBy] = useState("none");
   const [editor, setEditor] = useState<WeddingTask | undefined>();
   const [editorOpen, setEditorOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const onSaved = useCallback((message: string) => setNotice(message), []);
-  const filtered = tasks.filter((task) => {
-    if (view === "mine") return task.owner_user_id === currentUserId;
-    if (view === "overdue") return isTaskOverdue(task, today);
-    if (view === "due-soon") return isTaskDueSoon(task, today);
-    return true;
-  });
+  const filtered = tasks.filter((task) => matchesTaskView(task, view as TaskView, currentUserId, today));
   const groups = groupTasks(filtered, groupBy);
 
   return <>
@@ -70,6 +68,8 @@ export function TaskManager({
           <label className="field-label" htmlFor="task-view">View</label>
           <select id="task-view" className="field-control" value={view} onChange={(event) => setView(event.target.value)}>
             <option value="mine">My tasks</option>
+            <option value="mine-open">My open tasks</option>
+            <option value="mine-overdue">My overdue tasks</option>
             <option value="all">All tasks</option>
             <option value="overdue">Overdue</option>
             <option value="due-soon">Due soon · next 7 days</option>

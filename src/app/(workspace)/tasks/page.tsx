@@ -1,6 +1,7 @@
 import { PageHeading } from "@/components/ui";
 import { TaskManager } from "@/components/task-manager";
 import { requireCurrentWorkspace } from "@/lib/auth/access";
+import { TASK_VIEWS } from "@/lib/planning/task-rules";
 import { listWeddingFunctions } from "@/lib/data/functions";
 import { listTaskAssignees, listWeddingTasks } from "@/lib/data/tasks";
 
@@ -12,7 +13,9 @@ function todayInTimezone(timezone: string) {
   return values.year + "-" + values.month + "-" + values.day;
 }
 
-export default async function TasksPage() {
+export default async function TasksPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = await searchParams;
+  const initialView = TASK_VIEWS.find((value) => value === params.view) ?? "all";
   const workspace = await requireCurrentWorkspace("planning");
   const [tasks, functions, assignees] = await Promise.all([
     listWeddingTasks(workspace.wedding.id),
@@ -33,6 +36,7 @@ export default async function TasksPage() {
       functions={functions}
       assignees={assignees}
       canEdit={canEdit}
+      initialView={initialView}
     />
   </>;
 }

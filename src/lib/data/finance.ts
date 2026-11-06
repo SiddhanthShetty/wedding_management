@@ -64,7 +64,7 @@ export async function getFinanceDashboard(weddingId: string) {
   const upcoming = obligations!.filter((obligation) => obligation.due_date >= today && bookings!.find((booking) => booking.id === obligation.booking_id)?.status !== "cancelled").map((obligation) => {
     const booking = bookings!.find((row) => row.id === obligation.booking_id);
     return { ...obligation, amount: String(obligation.amount_text), remaining: scheduledPaymentRemaining(String(obligation.amount_text), transactions!.filter((tx) => tx.obligation_id === obligation.id && tx.kind === "payment").map((tx) => String(tx.amount_text))), currency: booking?.currency ?? context.wedding.currency, booking_label: booking?.label ?? "Booking" };
-  }).filter((row) => row.remaining !== "0.00").slice(0, 12);
+  }).filter((row) => row.remaining !== "0.00");
   const refundDue = bookingDTOs.filter((booking) => booking.status === "cancelled" && booking.refund_expected_amount !== null).map((booking) => {
     const refundRows = booking.transactions.filter((tx: Row) => tx.kind === "refund");
     return { booking: booking.label, currency: booking.currency, amount: refundOutstanding(booking.refund_expected_amount!, refundRows.map((tx:Row)=>String(tx.amount_text))) };

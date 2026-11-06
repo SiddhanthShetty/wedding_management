@@ -11,15 +11,18 @@ import { Dialog } from "@/components/dialog";
 import type { WeddingDecision } from "@/lib/data/decisions";
 
 export function DecisionManager({
-  weddingId, currentUserId, currentUserName, decisions, canEdit,
+  weddingId, currentUserId, currentUserName, decisions, canEdit, initialOpenOnly = false,
 }: {
   weddingId: string;
   currentUserId: string;
   currentUserName: string;
   decisions: WeddingDecision[];
   canEdit: boolean;
+  initialOpenOnly?: boolean;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
+  const [openOnly, setOpenOnly] = useState(initialOpenOnly);
+  const shown = openOnly ? decisions.filter((decision) => decision.status === "open") : decisions;
   const [notice, setNotice] = useState("");
   const created = useCallback((message: string) => {
     setCreateOpen(false);
@@ -31,7 +34,8 @@ export function DecisionManager({
       : undefined}>
       {!decisions.length
         ? <EmptyState title="No decisions yet" description={canEdit ? "Record a question and at least two options to start." : "A planning editor can add the first decision."} icon={<Scale size={19} aria-hidden="true" />} />
-        : <div className="decision-list">{decisions.map((decision) => <DecisionCard key={decision.id} weddingId={weddingId} currentUserId={currentUserId} decision={decision} canEdit={canEdit} />)}</div>}
+        : <div className="decision-list">{shown.map((decision) => <DecisionCard key={decision.id} weddingId={weddingId} currentUserId={currentUserId} decision={decision} canEdit={canEdit} />)}</div>}
+      {decisions.length > 0 && <div className="filter-group" role="group" aria-label="Filter decisions"><button type="button" className={`chip ${!openOnly ? "is-active" : ""}`} aria-pressed={!openOnly} onClick={() => setOpenOnly(false)}>All decisions</button><button type="button" className={`chip ${openOnly ? "is-active" : ""}`} aria-pressed={openOnly} onClick={() => setOpenOnly(true)}>Awaiting a decision ({decisions.filter((decision) => decision.status === "open").length})</button></div>}
       {!canEdit && <p className="field-help">You have read-only access to planning decisions.</p>}
     </Card>
     <CreateDecisionDialog open={createOpen} weddingId={weddingId} onClose={() => setCreateOpen(false)} onCreated={created} />

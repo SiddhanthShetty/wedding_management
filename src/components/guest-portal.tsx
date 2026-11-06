@@ -136,6 +136,25 @@ function FunctionCard({invitation,children}:{invitation:PortalInvitation;childre
   </article>;
 }
 
+function TravelArrangements({person}:{person:PortalGuest}) {
+  const stays=person.stays??[]; const journeys=person.journeys??[];
+  if(!stays.length&&!journeys.length)return null;
+  return <div className="guest-portal-function">
+    <h3 className="guest-portal-function-heading">Your confirmed travel arrangements</h3>
+    {stays.map((stay,index)=><div key={`stay-${index}`} className="guest-portal-meta">
+      <p><strong>{stay.property}</strong>{stay.room_type?` · ${stay.room_type}`:""}</p>
+      <p>Check in {formatDate(stay.check_in_date)}{stay.check_in_time?` from ${formatTime(stay.check_in_time)}`:""} · check out {formatDate(stay.check_out_date)}{stay.check_out_time?` by ${formatTime(stay.check_out_time)}`:""}</p>
+      {stay.address&&<p><MapPin size={15} aria-hidden="true"/> {stay.address}</p>}
+      {stay.notes&&<p>{stay.notes}</p>}
+    </div>)}
+    {journeys.map((journey,index)=><div key={`journey-${index}`} className="guest-portal-meta">
+      <p><strong>{journey.kind==="arrival"?"Arrival transfer":journey.kind==="departure"?"Departure transfer":"Transfer"}</strong> · {new Intl.DateTimeFormat("en-IE",{weekday:"long",day:"numeric",month:"long",hour:"numeric",minute:"2-digit",timeZone:journey.timezone}).format(new Date(journey.pickup_at))}</p>
+      <p>From {journey.pickup_location} to {journey.dropoff_location}</p>
+    </div>)}
+    <p className="guest-portal-help">If anything here looks wrong, please contact your hosts.</p>
+  </div>;
+}
+
 export function GuestPortal({data}:{data:GuestPortalData|null}) {
   if(!data)return <TokenExchange/>;
   return <PortalFrame>
@@ -143,6 +162,7 @@ export function GuestPortal({data}:{data:GuestPortalData|null}) {
     {!data.people.length?<section className="guest-portal-state"><h2>Invitation details are not available</h2><p>{unavailableCopy}</p></section>:data.people.map(person=><section className="guest-portal-person" key={person.id}>
       <div className="guest-portal-person-heading"><h2>{person.full_name}</h2><span>{person.invitations.length} {person.invitations.length===1?"invitation":"invitations"}</span></div>
       <PersonRsvpForm key={`${person.id}:${person.invitations.map((invitation)=>`${invitation.id}:${invitation.updated_at??"new"}`).join("|")}`} person={person}/>
+      <TravelArrangements person={person}/>
       <GuestProfileForm person={person}/>
     </section>)}
     <aside className="guest-portal-help"><p>Need to update who is invited or have a question? Please contact your hosts.</p></aside>

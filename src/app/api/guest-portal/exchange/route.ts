@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isSameOriginRequest } from "@/lib/http/same-origin";
 import { consumePortalRateLimit, exchangeGuestPortalToken, GUEST_PORTAL_COOKIE } from "@/lib/guest-portal/server";
 
 export const runtime = "nodejs";
@@ -12,9 +13,8 @@ const headers = {
 const unavailable = () => NextResponse.json({ ok: false, message: "This invitation link is not available. Please contact your hosts for help." }, { status: 404, headers });
 
 export async function POST(request: NextRequest) {
-  const origin = request.headers.get("origin");
   try {
-    if (!origin || new URL(origin).origin !== request.nextUrl.origin) return unavailable();
+    if (!isSameOriginRequest(request.headers)) return unavailable();
     if (!(await consumePortalRateLimit("exchange", request.headers))) return NextResponse.json({ ok: false, message: "This invitation link is not available. Please contact your hosts for help." }, { status: 429, headers });
     if (Number(request.headers.get("content-length") ?? 0) > 1024) return unavailable();
     const body = JSON.parse(await request.text());

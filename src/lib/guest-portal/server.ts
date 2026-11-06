@@ -14,7 +14,11 @@ export type PortalFunction = {
   timezone: string; location: string | null; map_url: string | null; dress_code: string | null; status: "tentative" | "confirmed";
 };
 export type PortalInvitation = { id: string; response: "yes" | "no" | "maybe" | null; response_note: string | null; updated_at: string | null; function: PortalFunction };
-export type PortalGuest = { id: string; full_name: string; meal_preference: string; allergies: string; assistance_needs: string; updated_at: string; invitations: PortalInvitation[] };
+/** Confirmed stays only; room numbers, room-mates and payment responsibility are never included. */
+export type PortalStay = { property: string; address: string; notes: string; room_type: string; check_in_date: string; check_out_date: string; check_in_time: string | null; check_out_time: string | null };
+/** Journeys the planners explicitly shared; driver contact details are never included. */
+export type PortalJourney = { kind: "arrival" | "departure" | "transfer"; title: string; pickup_at: string; pickup_location: string; dropoff_location: string; timezone: string };
+export type PortalGuest = { id: string; full_name: string; meal_preference: string; allergies: string; assistance_needs: string; updated_at: string; invitations: PortalInvitation[]; stays?: PortalStay[]; journeys?: PortalJourney[] };
 export type GuestPortalData = { household: { name: string }; couple_names: string[]; people: PortalGuest[] };
 
 function publicSupabase() {

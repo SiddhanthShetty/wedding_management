@@ -17,7 +17,7 @@ export async function getGuestWorkspace(weddingId:string){
   const results=await Promise.all([
     supabase.from("guest_households").select("id,name,contact_name,contact_email,contact_phone,address,notes,created_at,updated_at").eq("wedding_id",weddingId).order("name"),
     supabase.from("guests").select("id,household_id,plus_one_for_guest_id,full_name,email,phone,family_side,follow_up_owner_user_id,meal_preference,allergies,assistance_needs,notes,created_at,updated_at").eq("wedding_id",weddingId).order("full_name"),
-    supabase.from("functions").select("id,name,function_date,status,archived_at").eq("wedding_id",weddingId).order("function_date"),
+    supabase.rpc("get_guest_function_references",{p_wedding_id:weddingId}),
     supabase.from("guest_invitations").select("id,function_id,guest_id,invitation_kind,plus_one_for_guest_id,status,plus_one_allowed,created_at,updated_at,invited_by_user_id").eq("wedding_id",weddingId).order("created_at"),
     supabase.from("guest_rsvps").select("id,invitation_id,response,response_source,response_note,recorded_by_user_id,responded_at,updated_at").eq("wedding_id",weddingId),
     supabase.from("guest_rsvp_history").select("id,invitation_id,response,response_source,response_note,recorded_by_user_id,responded_at,created_at").eq("wedding_id",weddingId).order("created_at",{ascending:false}).limit(500),

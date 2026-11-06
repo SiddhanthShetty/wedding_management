@@ -43,3 +43,19 @@ export function wouldCreateDependencyCycle(
   }
   return false;
 }
+
+export const TASK_VIEWS = ["all", "mine", "mine-open", "mine-overdue", "overdue", "due-soon"] as const;
+export type TaskView = typeof TASK_VIEWS[number];
+
+/** The single definition of each task list view; the dashboard counts with the same function. */
+export function matchesTaskView(task: Pick<TaskLike, "due_date" | "status"> & { owner_user_id: string | null }, view: TaskView, userId: string, today: string): boolean {
+  const mine = task.owner_user_id === userId;
+  switch (view) {
+    case "mine": return mine;
+    case "mine-open": return mine && !finishedStatuses.has(task.status);
+    case "mine-overdue": return mine && isTaskOverdue(task, today);
+    case "overdue": return isTaskOverdue(task, today);
+    case "due-soon": return isTaskDueSoon(task, today);
+    default: return true;
+  }
+}

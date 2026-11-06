@@ -10,6 +10,7 @@ import { createCsv, parseCsv, protectSpreadsheetCell } from "../src/lib/planning
 import { isoTimestampInput, rsvpInput } from "../src/lib/planning/guest-inputs";
 import type { WeddingSupplier } from "../src/lib/data/suppliers";
 import { calculateCateringCount, calculatePlateEstimate, countCateringGuests } from "../src/lib/planning/catering";
+import { migrationPaths } from "./support/database";
 
 const WEDDING_A = "a0000000-0000-4000-8000-000000000001";
 const WEDDING_B = "b0000000-0000-4000-8000-000000000001";
@@ -50,18 +51,8 @@ beforeEach(async () => {
     "create table auth.users (id uuid primary key, aud text not null default 'authenticated', role text not null default 'authenticated', email text unique not null, encrypted_password text not null default '', email_confirmed_at timestamptz, raw_app_meta_data jsonb not null default '{}'::jsonb, raw_user_meta_data jsonb not null default '{}'::jsonb, created_at timestamptz not null default now(), updated_at timestamptz not null default now());",
     "create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;",
   ].join("\n"));
-  for (const path of [
-    "supabase/migrations/20261104000000_auth_wedding_foundation.sql",
-    "supabase/migrations/20261104120000_wedding_setup_and_functions.sql",
-    "supabase/migrations/20261104130000_tasks_and_decisions.sql",
-    "supabase/migrations/20261104140000_supplier_directory.sql",
-    "supabase/migrations/20261104150000_financial_tracking.sql",
-    "supabase/migrations/20261104160000_guest_management.sql",
-    "supabase/migrations/20261104170000_private_guest_portal.sql",
-    "supabase/migrations/20261104180000_bulk_guest_invitations.sql",
-    "supabase/migrations/20261104190000_private_guest_portal_bulk_rsvp.sql",
-    "supabase/migrations/20261104200000_catering_planning.sql",
-  ]) {
+  // Apply every migration so later migrations (which may replace functions) are covered too.
+  for (const path of await migrationPaths()) {
     await db.exec(await readFile(path, "utf8"));
   }
   await db.exec(await readFile("supabase/seed.sql", "utf8"));

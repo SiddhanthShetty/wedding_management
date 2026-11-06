@@ -9,6 +9,7 @@ test("authentication routes render and unauthenticated workspace routes redirect
   const protectedRoutes = [
     "/overview", "/functions", "/tasks", "/decisions", "/venues-vendors", "/budget",
     "/guests", "/logistics", "/documents", "/settings", "/design-system",
+    "/travel", "/schedule", "/schedule/pack", "/messages", "/overview/export",
   ];
   for (const route of protectedRoutes) {
     await page.goto(route);
@@ -44,4 +45,24 @@ test("private guest portal is no-store, no-referrer, and fails closed without a 
   expect(exchange.status).toBe(404);
   expect(exchange.body).toContain("This invitation link is not available");
   expect(exchange.body).not.toContain("household");
+});
+
+test("document and upload endpoints refuse anonymous and cross-site requests", async ({ page, request }) => {
+  const crossSite = await request.post("/api/documents", { headers: { Origin: "https://attacker.example" }, multipart: { weddingId: "a0000000-0000-4000-8000-000000000001" } });
+  expect(crossSite.status()).toBe(403);
+  await page.goto("/sign-in");
+  const anonymous = await page.evaluate(async () => {
+    const form = new FormData();
+    form.set("weddingId", "a0000000-0000-4000-8000-000000000001");
+    form.set("entityType", "wedding");
+    form.set("entityId", "");
+    form.set("file", new File(["%PDF-1.4 synthetic"], "test.pdf", { type: "application/pdf" }));
+    const result = await fetch("/api/documents", { method: "POST", body: form });
+    return { status: result.status, body: await result.json() };
+  });
+  expect(anonymous, JSON.stringify(anonymous)).toMatchObject({ status: 401 });
+  expect(anonymous.body.ok).toBe(false);
+  const download = await request.get("/api/documents/a0000000-0000-4000-8000-000000000099?mode=download", { maxRedirects: 0 });
+  expect([307, 401]).toContain(download.status());
+  expect(download.headers()["location"] ?? "").not.toContain("supabase");
 });

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, CheckSquare2, CircleHelp, FileText, Heart, LayoutDashboard, Map, Menu, Settings, UsersRound, Wallet, X, Scale } from "lucide-react";
+import { BedDouble, ListChecks, Mail, CalendarDays, CheckSquare2, CircleHelp, FileText, Heart, LayoutDashboard, Map, Menu, Settings, UsersRound, UtensilsCrossed, Wallet, X, Scale } from "lucide-react";
 import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
 
 const mainLinks = [
@@ -14,8 +14,11 @@ const mainLinks = [
   { href: "/venues-vendors", label: "Venues & Vendors", icon: Map, module: "suppliers_finance" as const },
   { href: "/budget", label: "Budget", icon: Wallet, module: "suppliers_finance" as const },
   { href: "/guests", label: "Guests", icon: UsersRound, module: "guests" as const },
-  { href: "/logistics", label: "Logistics", icon: CalendarDays, module: "logistics" as const },
-  { href: "/documents", label: "Documents", icon: FileText, module: "logistics" as const },
+  { href: "/logistics", label: "Catering", icon: UtensilsCrossed, module: "logistics" as const },
+  { href: "/travel", label: "Stays & Transport", icon: BedDouble, module: "logistics" as const },
+  { href: "/schedule", label: "Schedules", icon: ListChecks, module: "logistics" as const },
+  { href: "/messages", label: "Messages", icon: Mail, module: "guests" as const },
+  { href: "/documents", label: "Documents", icon: FileText },
 ];
 
 export function WorkspaceShell({ children, weddingName, displayName, role, moduleAccess }: { children: React.ReactNode; weddingName: string; displayName: string; role: MemberRole; moduleAccess: Partial<Record<WeddingModule, AccessLevel>> }) {
@@ -37,8 +40,9 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
   }, [open]);
   useEffect(() => { setOpen(false); }, [pathname]);
   useEffect(() => { if (open) sidebarRef.current?.querySelector<HTMLElement>("a[href]")?.focus(); }, [open]);
-  const section = mainLinks.find((item) => pathname === item.href)?.label ?? (pathname === "/settings" ? "Settings" : pathname === "/design-system" ? "Design system" : "Overview");
-  const isDemoPage = !["/functions", "/tasks", "/decisions", "/venues-vendors", "/budget", "/guests", "/settings"].includes(pathname);
+  const section = mainLinks.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.label ?? (pathname === "/settings" ? "Settings" : pathname === "/design-system" ? "Design system" : "Overview");
+  // Only the local design-system reference uses sample content; every other page shows wedding data.
+  const isDemoPage = pathname === "/design-system";
   const isOwner = role === "owner" || role === "co_owner";
   const visibleLinks = mainLinks.filter((item) => !item.module || isOwner || Boolean(moduleAccess[item.module]));
 

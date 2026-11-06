@@ -1,4 +1,5 @@
 "use client";
+import { supplierIdsWithExpiringItems } from "@/lib/planning/dashboard";
 
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -33,7 +34,7 @@ function moneyLabel(amount: number | null, currency: string) {
 }
 
 export function SupplierManager({
-  weddingId, currentUserId, suppliers, assignees, canEdit, canPlan,
+  weddingId, currentUserId, suppliers, assignees, canEdit, canPlan, today, initialExpiringOnly = false,
 }: {
   weddingId: string;
   currentUserId: string;
@@ -41,7 +42,11 @@ export function SupplierManager({
   assignees: SupplierAssignee[];
   canEdit: boolean;
   canPlan: boolean;
+  today: string;
+  initialExpiringOnly?: boolean;
 }) {
+  const [expiringOnly, setExpiringOnly] = useState(initialExpiringOnly);
+  const expiringIds = supplierIdsWithExpiringItems(suppliers, today);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [category, setCategory] = useState("all");
@@ -51,7 +56,7 @@ export function SupplierManager({
   const [editorOpen, setEditorOpen] = useState(false);
   const [notice, setNotice] = useState("");
 
-  const filtered = filterSuppliers(suppliers, { query, status, category, shortlistOnly });
+  const filtered = filterSuppliers(suppliers, { query, status, category, shortlistOnly }).filter((supplier) => !expiringOnly || expiringIds.has(supplier.id));
   const selected = filtered.filter((supplier) => compareIds.includes(supplier.id));
   const categories = [...new Set(suppliers.map((supplier) => supplier.category))].sort((a, b) => a.localeCompare(b));
 
@@ -70,6 +75,7 @@ export function SupplierManager({
           <div className="field"><label className="field-label" htmlFor="supplier-status-filter">Status</label><select id="supplier-status-filter" className="field-control" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
           <div className="field"><label className="field-label" htmlFor="supplier-category-filter">Category</label><select id="supplier-category-filter" className="field-control" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></div>
           <label className="supplier-shortlist-toggle"><input type="checkbox" checked={shortlistOnly} onChange={(event) => setShortlistOnly(event.target.checked)} /> Shortlist only</label>
+          <label className="supplier-shortlist-toggle"><input type="checkbox" checked={expiringOnly} onChange={(event) => setExpiringOnly(event.target.checked)} /> Holds or quotes expiring in 14 days ({expiringIds.size})</label>
         </div>
         <p className="field-help">Choose up to three suppliers to compare side by side. Unknown details remain marked unknown.</p>
         {filtered.length === 0

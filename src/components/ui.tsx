@@ -9,8 +9,8 @@ export function Button({ variant = "primary", className = "", ref, ...props }: B
   return <button ref={ref} className={`button button-${variant} ${className}`} {...props} />;
 }
 
-export function Card({ title, subtitle, action, children, className = "" }: { title?: string; subtitle?: string; action?: ReactNode; children: ReactNode; className?: string }) {
-  return <section className={`card ${className}`}>{(title || subtitle || action) && <div className="card-header"><div>{title && <h2 className="card-title">{title}</h2>}{subtitle && <p className="card-subtitle">{subtitle}</p>}</div>{action}</div>}<div className="card-body">{children}</div></section>;
+export function Card({ title, subtitle, action, children, className = "", id }: { title?: string; subtitle?: string; action?: ReactNode; children: ReactNode; className?: string; id?: string }) {
+  return <section id={id} className={`card ${className}`}>{(title || subtitle || action) && <div className="card-header"><div>{title && <h2 className="card-title">{title}</h2>}{subtitle && <p className="card-subtitle">{subtitle}</p>}</div>{action}</div>}<div className="card-body">{children}</div></section>;
 }
 
 const statusKinds: Record<string, string> = {
