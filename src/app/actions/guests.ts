@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z, ZodError } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
-import { createGuestPlusOne, createHouseholdPortalLink, exportWeddingGuests, getGuestWorkspace, importGuestRows, recordGuestRsvp, resolveGuestImportDuplicate, revokeHouseholdPortalLink, saveGuest, saveGuestHousehold, setGuestInvitation, setGuestInvitationsBulk, suggestGuestDuplicates, type GuestImportRecord } from "@/lib/data/guests";
+import { createGuestPlusOne, createHouseholdPortalLink, deleteGuest, deleteGuestHousehold, exportWeddingGuests, getGuestWorkspace, importGuestRows, recordGuestRsvp, resolveGuestImportDuplicate, revokeHouseholdPortalLink, saveGuest, saveGuestHousehold, setGuestInvitation, setGuestInvitationsBulk, suggestGuestDuplicates, type GuestImportRecord } from "@/lib/data/guests";
 import { guestImportRows, guestInput, guestInvitationChangesInput, householdInput, invitationInput, isoTimestampInput, plusOneInput, rsvpInput } from "@/lib/planning/guest-inputs";
 import { recordPortalGuestProfile, recordPortalRsvps } from "@/lib/guest-portal/server";
 import { z as portalZ } from "zod";
@@ -23,6 +23,20 @@ function values<T extends z.ZodType>(form:FormData,schema:T){
   return schema.safeParse(Object.fromEntries([...form.entries()].filter(([key])=>!key.startsWith("$ACTION_")&&key!=="weddingId")));
 }
 async function revalidate(){revalidatePath("/guests");}
+
+export async function deleteGuestAction(wedding:string,guest:string,expectedUpdatedAt:string):Promise<GuestActionState>{
+  const weddingResult=z.uuid().safeParse(wedding);const guestResult=z.uuid().safeParse(guest);const expected=isoTimestampInput.safeParse(expectedUpdatedAt);
+  if(!weddingResult.success||!guestResult.success||!expected.success)return {error:"Invalid guest selection. Refresh the page and try again."};
+  try{await deleteGuest(weddingResult.data,guestResult.data,expected.data);await revalidate();revalidatePath("/logistics");return {message:"Guest and their invitation records were deleted."};}
+  catch(error){if(error instanceof AuthorizationDeniedError)return {error:"Your guest edit access is no longer available. Refresh and try again."};return {error:error instanceof Error?error.message:"Could not delete this guest. No deletion was recorded."};}
+}
+
+export async function deleteGuestHouseholdAction(wedding:string,household:string,deleteMembers:boolean):Promise<GuestActionState>{
+  const weddingResult=z.uuid().safeParse(wedding);const householdResult=z.uuid().safeParse(household);const deleteMembersResult=z.boolean().safeParse(deleteMembers);
+  if(!weddingResult.success||!householdResult.success||!deleteMembersResult.success)return {error:"Invalid household selection. Refresh the page and try again."};
+  try{const count=await deleteGuestHousehold(weddingResult.data,householdResult.data,deleteMembersResult.data);await revalidate();revalidatePath("/logistics");return {message:`Household deleted with ${count} individual guest${count===1?"":"s"} and their invitation records.`};}
+  catch(error){if(error instanceof AuthorizationDeniedError)return {error:"Your guest edit access is no longer available. Refresh and try again."};return {error:error instanceof Error?error.message:"Could not delete this household. No deletion was recorded."};}
+}
 
 export async function saveHouseholdAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
   const wedding=weddingId(form);const parsed=values(form,householdInput);const id=z.union([z.literal(""),z.uuid()]).safeParse(read(form,"householdId"));

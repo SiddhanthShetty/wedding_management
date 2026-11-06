@@ -58,6 +58,21 @@ export async function saveGuest(weddingId:string,guestId:string|null,values:Reco
   if(error||!data)throw new Error("Could not save this guest. Confirm the selected household and follow-up owner belong to this wedding.");return data as string;
 }
 
+export async function deleteGuest(weddingId:string,guestId:string,expectedUpdatedAt:string){
+  await authorizeWeddingOperation(weddingId,"guests","edit");
+  const supabase=await createSupabaseServerClient();
+  const {error}=await supabase.rpc("delete_guest",{p_wedding_id:weddingId,p_guest_id:guestId,p_expected_updated_at:expectedUpdatedAt});
+  if(error)throw new Error(error.message);
+}
+
+export async function deleteGuestHousehold(weddingId:string,householdId:string,deleteMembers:boolean){
+  await authorizeWeddingOperation(weddingId,"guests","edit");
+  const supabase=await createSupabaseServerClient();
+  const {data,error}=await supabase.rpc("delete_guest_household",{p_wedding_id:weddingId,p_household_id:householdId,p_delete_members:deleteMembers});
+  if(error)throw new Error(error.message);
+  return Number(data??0);
+}
+
 export async function createHouseholdPortalLink(weddingId:string,householdId:string){
   await authorizeWeddingOperation(weddingId,"guests","edit");
   const token=newGuestPortalToken();const tokenDigest=digestGuestPortalValue("link",token);const expiresAt=new Date(Date.now()+30*24*60*60*1000).toISOString();

@@ -332,6 +332,9 @@ textarea.field-control { min-height: 86px; resize: vertical; padding-top: 9px; }
 .guest-rsvp-history p { margin-top: 5px; }
 .guest-portal-link-controls, .guest-portal-link-actions { display: grid; justify-items: start; gap: 7px; }
 .guest-portal-link-actions { display: flex; flex-wrap: wrap; align-items: center; }
+.guest-delete-control { display: grid; justify-items: start; gap: 5px; min-width: 70px; }
+.guest-delete-action { color: #a34f45; }
+.guest-delete-control .field-error, .guest-delete-control .field-help { display: block; max-width: 240px; }
 .guest-portal-link-actions form { margin: 0; }
 .guest-portal-created { display: grid; width: min(100%, 420px); gap: 7px; margin-top: 5px; }
 .guest-portal-shell { min-height: 100vh; background: radial-gradient(circle at 90% 0%, #f0eee4 0, transparent 28%), var(--paper); }
