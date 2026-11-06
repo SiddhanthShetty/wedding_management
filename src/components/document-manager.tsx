@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Eye, ShieldAlert, Upload } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
+import { useShowMore } from "@/components/use-remembered";
 import { Select, TextInput } from "@/components/form-fields";
 import { Card, EmptyState, PageHeading } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
@@ -17,12 +18,12 @@ const ENTITY_LABELS: Record<DocumentEntity, string> = {
 const INLINE = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 const size = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-function UploadForm({ data, documentId, fixedEntity }: { data: DocumentWorkspace; documentId?: string; fixedEntity?: { type: string; id: string | null } }) {
+function UploadForm({ data, documentId, fixedEntity, initialTarget = "" }: { data: DocumentWorkspace; documentId?: string; fixedEntity?: { type: string; id: string | null }; initialTarget?: string }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<{ error?: string; message?: string }>({});
   const [pending, setPending] = useState(false);
-  const [target, setTarget] = useState("");
+  const [target, setTarget] = useState(initialTarget);
   const editable = data.options.filter((option) => option.canEdit);
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -65,7 +66,7 @@ function UploadForm({ data, documentId, fixedEntity }: { data: DocumentWorkspace
   </form>;
 }
 
-export function DocumentManager({ data, initialEntity }: { data: DocumentWorkspace; initialEntity: string }) {
+export function DocumentManager({ data, initialEntity, recordId = null }: { data: DocumentWorkspace; initialEntity: string; recordId?: string | null }) {
   const [entityFilter, setEntityFilter] = useState(initialEntity);
   const [showArchived, setShowArchived] = useState(false);
   const [query, setQuery] = useState("");
@@ -73,11 +74,14 @@ export function DocumentManager({ data, initialEntity }: { data: DocumentWorkspa
   const documents = useMemo(() => data.documents.filter((doc) =>
     (showArchived ? doc.status !== "active" : doc.status === "active")
     && (entityFilter === "all" || doc.entity_type === entityFilter)
-    && (!query || `${doc.title} ${doc.category} ${doc.entity_label}`.toLowerCase().includes(query.toLowerCase()))), [data.documents, entityFilter, showArchived, query]);
+    && (!recordId || entityFilter !== initialEntity || doc.entity_id === recordId)
+    && (!query || `${doc.title} ${doc.category} ${doc.entity_label}`.toLowerCase().includes(query.toLowerCase()))), [data.documents, entityFilter, showArchived, query, recordId, initialEntity]);
+  const paged = useShowMore(documents);
   return <div className="section-stack">
     <PageHeading eyebrow="Private files" title="Documents" description="Contracts, quotes, invoices, receipts, floor plans and references, attached to the record they belong to. Files are stored privately and opened through links that expire after 60 seconds." />
     <p className="travel-warning" role="note"><ShieldAlert size={15} aria-hidden="true" /> Uploaded files are <strong>not malware-scanned</strong>. Only open files from people you trust. File types are checked from their contents, and only PDFs and images open in the browser; everything else downloads.</p>
-    <Card title="Upload a document"><UploadForm data={data} /></Card>
+    {recordId && (() => { const record = data.options.find((option) => option.type === initialEntity && option.id === recordId); return record ? <p className="demo-note" role="note">Showing files for <strong>{record.label}</strong>. <a className="text-link" href="/documents">Show all documents</a></p> : null; })()}
+    <Card title="Upload a document"><UploadForm data={data} initialTarget={recordId && data.options.some((option) => option.type === initialEntity && option.id === recordId && option.canEdit) ? `${initialEntity}:${recordId}` : ""} /></Card>
     <Card title="Library" subtitle={`You see documents for the areas you have access to. Loaded ${formatDateTime(data.loadedAt, tz)}.`}>
       <div className="table-toolbar">
         <Select label="Attached to" value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)}><option value="all">Everything</option>{Object.entries(ENTITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
@@ -85,7 +89,7 @@ export function DocumentManager({ data, initialEntity }: { data: DocumentWorkspa
         <div className="filter-group" role="group" aria-label="Status"><button type="button" className={`chip ${!showArchived ? "is-active" : ""}`} aria-pressed={!showArchived} onClick={() => setShowArchived(false)}>Active</button><button type="button" className={`chip ${showArchived ? "is-active" : ""}`} aria-pressed={showArchived} onClick={() => setShowArchived(true)}>Archived & deleted</button></div>
       </div>
       {!documents.length ? <EmptyState title={data.documents.length ? "No documents match" : "No documents yet"} description={data.documents.length ? "Try another filter." : "Upload a contract, quote or floor plan and attach it to its vendor, booking or function."} /> :
-        <ul className="doc-list">{documents.map((doc) => {
+        <><ul className="doc-list">{paged.visible.map((doc) => {
           const current = doc.versions.find((version) => version.status === "available");
           return <li key={doc.id} className="travel-guest">
             <div className="ops-head"><h3 className="row-title">{doc.title}</h3>{doc.category && <span className="status status-neutral">{doc.category}</span>}{doc.status !== "active" && <span className="status status-cancelled">{doc.status === "archived" ? "Archived" : "Files deleted"}</span>}</div>
@@ -108,7 +112,7 @@ export function DocumentManager({ data, initialEntity }: { data: DocumentWorkspa
               </ActionForm>}
             </div>}
           </li>;
-        })}</ul>}
+        })}</ul>{paged.remaining > 0 && <button type="button" className="button button-secondary show-more" onClick={paged.showMore}>Show more ({paged.remaining} left)</button>}</>}
     </Card>
   </div>;
 }

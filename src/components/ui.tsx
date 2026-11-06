@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { AlertCircle, Check, CircleHelp, Info, LoaderCircle, TriangleAlert } from "lucide-react";
+import { describeStatus, STAGE_HELP, type RecordKind } from "@/lib/planning/status-vocabulary";
 
 export function PageHeading({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
   return <header className="page-heading"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h1 className="page-title">{title}</h1>{description && <p className="page-description">{description}</p>}</div>{action && <div className="heading-actions">{action}</div>}</header>;
@@ -66,3 +67,13 @@ export function FilterInput(props: InputHTMLAttributes<HTMLInputElement> & { lab
   return <div className="field"><label className="field-label" htmlFor={props.id}>{props.label}</label><input className="field-control" {...props} /></div>;
 }
 
+
+const stageKinds = { idea: "neutral", planned: "pending", in_progress: "tentative", confirmed: "confirmed", done: "complete", cancelled: "cancelled" } as const;
+
+/** Status in the shared vocabulary (Idea, Planned, In progress, Confirmed, Done, Cancelled). */
+export function StageBadge({ kind, status }: { kind: RecordKind; status: string }) {
+  const described = describeStatus(kind, status);
+  return <span className={`status status-${stageKinds[described.stage]}`} title={STAGE_HELP[described.stage]}>
+    <span aria-hidden="true">{described.stage === "confirmed" || described.stage === "done" ? "✓" : "•"}</span>{described.text}
+  </span>;
+}

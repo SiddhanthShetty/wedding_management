@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { authorizeWeddingOperation, type WeddingModule, type WorkspaceContext } from "@/lib/auth/access";
 import { listWeddingFunctions } from "@/lib/data/functions";
 import { listWeddingTasks } from "@/lib/data/tasks";
@@ -32,69 +33,98 @@ async function section<T>(context: WorkspaceContext, module: WeddingModule, load
   }
 }
 
-export async function getDashboard(weddingId: string) {
+/** Membership, timezone and today's date, resolved once per request. */
+const dashboardBase = cache(async (weddingId: string) => {
   const context = await authorizeWeddingOperation(weddingId);
-  const today = instantToLocalDate(new Date(), context.wedding.timezone);
-  const userId = context.user.id;
-  const [functions, tasks, decisions, suppliers, finance, rsvp, catering, travel, issues] = await Promise.all([
-    section(context, "planning", async () => {
-      const rows = await listWeddingFunctions(weddingId);
-      return { total: rows.filter((fn) => !fn.archived_at).length, upcoming: upcomingFunctions(rows, today) };
-    }),
-    section(context, "planning", async () => {
-      const rows = await listWeddingTasks(weddingId);
-      const counts = taskCounts(rows, userId, today);
-      const mine = rows.filter((task) => task.owner_user_id === userId && task.status !== "completed" && task.status !== "cancelled")
-        .sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999")).slice(0, 5);
-      return { ...counts, total: rows.length, mine: mine.map((task) => ({ id: task.id, title: task.title, due_date: task.due_date, overdue: Boolean(task.due_date && task.due_date < today) })) };
-    }),
-    section(context, "planning", async () => {
-      const rows = await listWeddingDecisions(weddingId);
-      const open = rows.filter((decision) => decision.status === "open");
-      return { open: open.length, items: open.slice(0, 5).map((decision) => ({ id: decision.id, question: decision.question })) };
-    }),
-    section(context, "suppliers_finance", async () => {
-      const { suppliers: rows } = await listWeddingSuppliers(weddingId);
-      return { items: expiringSupplierItems(rows, today) };
-    }),
-    section(context, "suppliers_finance", async () => {
-      const data = await getFinanceDashboard(weddingId);
-      const due = paymentsDueSoon(data.obligations as unknown as Array<{ id: string; label: string; booking_label: string; due_date: string; remaining: string; currency: string }>, today);
-      return { totals: data.totals, due: due.map((row) => ({ id: row.id, label: row.label, booking: row.booking_label, due_date: row.due_date, remaining: row.remaining, currency: row.currency })) };
-    }),
-    section(context, "guests", async () => {
-      const data = await getGuestWorkspace(weddingId);
-      return { guests: data.guests.length, functions: data.functionSummaries.map((fn) => ({ id: fn.id, name: fn.name, date: fn.date, invited: fn.invited, yes: fn.yes, no: fn.no, maybe: fn.maybe, pending: fn.pending })) };
-    }),
-    section(context, "logistics", async () => {
-      const data = await getCateringWorkspace(weddingId);
-      const flagged = data.services.map((service) => ({
-        id: service.id, name: service.name, function_name: data.functions.find((fn) => fn.id === service.function_id)?.name ?? "Function",
-        reasons: cateringReviewReasons({
-          guests: service.guests, assignedGuestIds: new Set(service.assignments.map((row: { guest_id: string }) => row.guest_id)),
-          latestSnapshotConfirmed: service.latest_snapshot?.confirmed_count ?? null, finalCountDeadline: service.final_count_deadline, hasSnapshot: Boolean(service.latest_snapshot),
-        }),
-      })).filter((row) => row.reasons.length);
-      return { services: data.services.length, flagged };
-    }),
-    section(context, "logistics", async () => {
-      const data = await getTravelWorkspace(weddingId);
-      return travelGapCounts(data.states);
-    }),
-    section(context, "logistics", async () => {
-      const data = await getOperationsWorkspace(weddingId);
-      const open = sortIssues(data.issues).filter((issue) => issue.status !== "resolved");
-      return { ...unresolvedIssueCounts(data.issues), items: open.slice(0, 5).map((issue) => ({ id: issue.id, title: issue.title, severity: issue.severity })) };
-    }),
+  return { context, today: instantToLocalDate(new Date(), context.wedding.timezone), userId: context.user.id };
+});
+
+// Each section is cached per request, so the streamed cards and "what needs you today" share one load.
+export const loadFunctionsSection = cache(async (weddingId: string) => {
+  const { context, today } = await dashboardBase(weddingId);
+  return section(context, "planning", async () => {
+    const rows = await listWeddingFunctions(weddingId);
+    return { total: rows.filter((fn) => !fn.archived_at).length, upcoming: upcomingFunctions(rows, today) };
+  });
+});
+export const loadTasksSection = cache(async (weddingId: string) => {
+  const { context, today, userId } = await dashboardBase(weddingId);
+  return section(context, "planning", async () => {
+    const rows = await listWeddingTasks(weddingId);
+    const counts = taskCounts(rows, userId, today);
+    const mine = rows.filter((task) => task.owner_user_id === userId && task.status !== "completed" && task.status !== "cancelled")
+      .sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999")).slice(0, 5);
+    return { ...counts, total: rows.length, mine: mine.map((task) => ({ id: task.id, title: task.title, due_date: task.due_date, overdue: Boolean(task.due_date && task.due_date < today) })) };
+  });
+});
+export const loadDecisionsSection = cache(async (weddingId: string) => {
+  const { context } = await dashboardBase(weddingId);
+  return section(context, "planning", async () => {
+    const rows = await listWeddingDecisions(weddingId);
+    const open = rows.filter((decision) => decision.status === "open");
+    return { open: open.length, items: open.slice(0, 5).map((decision) => ({ id: decision.id, question: decision.question })) };
+  });
+});
+export const loadSuppliersSection = cache(async (weddingId: string) => {
+  const { context, today } = await dashboardBase(weddingId);
+  return section(context, "suppliers_finance", async () => {
+    const { suppliers: rows } = await listWeddingSuppliers(weddingId);
+    return { items: expiringSupplierItems(rows, today) };
+  });
+});
+export const loadFinanceSection = cache(async (weddingId: string) => {
+  const { context, today } = await dashboardBase(weddingId);
+  return section(context, "suppliers_finance", async () => {
+    const data = await getFinanceDashboard(weddingId);
+    const due = paymentsDueSoon(data.obligations as unknown as Array<{ id: string; label: string; booking_label: string; due_date: string; remaining: string; currency: string }>, today);
+    return { totals: data.totals, due: due.map((row) => ({ id: row.id, label: row.label, booking: row.booking_label, due_date: row.due_date, remaining: row.remaining, currency: row.currency })) };
+  });
+});
+export const loadRsvpSection = cache(async (weddingId: string) => {
+  const { context } = await dashboardBase(weddingId);
+  return section(context, "guests", async () => {
+    const data = await getGuestWorkspace(weddingId);
+    return { guests: data.guests.length, functions: data.functionSummaries.map((fn) => ({ id: fn.id, name: fn.name, date: fn.date, invited: fn.invited, yes: fn.yes, no: fn.no, maybe: fn.maybe, pending: fn.pending })) };
+  });
+});
+export const loadCateringSection = cache(async (weddingId: string) => {
+  const { context } = await dashboardBase(weddingId);
+  return section(context, "logistics", async () => {
+    const data = await getCateringWorkspace(weddingId);
+    const flagged = data.services.map((service) => ({
+      id: service.id, name: service.name, function_name: data.functions.find((fn) => fn.id === service.function_id)?.name ?? "Function",
+      reasons: cateringReviewReasons({
+        guests: service.guests, assignedGuestIds: new Set(service.assignments.map((row: { guest_id: string }) => row.guest_id)),
+        latestSnapshotConfirmed: service.latest_snapshot?.confirmed_count ?? null, finalCountDeadline: service.final_count_deadline, hasSnapshot: Boolean(service.latest_snapshot),
+      }),
+    })).filter((row) => row.reasons.length);
+    return { services: data.services.length, flagged };
+  });
+});
+export const loadTravelSection = cache(async (weddingId: string) => {
+  const { context } = await dashboardBase(weddingId);
+  return section(context, "logistics", async () => travelGapCounts((await getTravelWorkspace(weddingId)).states));
+});
+export const loadIssuesSection = cache(async (weddingId: string) => {
+  const { context } = await dashboardBase(weddingId);
+  return section(context, "logistics", async () => {
+    const data = await getOperationsWorkspace(weddingId);
+    const open = sortIssues(data.issues).filter((issue) => issue.status !== "resolved");
+    return { ...unresolvedIssueCounts(data.issues), items: open.slice(0, 5).map((issue) => ({ id: issue.id, title: issue.title, severity: issue.severity })) };
+  });
+});
+
+export async function getDashboardHeader(weddingId: string) {
+  const { context, today } = await dashboardBase(weddingId);
+  return { wedding: context.wedding, displayName: context.displayName, isOwner: context.membership.role === "owner" || context.membership.role === "co_owner", today, generatedAt: new Date().toISOString() };
+}
+
+export async function getDashboard(weddingId: string) {
+  const [header, functions, tasks, decisions, suppliers, finance, rsvp, catering, travel, issues] = await Promise.all([
+    getDashboardHeader(weddingId), loadFunctionsSection(weddingId), loadTasksSection(weddingId), loadDecisionsSection(weddingId), loadSuppliersSection(weddingId),
+    loadFinanceSection(weddingId), loadRsvpSection(weddingId), loadCateringSection(weddingId), loadTravelSection(weddingId), loadIssuesSection(weddingId),
   ]);
-  return {
-    wedding: context.wedding,
-    displayName: context.displayName,
-    isOwner: context.membership.role === "owner" || context.membership.role === "co_owner",
-    today,
-    generatedAt: new Date().toISOString(),
-    functions, tasks, decisions, suppliers, finance, rsvp, catering, travel, issues,
-  };
+  return { ...header, functions, tasks, decisions, suppliers, finance, rsvp, catering, travel, issues };
 }
 export type Dashboard = Awaited<ReturnType<typeof getDashboard>>;
 

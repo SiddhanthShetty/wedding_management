@@ -1,0 +1,133 @@
+import "server-only";
+import { AuthorizationDeniedError, authorizeWeddingOperation } from "@/lib/auth/access";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createHouseholdPortalLink } from "@/lib/data/guests";
+import { isDuplicateSubmission } from "@/lib/data/travel";
+import { isLanguage, TEXT_KEYS, unknownInvitationPlaceholders, type LanguageCode, type TextOverrides, type ThemeId } from "@/lib/invitations/content";
+
+export class InvitationRuleError extends Error { constructor(message: string) { super(message); this.name = "InvitationRuleError"; } }
+export class InvitationConflictError extends Error { constructor() { super("This design was changed by someone else. Refresh and review it before saving again."); this.name = "InvitationConflictError"; } }
+
+function check(error: { code?: string; message: string } | null, fallback: string) {
+  if (!error) return;
+  if (error.code === "42501") throw new AuthorizationDeniedError();
+  if (error.code === "23505") throw new InvitationRuleError("A design with that name already exists.");
+  throw new Error(fallback);
+}
+
+export async function getInvitationWorkspace(weddingId: string) {
+  const context = await authorizeWeddingOperation(weddingId, "guests", "read");
+  const supabase = await createSupabaseServerClient();
+  const results = await Promise.all([
+    supabase.from("invitation_designs").select("id,name,theme,accent,texts,is_default,version,updated_at").eq("wedding_id", weddingId).order("created_at"),
+    supabase.from("guest_households").select("id,name,contact_name,contact_email,contact_phone,preferred_language").eq("wedding_id", weddingId).order("name"),
+    supabase.from("guests").select("id,household_id,full_name,email,phone").eq("wedding_id", weddingId).order("full_name"),
+    supabase.from("guest_invitations").select("guest_id,function_id,status").eq("wedding_id", weddingId).eq("status", "invited"),
+    supabase.rpc("get_guest_function_references", { p_wedding_id: weddingId }),
+    supabase.from("weddings").select("partner_one_display_name,partner_two_display_name").eq("id", weddingId).maybeSingle(),
+    supabase.from("communication_records").select("guest_id,channel,state,sent_at,dedupe_key").eq("wedding_id", weddingId).like("dedupe_key", "invite:%"),
+  ]);
+  for (const result of results) if (result.error) throw new Error("Could not load invitations.");
+  const [designs, households, guests, invitations, functions, wedding, records] = results;
+  return {
+    wedding: context.wedding,
+    canEdit: context.membership.role === "owner" || context.membership.role === "co_owner" || context.moduleAccess.guests === "edit",
+    coupleNames: [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean).join(" & ") || context.wedding.name,
+    designs: (designs.data ?? []) as Array<{ id: string; name: string; theme: ThemeId; accent: string | null; texts: TextOverrides; is_default: boolean; version: number; updated_at: string }>,
+    households: (households.data ?? []) as Array<{ id: string; name: string; contact_name: string; contact_email: string; contact_phone: string; preferred_language: LanguageCode }>,
+    guests: (guests.data ?? []) as Array<{ id: string; household_id: string | null; full_name: string; email: string; phone: string }>,
+    invitations: (invitations.data ?? []) as Array<{ guest_id: string; function_id: string }>,
+    functions: ((functions.data ?? []) as Array<{ id: string; name: string; function_date: string | null; start_time: string | null; venue_name: string | null; status: string; archived_at: string | null }>).filter((fn) => !fn.archived_at && fn.status !== "cancelled"),
+    sent: (records.data ?? []) as Array<{ guest_id: string; channel: string; state: string; sent_at: string | null; dedupe_key: string }>,
+  };
+}
+export type InvitationWorkspace = Awaited<ReturnType<typeof getInvitationWorkspace>>;
+
+/** Keeps only known languages and text keys, trims values, and rejects unknown placeholders. */
+export function cleanTextOverrides(input: unknown): TextOverrides {
+  const result: TextOverrides = {};
+  if (!input || typeof input !== "object") return result;
+  for (const [language, values] of Object.entries(input as Record<string, unknown>)) {
+    if (!isLanguage(language) || !values || typeof values !== "object") continue;
+    const cleaned: Record<string, string> = {};
+    for (const key of TEXT_KEYS) {
+      const value = (values as Record<string, unknown>)[key];
+      if (typeof value !== "string" || !value.trim()) continue;
+      if (value.length > 600) throw new InvitationRuleError("Keep each line of wording under 600 characters.");
+      const unknown = unknownInvitationPlaceholders(value);
+      if (unknown.length) throw new InvitationRuleError(`Unknown placeholder ${unknown.map((name) => `{{${name}}}`).join(", ")}. Use {{name}}, {{couple}} or {{link}}.`);
+      cleaned[key] = value.trim();
+    }
+    if (Object.keys(cleaned).length) result[language] = cleaned;
+  }
+  return result;
+}
+
+async function editor(weddingId: string) {
+  const context = await authorizeWeddingOperation(weddingId, "guests", "edit");
+  return { context, supabase: await createSupabaseServerClient() };
+}
+
+export async function saveDesign(weddingId: string, designId: string | null, expectedVersion: number | null, input: { name: string; theme: ThemeId; accent: string | null; texts: TextOverrides }) {
+  const { context, supabase } = await editor(weddingId);
+  if (!designId) {
+    const existing = await supabase.from("invitation_designs").select("id").eq("wedding_id", weddingId).limit(1);
+    check(existing.error, "Could not save the design.");
+    const { data, error } = await supabase.from("invitation_designs").insert({ ...input, wedding_id: weddingId, created_by_user_id: context.user.id, updated_by_user_id: context.user.id }).select("id").single();
+    check(error, "Could not save the design.");
+    // The first design becomes the one guests see, so the portal is never left without a design by accident.
+    if (!existing.data?.length) await setDefaultDesign(weddingId, data!.id);
+    return data!.id as string;
+  }
+  const { data, error } = await supabase.from("invitation_designs").update(input).eq("wedding_id", weddingId).eq("id", designId).eq("version", expectedVersion ?? -1).select("id").maybeSingle();
+  check(error, "Could not save the design.");
+  if (!data) throw new InvitationConflictError();
+  return designId;
+}
+
+export async function setDefaultDesign(weddingId: string, designId: string) {
+  const { supabase } = await editor(weddingId);
+  const { error } = await supabase.rpc("set_default_invitation_design", { p_wedding_id: weddingId, p_design_id: designId });
+  check(error, "Could not choose this design.");
+}
+
+export async function setHouseholdLanguage(weddingId: string, householdId: string, language: LanguageCode) {
+  const { supabase } = await editor(weddingId);
+  const { error } = await supabase.rpc("set_household_language", { p_wedding_id: weddingId, p_household_id: householdId, p_language: language });
+  check(error, "Could not save the language.");
+}
+
+/**
+ * Issues a fresh private link for one household (replacing any earlier link) and returns the token
+ * once, so the planner's device can put it into the message. The token is never stored.
+ */
+export async function prepareHouseholdInvitation(weddingId: string, householdId: string) {
+  const workspace = await getInvitationWorkspace(weddingId);
+  if (!workspace.canEdit) throw new AuthorizationDeniedError();
+  const members = workspace.guests.filter((guest) => guest.household_id === householdId).map((guest) => guest.id);
+  if (!workspace.invitations.some((row) => members.includes(row.guest_id))) throw new InvitationRuleError("Invite at least one person in this household to a function first.");
+  const link = await createHouseholdPortalLink(weddingId, householdId);
+  return { token: link.token, expiresAt: link.expiresAt };
+}
+
+/** Records that the planner shared this household's invitation themselves. It does not claim delivery. */
+export async function recordInvitationShared(weddingId: string, input: { householdId: string; designId: string; channel: "whatsapp" | "email" | "other"; message: string }) {
+  const { context, supabase } = await editor(weddingId);
+  const workspace = await getInvitationWorkspace(weddingId);
+  const design = workspace.designs.find((row) => row.id === input.designId);
+  if (!design) throw new InvitationRuleError("Choose a saved design.");
+  const invited = new Set(workspace.invitations.map((row) => row.guest_id));
+  const members = workspace.guests.filter((guest) => guest.household_id === input.householdId && invited.has(guest.id));
+  if (!members.length) throw new InvitationRuleError("Nobody in this household is invited to a function.");
+  if (/#[A-Za-z0-9_-]{43}/.test(input.message)) throw new InvitationRuleError("Remove the private link before saving the message.");
+  const sentAt = new Date().toISOString();
+  const rows = members.map((guest) => ({
+    wedding_id: weddingId, guest_id: guest.id, function_id: null, template_id: null, channel: input.channel, subject: "Wedding invitation",
+    body_snapshot: input.message.slice(0, 6000), state: "sent", manual: true, sent_at: sentAt, notes: `Design “${design.name}” v${design.version}`,
+    dedupe_key: `invite:${design.id}:${design.version}:${input.channel}:${guest.id}`, recorded_by_user_id: context.user.id,
+  }));
+  const { data, error } = await supabase.from("communication_records").upsert(rows, { onConflict: "wedding_id,dedupe_key", ignoreDuplicates: true }).select("id");
+  if (isDuplicateSubmission(error)) return { recorded: 0 };
+  check(error, "Could not record the invitation.");
+  return { recorded: data?.length ?? 0 };
+}

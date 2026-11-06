@@ -51,6 +51,13 @@ export async function getTravelWorkspace(weddingId: string) {
     if (result.error) throw new Error("Could not load accommodation and transport records.");
   }
   const members = await listActiveMemberNames(weddingId);
+  // Household grouping needs guest-list access; without it, bulk household actions are simply hidden.
+  const canSeeHouseholds = context.membership.role === "owner" || context.membership.role === "co_owner" || Boolean(context.moduleAccess.guests);
+  const [householdRows, householdMembers] = canSeeHouseholds ? await Promise.all([
+    supabase.from("guest_households").select("id,name").eq("wedding_id", weddingId).order("name"),
+    supabase.from("guests").select("id,household_id").eq("wedding_id", weddingId),
+  ]) : [{ data: [], error: null }, { data: [], error: null }];
+  if (householdRows.error || householdMembers.error) throw new Error("Could not load households.");
   const journeyKind = new Map((journeys.data ?? []).map((row) => [row.id, row]));
   const states = guestTravelStates({
     guestIds: (guests.data ?? []).map((row: TravelGuest) => row.guest_id),
@@ -80,6 +87,7 @@ export async function getTravelWorkspace(weddingId: string) {
     groups: (groups.data ?? []).map((group) => ({ ...group, guest_ids: (groupMembers.data ?? []).filter((row) => row.group_id === group.id).map((row) => row.guest_id) })),
     journeys: journeys.data ?? [],
     passengers: passengers.data ?? [],
+    households: (householdRows.data ?? []).map((household) => ({ id: household.id as string, name: household.name as string, guest_ids: (householdMembers.data ?? []).filter((row) => row.household_id === household.id).map((row) => row.id as string) })).filter((household) => household.guest_ids.length > 0),
     loadedAt: new Date().toISOString(),
   };
 }
@@ -197,9 +205,10 @@ function journeyInstants(input: Pick<JourneyInput, "pickup_at" | "estimated_drop
 
 export async function createJourney(weddingId: string, input: JourneyInput, submissionKey: string | null) {
   const { context, supabase } = await editor(weddingId);
-  const { error } = await supabase.from("transport_journeys").insert({ ...input, ...journeyInstants(input, context.wedding.timezone), wedding_id: weddingId, created_by_user_id: context.user.id, submission_key: submissionKey });
-  if (isDuplicateSubmission(error)) return;
+  const { data, error } = await supabase.from("transport_journeys").insert({ ...input, ...journeyInstants(input, context.wedding.timezone), wedding_id: weddingId, created_by_user_id: context.user.id, submission_key: submissionKey }).select("id").single();
+  if (isDuplicateSubmission(error)) return null;
   check(error, "Could not create the journey.");
+  return data!.id as string;
 }
 
 export async function updateJourney(weddingId: string, journeyId: string, expectedVersion: number, input: JourneyInput) {

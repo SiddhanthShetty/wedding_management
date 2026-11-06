@@ -144,3 +144,9 @@ Accepted, not changed: vendor contact phone is visible to logistics readers (nee
 Test harness note: it now grants `usage on schema auth` to the API roles, matching Supabase, so triggers that call `auth.uid()` run under the caller's privileges.
 
 Still unverified: keyboard tab behaviour and signed-in mobile forms in a real browser (blocker 2).
+
+## Usability release (follow-up)
+
+- Migration `20261107100000_invitations.sql` was **applied** to `wedding_management` on 2026-11-06, after a dry run and a schema and data dump. Verified on the live project: migration history matches; `invitation_designs` has RLS and its 3 policies; `guest_households.preferred_language` exists; `set_default_invitation_design` and `set_household_language` exist; the guest-portal function includes the design and is executable only by `anon` (and the service role), not by signed-in members.
+- The Overview now streams each section independently. Section loaders are cached per request (`React.cache`), so the “needs you today” list does not repeat queries.
+- Remembered views use browser storage for convenience only; the app works without it.

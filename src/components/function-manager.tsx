@@ -3,7 +3,7 @@
 import { useActionState, useCallback, useEffect, useState } from "react";
 import { Archive, CalendarPlus, Pencil } from "lucide-react";
 import { archiveFunctionAction, createFunctionAction, updateFunctionAction } from "@/app/actions/functions";
-import { Button, Card, DataTable, EmptyState, NotificationRegion, StatusLabel } from "@/components/ui";
+import { Button, Card, DataTable, EmptyState, NotificationRegion, StageBadge, StatusLabel } from "@/components/ui";
 import { Dialog } from "@/components/dialog";
 import type { FunctionTaskArrangement, WeddingFunction } from "@/lib/data/functions";
 
@@ -115,13 +115,13 @@ export function FunctionManager({
         ? <EmptyState title="No functions yet" description={canEdit ? "Add a function or start with an editable ceremony template." : "A planning editor can add the first function."} />
         : <DataTable label="Wedding functions" headers={["Function", "Date and time", "Location", "Plan", "Status", ...(canEdit ? ["Actions"] : [])]}>
           {activeFunctions.map((item) => <tr key={item.id}>
-            <td><span className="table-primary">{item.name}</span><span className="table-secondary">{item.function_type}</span></td>
+            <td><span className="table-primary">{item.name}</span><span className="table-secondary">{item.function_type} · <a className="text-link" href={`/documents?entity=function&id=${item.id}`}>Files</a></span></td>
             <td>{scheduleLabel(item.function_date, item.start_time, item.end_time, timezone)}</td>
             <td>{item.venue_name || "Location to be decided"}</td>
             <td>{item.expected_attendance == null ? "Attendance TBD" : item.expected_attendance.toLocaleString("en-IE") + " expected"}
               {item.budget_allocation != null && <span className="table-secondary">{new Intl.NumberFormat("en-IE", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(item.budget_allocation))} allocation</span>}
             </td>
-            <td><StatusLabel>{item.status[0]?.toUpperCase() + item.status.slice(1)}</StatusLabel></td>
+            <td><StageBadge kind="function" status={item.status} /></td>
             {canEdit && <td><div className="function-actions">
               <Button variant="secondary" aria-label={"Edit " + item.name} onClick={() => { setEditing(item); setEditorOpen(true); }}><Pencil size={14} aria-hidden="true" /> Edit</Button>
               <ArchiveFunctionButton weddingId={weddingId} item={item} linkedTasks={arrangements.filter((arrangement) => arrangement.function_id === item.id)} onArchived={onArchived} />

@@ -7,7 +7,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const context = await requireCurrentWorkspace("suppliers_finance");
   const params = await searchParams;
   const data = await getFinanceDashboard(context.wedding.id);
-  // `?due=30` shows exactly the payments counted by the dashboard's "due in 30 days" figure.
-  const dueWithin = params.due === "30" ? { days: 30, today: instantToLocalDate(new Date(), context.wedding.timezone) } : undefined;
+  // `?due=7|30` shows exactly the payments counted by the dashboard's "due in 30 days" figure.
+  const days = params.due === "7" ? 7 : params.due === "30" ? 30 : null;
+  const dueWithin = days ? { days, today: instantToLocalDate(new Date(), context.wedding.timezone) } : undefined;
   return <FinanceManager data={data} weddingId={context.wedding.id} dueWithin={dueWithin} />;
 }

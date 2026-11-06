@@ -37,6 +37,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       assignees={assignees}
       canEdit={canEdit}
       initialView={initialView}
+      viewFromUrl={typeof params.view === "string"}
     />
   </>;
 }

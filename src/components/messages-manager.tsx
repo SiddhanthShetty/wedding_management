@@ -2,12 +2,15 @@
 import { useMemo, useState } from "react";
 import { Copy, Download, Info } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
+import { useShowMore } from "@/components/use-remembered";
+import { Term } from "@/components/term";
 import { Select, TextArea, TextInput } from "@/components/form-fields";
 import { Card, EmptyState, PageHeading } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { createCsv } from "@/lib/planning/guest-csv";
 import { CHANNEL_LABELS, KIND_LABELS, MESSAGE_STATE_LABELS, PLACEHOLDERS, renderTemplate, selectRecipients, unknownPlaceholders, type MessageKind, type Placeholder } from "@/lib/planning/communications";
 import type { CommunicationsWorkspace } from "@/lib/data/communications";
+import { addStarterReminderAction } from "@/app/actions/setup";
 import { archiveTemplateAction, recordMessagesAction, saveTemplateAction, setRecordStateAction } from "@/app/actions/communications";
 
 type Data = CommunicationsWorkspace;
@@ -38,11 +41,13 @@ function TemplateForm({ data, template }: { data: Data; template?: Template }) {
   </ActionForm>;
 }
 
-export function MessagesManager({ data }: { data: Data }) {
+export function MessagesManager({ data, initialFunctionId, initialKind }: { data: Data; initialFunctionId?: string; initialKind?: MessageKind }) {
   const active = data.templates.filter((template) => !template.archived_at);
-  const [templateId, setTemplateId] = useState(active[0]?.id ?? "");
+  const preferred = (initialKind && active.find((row) => row.kind === initialKind && (!row.function_id || row.function_id === initialFunctionId))) || active[0];
+  const [templateId, setTemplateId] = useState(preferred?.id ?? "");
   const template = data.templates.find((row) => row.id === templateId);
-  const [functionId, setFunctionId] = useState(template?.function_id ?? data.functions[0]?.id ?? "");
+  const [functionId, setFunctionId] = useState(data.functions.find((fn) => fn.id === initialFunctionId)?.id ?? template?.function_id ?? data.functions[0]?.id ?? "");
+  const missingReminder = initialKind === "reminder" && !active.some((row) => row.kind === "reminder");
   const [showExcluded, setShowExcluded] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const fn = data.functions.find((row) => row.id === functionId);
@@ -54,6 +59,7 @@ export function MessagesManager({ data }: { data: Data }) {
     householdContact: new Map(data.households.map((row) => [row.id, { email: row.contact_email, phone: row.contact_phone }])),
   }) : [], [template, fn, data]);
   const included = recipients.filter((row) => row.included);
+  const pagedRecipients = useShowMore(recipients.filter((row) => row.included || showExcluded));
   const render = (text: string, guestId: string) => {
     const guest = guestById.get(guestId)!;
     const values: Partial<Record<Placeholder, string | null>> = {
@@ -74,9 +80,10 @@ export function MessagesManager({ data }: { data: Data }) {
   const tz = data.wedding.timezone;
   return <div className="section-stack">
     <PageHeading eyebrow="Guest communication" title="Messages" description="Prepare invitations, reminders and updates. Nothing is sent from this app: copy or export messages, send them yourself, then record what you sent." />
-    <p className="demo-note" role="note"><Info size={15} aria-hidden="true" /> “Marked sent manually” means a member says they sent it. It does not confirm delivery. Delivery confirmation needs a messaging provider, which is not connected.</p>
-    {data.canEdit && <Card title="New template"><TemplateForm data={data} /></Card>}
-    {!data.templates.length ? <Card><EmptyState title="No templates yet" description="Create an invitation or reminder template to preview recipients and prepare messages." /></Card> : <>
+    <p className="demo-note" role="note"><Info size={15} aria-hidden="true" /> <span><Term term="manualSent">Marked sent manually</Term> does not confirm delivery.</span></p>
+    {data.canEdit && missingReminder && data.templates.length > 0 && <Card title="No reminder template yet"><ActionForm action={addStarterReminderAction} submitLabel="Add a ready-made RSVP reminder"><input type="hidden" name="weddingId" value={data.wedding.id} /></ActionForm></Card>}
+    {data.canEdit && <details className="travel-edit"><summary>Create a new template</summary><TemplateForm data={data} /></details>}
+    {!data.templates.length ? <Card><EmptyState title="No templates yet" description="Create an invitation or reminder template to preview recipients and prepare messages." />{data.canEdit && <ActionForm action={addStarterReminderAction} submitLabel="Add a ready-made RSVP reminder"><input type="hidden" name="weddingId" value={data.wedding.id} /></ActionForm>}</Card> : <>
       <Card title="Prepare messages" subtitle="Choose a template and function to see who needs the message and why others are excluded.">
         <div className="field-grid">
           <Select label="Template" value={templateId} onChange={(event) => { setTemplateId(event.target.value); const next = data.templates.find((row) => row.id === event.target.value); if (next?.function_id) setFunctionId(next.function_id); }}>
@@ -97,7 +104,7 @@ export function MessagesManager({ data }: { data: Data }) {
             <Select label="Channel" name="channel" defaultValue="email">{Object.entries(CHANNEL_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
             <TextInput label="Notes" name="notes" maxLength={2000} className="field-full" />
           </ActionForm>}
-          <ul className="doc-list">{recipients.filter((row) => row.included || showExcluded).map((row) => {
+          <ul className="doc-list">{pagedRecipients.visible.map((row) => {
             const guest = guestById.get(row.guestId)!; const subject = render(template.subject, row.guestId); const body = render(template.body, row.guestId); const reach = contact(row.guestId);
             return <li key={row.guestId} className={`travel-guest ${row.included ? "" : "is-muted"}`}>
               <div className="ops-head"><h3 className="row-title">{guest.full_name}</h3><span className={`status status-${row.included ? "pending" : "neutral"}`}>{row.reason}</span></div>
@@ -106,6 +113,7 @@ export function MessagesManager({ data }: { data: Data }) {
                 <button type="button" className="button button-quiet" onClick={() => copy(row.guestId, subject ? `${subject}\n\n${body}` : body)}><Copy size={14} aria-hidden="true" /> {copied === row.guestId ? "Copied" : "Copy message"}</button></>}
             </li>;
           })}</ul>
+          {pagedRecipients.remaining > 0 && <button type="button" className="button button-secondary show-more" onClick={pagedRecipients.showMore}>Show more ({pagedRecipients.remaining} left)</button>}
         </>}
       </Card>
       <Card title="Templates">

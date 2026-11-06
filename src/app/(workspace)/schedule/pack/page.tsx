@@ -3,6 +3,7 @@ import { requireCurrentWorkspace } from "@/lib/auth/access";
 import { getOperationsWorkspace } from "@/lib/data/operations";
 import { PrintButton } from "@/components/print-button";
 import { EmptyState } from "@/components/ui";
+import { describeStatus } from "@/lib/planning/status-vocabulary";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import { ARRANGEMENT_LABELS, ARRANGEMENT_STATUS_LABELS, checklistProgress, ISSUE_STATUS_LABELS, SCHEDULE_STATUS_LABELS, scheduleWarnings, SEVERITY_LABELS, sortIssues } from "@/lib/planning/operations-rules";
 
@@ -48,11 +49,11 @@ export default async function OperationalPackPage({ searchParams }: { searchPara
             <td>{item.activity}{item.setup_requirements && <div className="table-secondary">Setup: {item.setup_requirements}</div>}{item.packup_requirements && <div className="table-secondary">Pack-up: {item.packup_requirements}</div>}{notes.map((warning, index) => <div key={index} className="table-secondary">⚠ {warning.message}</div>)}</td>
             <td>{item.location}</td><td>{owner(item)}{item.backup_contact && <div className="table-secondary">Backup: {item.backup_contact}</div>}</td>
             <td>{vendor ? `${vendor.name}${item.vendor_arrival_at ? ` · arrives ${formatTime(item.vendor_arrival_at, tz)}` : ""}${vendor.contact_phone ? ` · ${vendor.contact_phone}` : ""}` : "—"}</td>
-            <td>{SCHEDULE_STATUS_LABELS[item.status]}{item.delay_note ? ` · ${item.delay_note}` : ""}</td>
+            <td>{describeStatus("schedule", item.status).text}{item.delay_note ? ` · ${item.delay_note}` : ""}</td>
           </tr>; })}</tbody></table>}
-        {issues.length > 0 && <><h3>Open issues</h3><ul>{issues.map((issue) => <li key={issue.id}>{SEVERITY_LABELS[issue.severity]} · {issue.title} · {owner(issue)} · {ISSUE_STATUS_LABELS[issue.status]}</li>)}</ul></>}
+        {issues.length > 0 && <><h3>Open issues</h3><ul>{issues.map((issue) => <li key={issue.id}>{SEVERITY_LABELS[issue.severity]} · {issue.title} · {owner(issue)} · {describeStatus("issue", issue.status).text}</li>)}</ul></>}
         {arrangements.length > 0 && <><h3>Arrangements</h3><ul>{arrangements.map((row) => { const lines = data.checklist.filter((line) => line.arrangement_id === row.id); const progress = checklistProgress(lines); return <li key={row.id}>
-          <strong>{ARRANGEMENT_LABELS[row.category]}: {row.title}</strong> · {owner(row)} · {ARRANGEMENT_STATUS_LABELS[row.status]}{lines.length ? ` · ${progress.done}/${progress.total} done` : ""}
+          <strong>{ARRANGEMENT_LABELS[row.category]}: {row.title}</strong> · {owner(row)} · {describeStatus("arrangement", row.status).text}{lines.length ? ` · ${progress.done}/${progress.total} done` : ""}
           {lines.length > 0 && <ul>{lines.map((line) => <li key={line.id}>{line.is_done ? "☑" : "☐"} {line.label}</li>)}</ul>}
         </li>; })}</ul></>}
       </section>;

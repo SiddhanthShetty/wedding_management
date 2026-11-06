@@ -151,3 +151,56 @@ export function travelGapCounts(states: GuestTravelGap[]) {
     roomNeedUnknown: states.filter((row) => row.accommodation === "unknown").length,
   };
 }
+
+const addDays = (date: string, days: number) => new Date(Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + days)).toISOString().slice(0, 10);
+const localParts = (instant: string, timezone: string) => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(instant)).map((part) => [part.type, part.value]));
+const localInput = (instant: string, timezone: string) => { const p = localParts(instant, timezone); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
+const shiftLocal = (value: string, minutes: number) => new Date(Date.UTC(+value.slice(0, 4), +value.slice(5, 7) - 1, +value.slice(8, 10), +value.slice(11, 13), +value.slice(14, 16) + minutes)).toISOString().slice(0, 16);
+
+/**
+ * Suggested stay dates: the guest's recorded arrival/departure days when known, otherwise the
+ * first function day to the day after the last one.
+ */
+export function defaultStayDates(input: { functionDates: Array<string | null>; arrivalAt: string | null; departureAt: string | null; timezone: string }): { checkIn: string; checkOut: string } {
+  const dates = input.functionDates.filter((date): date is string => Boolean(date)).sort();
+  let checkIn = input.arrivalAt ? localInput(input.arrivalAt, input.timezone).slice(0, 10) : dates[0] ?? "";
+  let checkOut = input.departureAt ? localInput(input.departureAt, input.timezone).slice(0, 10) : dates.length ? addDays(dates.at(-1)!, 1) : "";
+  if (checkIn && checkOut && checkOut <= checkIn) checkOut = addDays(checkIn, 1);
+  if (!checkIn && checkOut) checkIn = addDays(checkOut, -1);
+  return { checkIn, checkOut };
+}
+
+export type PickupSuggestion = { key: string; kind: "arrival" | "departure"; title: string; detail: string; guestIds: string[]; pickupLocal: string; dropoffLocal: string; location: string };
+
+/**
+ * Groups guests who need a ride but have none, by local date and hour of their recorded arrival
+ * or departure. Arrivals are collected 30 minutes after landing; departures leave 3 hours before.
+ */
+export function pickupSuggestions(input: {
+  states: GuestTravelGap[]; profiles: Array<{ guest_id: string; arrival_at: string | null; arrival_details: string; departure_at: string | null; departure_details: string }>; timezone: string;
+}): PickupSuggestion[] {
+  const states = new Map(input.states.map((state) => [state.guestId, state]));
+  const groups = new Map<string, PickupSuggestion & { earliest: string }>();
+  for (const profile of input.profiles) {
+    const state = states.get(profile.guest_id);
+    for (const kind of ["arrival", "departure"] as const) {
+      const at = kind === "arrival" ? profile.arrival_at : profile.departure_at;
+      if (!at || state?.[kind] !== "not_assigned") continue;
+      const local = localInput(at, input.timezone);
+      const key = `${kind}:${local.slice(0, 13)}`;
+      const details = (kind === "arrival" ? profile.arrival_details : profile.departure_details).trim();
+      const existing = groups.get(key);
+      if (existing) {
+        existing.guestIds.push(profile.guest_id);
+        if (details && !existing.detail.includes(details)) existing.detail = existing.detail ? `${existing.detail}, ${details}` : details;
+        if (local < existing.earliest) existing.earliest = local;
+        continue;
+      }
+      groups.set(key, { key, kind, title: "", detail: details, guestIds: [profile.guest_id], pickupLocal: "", dropoffLocal: "", location: details, earliest: local });
+    }
+  }
+  return [...groups.values()].map(({ earliest, ...group }) => {
+    const pickupLocal = group.kind === "arrival" ? shiftLocal(earliest, 30) : shiftLocal(earliest, -180);
+    return { ...group, pickupLocal, dropoffLocal: shiftLocal(pickupLocal, 90), title: `${group.kind === "arrival" ? "Arrival pickup" : "Departure drop-off"} · ${earliest.slice(0, 10)} around ${earliest.slice(11, 13)}:00 · ${group.guestIds.length} guest(s)` };
+  }).sort((a, b) => a.pickupLocal.localeCompare(b.pickupLocal));
+}

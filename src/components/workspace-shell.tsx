@@ -3,23 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BedDouble, ListChecks, Mail, CalendarDays, CheckSquare2, CircleHelp, FileText, Heart, LayoutDashboard, Map, Menu, Settings, UsersRound, UtensilsCrossed, Wallet, X, Scale } from "lucide-react";
+import { ChevronDown, Heart, Menu, Settings, X } from "lucide-react";
 import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
+import { AREAS, areaForPath, currentSectionLabel, isActiveLink, visibleNavGroups } from "@/lib/navigation";
 
-const mainLinks = [
-  { href: "/overview", label: "Overview", icon: LayoutDashboard },
-  { href: "/functions", label: "Functions", icon: CalendarDays, module: "planning" as const },
-  { href: "/tasks", label: "Tasks", icon: CheckSquare2, module: "planning" as const },
-  { href: "/decisions", label: "Decisions", icon: Scale, module: "planning" as const },
-  { href: "/venues-vendors", label: "Venues & Vendors", icon: Map, module: "suppliers_finance" as const },
-  { href: "/budget", label: "Budget", icon: Wallet, module: "suppliers_finance" as const },
-  { href: "/guests", label: "Guests", icon: UsersRound, module: "guests" as const },
-  { href: "/logistics", label: "Catering", icon: UtensilsCrossed, module: "logistics" as const },
-  { href: "/travel", label: "Stays & Transport", icon: BedDouble, module: "logistics" as const },
-  { href: "/schedule", label: "Schedules", icon: ListChecks, module: "logistics" as const },
-  { href: "/messages", label: "Messages", icon: Mail, module: "guests" as const },
-  { href: "/documents", label: "Documents", icon: FileText },
-];
+const COLLAPSED_KEY = "wedding-desk:nav-collapsed";
+function readCollapsed(): string[] {
+  try { const value = JSON.parse(window.localStorage.getItem(COLLAPSED_KEY) ?? "[]"); return Array.isArray(value) ? value.filter((item) => typeof item === "string") : []; } catch { return []; }
+}
 
 export function WorkspaceShell({ children, weddingName, displayName, role, moduleAccess }: { children: React.ReactNode; weddingName: string; displayName: string; role: MemberRole; moduleAccess: Partial<Record<WeddingModule, AccessLevel>> }) {
   const pathname = usePathname();
@@ -40,11 +31,19 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
   }, [open]);
   useEffect(() => { setOpen(false); }, [pathname]);
   useEffect(() => { if (open) sidebarRef.current?.querySelector<HTMLElement>("a[href]")?.focus(); }, [open]);
-  const section = mainLinks.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.label ?? (pathname === "/settings" ? "Settings" : pathname === "/design-system" ? "Design system" : "Overview");
+  const section = currentSectionLabel(pathname);
+  const area = areaForPath(pathname);
+  const [collapsed, setCollapsed] = useState<string[]>([]);
+  useEffect(() => { setCollapsed(readCollapsed()); }, []);
+  const toggleGroup = (id: string) => setCollapsed((current) => {
+    const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
+    try { window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next)); } catch { /* preference only */ }
+    return next;
+  });
   // Only the local design-system reference uses sample content; every other page shows wedding data.
   const isDemoPage = pathname === "/design-system";
   const isOwner = role === "owner" || role === "co_owner";
-  const visibleLinks = mainLinks.filter((item) => !item.module || isOwner || Boolean(moduleAccess[item.module]));
+  const groups = visibleNavGroups(role, moduleAccess);
 
   return <div className="app-shell">
     <button className={`mobile-backdrop ${open ? "is-open" : ""}`} aria-label="Close navigation" onClick={() => setOpen(false)} tabIndex={open ? 0 : -1} />
@@ -55,14 +54,23 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
       <div className="workspace-switcher">
         <span><span className="switch-title">{weddingName}</span><span className="switch-meta">Workspace</span></span>
       </div>
-      <p className="nav-label">Workspace</p>
-      <nav className="nav-list" aria-label="Main navigation">
-        {visibleLinks.map(({ href, label, icon: Icon }) => <Link key={href} className="nav-link" href={href} aria-current={pathname === href ? "page" : undefined}><Icon size={17} strokeWidth={1.8} aria-hidden="true" /><span>{label}</span></Link>)}
+      <nav className="nav-groups" aria-label="Main navigation">
+        {groups.map((group) => {
+          // A group holding the current page always stays open.
+          const isOpen = !collapsed.includes(group.id) || group.links.some((link) => isActiveLink(pathname, link));
+          const links = <ul className="nav-list">{group.links.map((link) => { const Icon = link.icon; return <li key={link.href}><Link className="nav-link" href={link.href} aria-current={isActiveLink(pathname, link) ? "page" : undefined}><Icon size={17} strokeWidth={1.8} aria-hidden="true" /><span>{link.label}</span></Link></li>; })}</ul>;
+          if (!group.label) return <div key={group.id} className="nav-group">{links}</div>;
+          return <div key={group.id} className="nav-group">
+            <button type="button" className="nav-group-toggle" aria-expanded={isOpen} aria-controls={`nav-group-${group.id}`} onClick={() => toggleGroup(group.id)}>
+              <span>{group.label}</span><ChevronDown size={14} aria-hidden="true" className={isOpen ? "is-open" : ""} />
+            </button>
+            <div id={`nav-group-${group.id}`} hidden={!isOpen}>{links}</div>
+          </div>;
+        })}
       </nav>
       <div className="sidebar-bottom">
         {isOwner && <Link className="nav-link" href="/settings" aria-current={pathname === "/settings" ? "page" : undefined}><Settings size={17} strokeWidth={1.8} aria-hidden="true" /><span>Settings</span></Link>}
-        <span className="nav-link" aria-disabled="true" title="Help is not connected in this preview"><CircleHelp size={17} strokeWidth={1.8} aria-hidden="true" /><span>Help centre · preview</span></span>
-        <div className="profile-row"><span className="avatar" aria-hidden="true">{displayName.slice(0, 2).toUpperCase()}</span><span><span className="profile-name">{displayName}</span><span className="profile-role">Authenticated member</span></span></div>
+        <div className="profile-row"><span className="avatar" aria-hidden="true">{displayName.slice(0, 2).toUpperCase()}</span><span><span className="profile-name">{displayName}</span><span className="profile-role">{role === "owner" ? "Owner" : role === "co_owner" ? "Co-owner" : role === "read_only_collaborator" ? "View only" : "Family helper"}</span></span></div>
       </div>
     </aside>
     <div className="main-column">
@@ -71,7 +79,9 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
         <div className="topbar-right"><span className="topbar-date">{isDemoPage ? "Demo sample records" : "Wedding data"}</span><span className="avatar" aria-label={displayName}>{displayName.slice(0, 2).toUpperCase()}</span></div>
       </header>
       {isDemoPage && <div className="demo-banner"><span className="demo-pill">SAMPLE DATA</span><span>Sample records, dates and figures are synthetic and are not saved to your wedding.</span></div>}
-      <main id="main-content" className="main-content" inert={open}>{children}<p className="footer-note">{isDemoPage ? "Private wedding planning workspace · Demo shell" : "Private wedding planning workspace · Changes are saved to this wedding"}</p></main>
+      <main id="main-content" className="main-content" inert={open}>{area && <nav className="area-tabs" aria-label={area === "guests" ? "Guests sections" : "Wedding week sections"}>
+        {AREAS[area].filter((tab) => groups.some((group) => group.links.some((link) => link.area === area))).map((tab) => <Link key={tab.href} href={tab.href} className="area-tab" aria-current={pathname === tab.href || pathname.startsWith(`${tab.href}/`) ? "page" : undefined}>{tab.label}</Link>)}
+      </nav>}{children}<p className="footer-note">{isDemoPage ? "Private wedding planning workspace · Demo shell" : "Private wedding planning workspace · Changes are saved to this wedding"}</p></main>
     </div>
   </div>;
 }

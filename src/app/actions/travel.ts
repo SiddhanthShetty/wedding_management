@@ -149,7 +149,14 @@ const journeyFields = (form: FormData) => ({
 });
 
 export async function createJourneyAction(_state: TravelActionState, form: FormData): Promise<TravelActionState> {
-  return run(form, "Journey created.", async (weddingId) => { await createJourney(weddingId, journeySchema.parse(journeyFields(form)), submissionKey(form)); });
+  return run(form, "Journey created.", async (weddingId) => {
+    const guestIds = z.array(id).max(100).parse(all(form, "board_guest_ids"));
+    const journeyId = await createJourney(weddingId, journeySchema.parse(journeyFields(form)), submissionKey(form));
+    if (!journeyId || !guestIds.length) return journeyId ? undefined : "Already saved.";
+    // Suggested pickups board their guests straight away; any that do not fit are reported.
+    const result = await addPassengers(weddingId, journeyId, guestIds);
+    return result.rejected.length ? `Journey created with ${result.added} passenger(s). Not boarded: ${[...new Set(result.rejected)].join(" ")}` : `Journey created with ${result.added} passenger(s).`;
+  });
 }
 
 export async function updateJourneyAction(_state: TravelActionState, form: FormData): Promise<TravelActionState> {

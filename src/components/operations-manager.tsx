@@ -4,10 +4,12 @@ import Link from "next/link";
 import { AlertTriangle, CalendarClock, ClipboardCheck, Printer, Truck, UserRound } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { TabList } from "@/components/tab-list";
+import { useRememberedState } from "@/components/use-remembered";
 import { Checkbox, Select, TextArea, TextInput } from "@/components/form-fields";
-import { Card, EmptyState, PageHeading } from "@/components/ui";
+import { Card, EmptyState, PageHeading, StageBadge } from "@/components/ui";
+import { describeStatus, statusOptions } from "@/lib/planning/status-vocabulary";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
-import { instantToLocalInput } from "@/lib/planning/local-time";
+import { addMinutesToLocal, defaultScheduleStart, instantToLocalInput } from "@/lib/planning/local-time";
 import {
   ARRANGEMENT_LABELS, ARRANGEMENT_STATUS_LABELS, checklistProgress, ISSUE_STATUS_LABELS, minutesLate, ownerKey, SCHEDULE_STATUS_LABELS, scheduleWarnings,
   SEVERITY_LABELS, sortIssues, unresolvedIssueCounts, type ArrangementCategory, type IssueSeverity, type ScheduleStatus,
@@ -27,13 +29,10 @@ const TABS: Array<{ id: OperationsTab; label: string; icon: typeof CalendarClock
   { id: "vendors", label: "Vendor arrivals", icon: Truck },
   { id: "coordinators", label: "Coordinator view", icon: UserRound },
   { id: "issues", label: "Issues", icon: AlertTriangle },
-  { id: "arrangements", label: "Arrangements", icon: ClipboardCheck },
+  { id: "arrangements", label: "Things to arrange", icon: ClipboardCheck },
 ];
 
-function ScheduleBadge({ status }: { status: ScheduleStatus }) {
-  const kind = status === "done" ? "complete" : status === "cancelled" ? "cancelled" : status === "delayed" ? "overdue" : status === "planned" ? "pending" : "confirmed";
-  return <span className={`status status-${kind}`}><span aria-hidden="true">•</span>{SCHEDULE_STATUS_LABELS[status]}</span>;
-}
+function ScheduleBadge({ status }: { status: ScheduleStatus }) { return <StageBadge kind="schedule" status={status} />; }
 function SeverityBadge({ severity }: { severity: IssueSeverity }) {
   const kind = severity === "critical" || severity === "high" ? "overdue" : severity === "medium" ? "pending" : "neutral";
   return <span className={`status status-${kind}`}><span aria-hidden="true">!</span>{SEVERITY_LABELS[severity]}</span>;
@@ -51,8 +50,8 @@ function useLookups(data: Data) {
   }, [data]);
 }
 
-export function OperationsManager({ data, initialTab, initialFunctionId }: { data: Data; initialTab: OperationsTab; initialFunctionId: string | null }) {
-  const [tab, setTab] = useState<OperationsTab>(initialTab);
+export function OperationsManager({ data, initialTab, initialFunctionId, tabFromUrl = false }: { data: Data; initialTab: OperationsTab; initialFunctionId: string | null; tabFromUrl?: boolean }) {
+  const [tab, setTab] = useRememberedState<OperationsTab>("schedule-tab", initialTab, ["timeline", "vendors", "coordinators", "issues", "arrangements"], tabFromUrl);
   const lookups = useLookups(data);
   const warnings = useMemo(() => scheduleWarnings({
     items: data.items, dependencies: data.dependencies,
@@ -65,7 +64,7 @@ export function OperationsManager({ data, initialTab, initialFunctionId }: { dat
     const url = new URL(window.location.href); url.searchParams.set("tab", next); window.history.replaceState(null, "", url);
   };
   return <div className="ops-page">
-    <PageHeading eyebrow="Wedding-day operations" title="Schedules & arrangements"
+    <PageHeading eyebrow="Wedding week" title="Run sheets & things to arrange"
       description="Run sheets per function, vendor arrivals, issues and supporting arrangements. Recording a delay never moves the rest of the schedule; affected items are flagged for you to review."
       action={<Link className="button button-secondary" href={`/schedule/pack${initialFunctionId ? `?function=${initialFunctionId}` : ""}`}><Printer size={15} aria-hidden="true" /> Operational pack</Link>} />
     <div className="metric-inline travel-gaps">
@@ -96,19 +95,23 @@ function OwnerFields({ data, owner }: { data: Data; owner?: { owner_user_id: str
 
 function ScheduleFields({ data, item, functionId }: { data: Data; item?: Item; functionId: string }) {
   const tz = data.wedding.timezone;
+  // New items start where the function's last item ends (or at the function's start) and last an hour.
+  const fn = data.functions.find((row) => row.id === functionId);
+  const last = data.items.filter((row) => row.function_id === functionId && row.status !== "cancelled").at(-1);
+  const suggestedStart = item ? "" : defaultScheduleStart({ lastItemEnd: last?.planned_end ?? null, functionStart: fn?.starts_at ?? null, functionDate: fn?.function_date ?? null, timezone: tz });
   return <>
     <input type="hidden" name="function_id" value={item?.function_id ?? functionId} />
     <TextInput label="Activity" name="activity" required maxLength={200} defaultValue={item?.activity} />
     <TextInput label="Location" name="location" maxLength={300} defaultValue={item?.location} />
-    <TextInput label={`Planned start (${tz})`} name="planned_start" type="datetime-local" required defaultValue={instantToLocalInput(item?.planned_start, tz)} />
-    <TextInput label={`Planned end (${tz})`} name="planned_end" type="datetime-local" required defaultValue={instantToLocalInput(item?.planned_end, tz)} />
+    <TextInput label={`Planned start (${tz})`} name="planned_start" type="datetime-local" required defaultValue={item ? instantToLocalInput(item.planned_start, tz) : suggestedStart} />
+    <TextInput label={`Planned end (${tz})`} name="planned_end" type="datetime-local" required defaultValue={item ? instantToLocalInput(item.planned_end, tz) : suggestedStart && addMinutesToLocal(suggestedStart, 60)} hint={item ? undefined : "Suggested: right after the previous item, for an hour."} />
     {item && <TextInput label="Actual start" name="actual_start" type="datetime-local" defaultValue={instantToLocalInput(item.actual_start, tz)} />}
     {item && <TextInput label="Actual end" name="actual_end" type="datetime-local" defaultValue={instantToLocalInput(item.actual_end, tz)} />}
     <OwnerFields data={data} owner={item} />
     <TextInput label="Backup contact" name="backup_contact" maxLength={300} defaultValue={item?.backup_contact} />
     <Select label="Linked vendor" name="supplier_id" defaultValue={item?.supplier_id ?? ""}><option value="">None</option>{data.suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name} · {supplier.category}</option>)}</Select>
     <TextInput label={`Vendor arrival (${tz})`} name="vendor_arrival_at" type="datetime-local" defaultValue={instantToLocalInput(item?.vendor_arrival_at, tz)} />
-    <Select label="Status" name="status" defaultValue={item?.status ?? "planned"}>{Object.entries(SCHEDULE_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
+    <Select label="Status" name="status" defaultValue={item?.status ?? "planned"}>{statusOptions("schedule").map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</Select>
     <TextInput label="Delay note" name="delay_note" maxLength={1000} defaultValue={item?.delay_note} hint="Required when the status is Delayed." />
     <TextArea label="Setup requirements" name="setup_requirements" maxLength={2000} defaultValue={item?.setup_requirements} />
     <TextArea label="Pack-up requirements" name="packup_requirements" maxLength={2000} defaultValue={item?.packup_requirements} />
@@ -170,7 +173,7 @@ function TimelinePanel({ data, lookups, warnings, initialFunctionId }: { data: D
         </li>;
       })}</ol>}
     {data.canEdit && functionId && <Card title="Add a schedule item" subtitle="Times are in the wedding timezone. Overlapping owners or locations produce warnings, not automatic changes.">
-      <ActionForm action={createScheduleItemAction} submitLabel="Add item" resetOnSuccess idempotent className="field-grid">
+      <ActionForm key={`${functionId}:${items.length}`} action={createScheduleItemAction} submitLabel="Add item" resetOnSuccess idempotent className="field-grid">
         <input type="hidden" name="weddingId" value={data.wedding.id} />
         <ScheduleFields data={data} functionId={functionId} />
         {items.length > 0 && <Select label="Happens after" name="depends_on" multiple size={Math.min(5, items.length)} hint="Optional. Hold Ctrl or Cmd to choose several.">{items.map((item) => <option key={item.id} value={item.id}>{item.activity}</option>)}</Select>}
@@ -217,9 +220,9 @@ function CoordinatorPanel({ data, lookups }: { data: Data; lookups: Lookups }) {
   data.arrangements.filter((row) => row.status !== "done" && row.status !== "cancelled").forEach((row) => bucket(row).arrangements.push(row));
   if (!groups.size) return <Card><EmptyState title="Nothing outstanding" description="Open schedule items, issues and arrangements appear here grouped by owner." /></Card>;
   return <>{[...groups.entries()].sort(([a], [b]) => Number(a === "unassigned") - Number(b === "unassigned")).map(([key, group]) => <Card key={key} title={group.label} subtitle={`${group.items.length} schedule item(s) · ${group.issues.length} open issue(s) · ${group.arrangements.length} arrangement(s)`}>
-    {group.items.length > 0 && <ul className="reference-list">{group.items.map((item) => <li key={item.id} className="reference-row"><span><span className="row-title">{formatDateTime(item.planned_start, tz)} · {item.activity}</span><span className="row-meta">{lookups.functionName.get(item.function_id)} · {item.location || "No location"} · {SCHEDULE_STATUS_LABELS[item.status]}</span></span></li>)}</ul>}
-    {group.issues.length > 0 && <ul className="reference-list">{sortIssues(group.issues).map((issue) => <li key={issue.id} className="reference-row"><span><span className="row-title">{issue.title}</span><span className="row-meta">{SEVERITY_LABELS[issue.severity]} · {ISSUE_STATUS_LABELS[issue.status]}</span></span></li>)}</ul>}
-    {group.arrangements.length > 0 && <ul className="reference-list">{group.arrangements.map((row) => <li key={row.id} className="reference-row"><span><span className="row-title">{row.title}</span><span className="row-meta">{ARRANGEMENT_LABELS[row.category]} · {ARRANGEMENT_STATUS_LABELS[row.status]}{row.due_date ? ` · due ${formatDate(`${row.due_date}T12:00:00Z`, "UTC")}` : ""}</span></span></li>)}</ul>}
+    {group.items.length > 0 && <ul className="reference-list">{group.items.map((item) => <li key={item.id} className="reference-row"><span><span className="row-title">{formatDateTime(item.planned_start, tz)} · {item.activity}</span><span className="row-meta">{lookups.functionName.get(item.function_id)} · {item.location || "No location"} · {describeStatus("schedule", item.status).text}</span></span></li>)}</ul>}
+    {group.issues.length > 0 && <ul className="reference-list">{sortIssues(group.issues).map((issue) => <li key={issue.id} className="reference-row"><span><span className="row-title">{issue.title}</span><span className="row-meta">{SEVERITY_LABELS[issue.severity]} · {describeStatus("issue", issue.status).text}</span></span></li>)}</ul>}
+    {group.arrangements.length > 0 && <ul className="reference-list">{group.arrangements.map((row) => <li key={row.id} className="reference-row"><span><span className="row-title">{row.title}</span><span className="row-meta">{ARRANGEMENT_LABELS[row.category]} · {describeStatus("arrangement", row.status).text}{row.due_date ? ` · due ${formatDate(`${row.due_date}T12:00:00Z`, "UTC")}` : ""}</span></span></li>)}</ul>}
   </Card>)}</>;
 }
 
@@ -242,14 +245,14 @@ function IssuePanel({ data, lookups }: { data: Data; lookups: Lookups }) {
     <Card title="Issue list" subtitle="Unresolved first, then by severity." action={<Checkbox label="Show resolved" checked={showResolved} onChange={(event) => setShowResolved(event.target.checked)} />}>
       {!issues.length ? <EmptyState title="No open issues" description="Logged issues appear here with their severity and owner." /> :
         <ul className="ops-issues">{issues.map((issue) => <li key={issue.id} className={`travel-guest ${issue.status === "resolved" ? "is-muted" : ""}`}>
-          <div className="ops-head"><h3 className="row-title">{issue.title}</h3><SeverityBadge severity={issue.severity} /><span className="status status-neutral">{ISSUE_STATUS_LABELS[issue.status]}</span></div>
+          <div className="ops-head"><h3 className="row-title">{issue.title}</h3><SeverityBadge severity={issue.severity} /><StageBadge kind="issue" status={issue.status} /></div>
           <p className="row-meta">Owner: {lookups.ownerLabel(issue)}{issue.function_id ? ` · ${lookups.functionName.get(issue.function_id)}` : ""} · logged {formatDateTime(issue.created_at, tz)}{issue.resolved_at ? ` · resolved ${formatDateTime(issue.resolved_at, tz)}` : ""}</p>
           {issue.details && <p>{issue.details}</p>}
           {issue.resolution_note && <p className="row-meta">Resolution: {issue.resolution_note}</p>}
           {data.canEdit && <details className="travel-edit"><summary>Update issue</summary>
             <ActionForm action={updateIssueAction} submitLabel="Save issue" className="field-grid">
               <input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="issueId" value={issue.id} /><input type="hidden" name="version" value={issue.version} />
-              <Select label="Status" name="status" defaultValue={issue.status}>{Object.entries(ISSUE_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
+              <Select label="Status" name="status" defaultValue={issue.status}>{statusOptions("issue").map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</Select>
               <Select label="Severity" name="severity" defaultValue={issue.severity}>{Object.entries(SEVERITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
               <OwnerFields data={data} owner={issue} />
               <TextArea label="Resolution note" name="resolution_note" maxLength={2000} defaultValue={issue.resolution_note} className="field-full" hint="Required to resolve." />
@@ -266,7 +269,7 @@ function ArrangementFields({ data, row }: { data: Data; row?: Data["arrangements
     <Select label="Category" name="category" defaultValue={row?.category ?? "decor"}>{Object.entries(ARRANGEMENT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
     <TextInput label="Title" name="title" required maxLength={200} defaultValue={row?.title} />
     <Select label="Function" name="function_id" defaultValue={row?.function_id ?? ""}><option value="">Whole wedding</option>{data.functions.map((fn) => <option key={fn.id} value={fn.id}>{fn.name}</option>)}</Select>
-    <Select label="Status" name="status" defaultValue={row?.status ?? "not_started"}>{Object.entries(ARRANGEMENT_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
+    <Select label="Status" name="status" defaultValue={row?.status ?? "not_started"}>{statusOptions("arrangement").map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</Select>
     <OwnerFields data={data} owner={row} />
     <Select label="Vendor" name="supplier_id" defaultValue={row?.supplier_id ?? ""}><option value="">None</option>{data.suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select>
     <TextInput label="Due date" name="due_date" type="date" defaultValue={row?.due_date ?? ""} />
@@ -297,7 +300,7 @@ function ArrangementPanel({ data, lookups }: { data: Data; lookups: Lookups }) {
         const lines = data.checklist.filter((line) => line.arrangement_id === row.id);
         const progress = checklistProgress(lines);
         return <Card key={row.id} title={row.title} subtitle={[ARRANGEMENT_LABELS[row.category], row.function_id ? lookups.functionName.get(row.function_id) : "Whole wedding", `Owner: ${lookups.ownerLabel(row)}`, row.due_date && `Due ${formatDate(`${row.due_date}T12:00:00Z`, "UTC")}`, row.event_at && formatDateTime(row.event_at, tz)].filter(Boolean).join(" · ")}
-          action={<span className={`status status-${row.status === "done" ? "complete" : row.status === "cancelled" ? "cancelled" : row.status === "ready" ? "confirmed" : "pending"}`}>{ARRANGEMENT_STATUS_LABELS[row.status]}</span>}>
+          action={<StageBadge kind="arrangement" status={row.status} />}>
           {row.details && <p>{row.details}</p>}
           {row.reference_url && <p className="row-meta"><a className="text-link" href={row.reference_url} target="_blank" rel="noopener noreferrer">Reference / design</a> · {row.design_approved_at ? `Approved by ${lookups.memberName.get(row.design_approved_by_user_id ?? "") ?? "a member"} on ${formatDate(row.design_approved_at, tz)}` : "Not approved"}</p>}
           {row.quantity !== null && <p className="row-meta">Quantity: {row.quantity}</p>}

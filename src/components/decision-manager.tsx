@@ -6,7 +6,7 @@ import {
   addDecisionCommentAction, addDecisionOptionAction, createDecisionAction,
   saveDecisionPreferenceAction, updateDecisionAction,
 } from "@/app/actions/decisions";
-import { Button, Card, EmptyState, NotificationRegion, StatusLabel } from "@/components/ui";
+import { Button, Card, EmptyState, NotificationRegion, StageBadge, StatusLabel } from "@/components/ui";
 import { Dialog } from "@/components/dialog";
 import type { WeddingDecision } from "@/lib/data/decisions";
 
@@ -63,7 +63,7 @@ function CreateDecisionDialog({ open, weddingId, onClose, onCreated }: { open: b
 function DecisionCard({ weddingId, currentUserId, decision, canEdit }: { weddingId: string; currentUserId: string; decision: WeddingDecision; canEdit: boolean }) {
   const [state, action, pending] = useActionState(updateDecisionAction, {});
   return <article className="decision-card">
-    <div className="decision-card-header"><div><p className="eyebrow">Question</p><h3>{decision.question}</h3></div><StatusLabel>{decision.status[0]?.toUpperCase() + decision.status.slice(1)}</StatusLabel></div>
+    <div className="decision-card-header"><div><p className="eyebrow">Question</p><h3>{decision.question}</h3></div><StageBadge kind="decision" status={decision.status} /></div>
     {decision.status === "decided" && <div className="decision-final">
       <strong>Final choice:</strong> {decision.options.find((option) => option.id === decision.final_option_id)?.label ?? "Recorded option"}
       <span>{decision.decision_date && localDateLabel(decision.decision_date)} · decided by {decision.decision_maker_user_id === currentUserId ? "you" : decision.decision_maker_name ?? "a wedding member"}</span>

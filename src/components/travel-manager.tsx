@@ -3,13 +3,17 @@ import { useMemo, useState } from "react";
 import { BedDouble, Bus, ClipboardList, Printer, UsersRound } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { TabList } from "@/components/tab-list";
+import { useRememberedState, useShowMore } from "@/components/use-remembered";
+import { allocateHouseholdAction } from "@/app/actions/bulk";
+import { Term } from "@/components/term";
 import { Checkbox, Select, TextArea, TextInput } from "@/components/form-fields";
-import { Card, EmptyState, PageHeading, StatusLabel } from "@/components/ui";
+import { Card, EmptyState, PageHeading, StageBadge } from "@/components/ui";
+import { describeStatus, statusOptions } from "@/lib/planning/status-vocabulary";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import { instantToLocalInput } from "@/lib/planning/local-time";
 import {
   ALLOCATION_LABELS, JOURNEY_KIND_LABELS, JOURNEY_STATUS_LABELS, NEED_LABELS, NEED_STATE_LABELS, PAYMENT_LABELS,
-  stayCapacityIssues, stayNights, travelGapCounts, vehicleConflicts,
+  defaultStayDates, pickupSuggestions, stayCapacityIssues, stayNights, travelGapCounts, vehicleConflicts, type PickupSuggestion,
   type AllocationStatus, type JourneyStatus, type NeedState,
 } from "@/lib/planning/travel-rules";
 import type { TravelWorkspace } from "@/lib/data/travel";
@@ -24,8 +28,8 @@ type Data = TravelWorkspace;
 
 const TABS: Array<{ id: TravelTab; label: string; icon: typeof BedDouble }> = [
   { id: "needs", label: "Guest needs", icon: UsersRound },
-  { id: "accommodation", label: "Accommodation", icon: BedDouble },
-  { id: "transport", label: "Transport", icon: Bus },
+  { id: "accommodation", label: "Rooms", icon: BedDouble },
+  { id: "transport", label: "Rides", icon: Bus },
   { id: "summaries", label: "Hotel & driver summaries", icon: ClipboardList },
 ];
 const FILTERS: Array<{ id: TravelFilter; label: string }> = [
@@ -43,14 +47,11 @@ function NeedBadge({ state }: { state: NeedState }) {
   const kind = state === "not_assigned" ? "overdue" : state === "allocated" ? "confirmed" : state === "unknown" ? "pending" : "neutral";
   return <span className={`status status-${kind}`}><span aria-hidden="true">{state === "allocated" ? "✓" : state === "not_assigned" ? "!" : "•"}</span>{NEED_STATE_LABELS[state]}</span>;
 }
-function AllocationBadge({ status }: { status: AllocationStatus }) { return <StatusLabel>{ALLOCATION_LABELS[status] === "Proposed" ? "Tentative" : ALLOCATION_LABELS[status]}</StatusLabel>; }
-function JourneyBadge({ status }: { status: JourneyStatus }) {
-  const kind = status === "completed" ? "complete" : status === "cancelled" ? "cancelled" : status === "planned" ? "pending" : "confirmed";
-  return <span className={`status status-${kind}`}><span aria-hidden="true">•</span>{JOURNEY_STATUS_LABELS[status]}</span>;
-}
+function AllocationBadge({ status }: { status: AllocationStatus }) { return <StageBadge kind="stay" status={status} />; }
+function JourneyBadge({ status }: { status: JourneyStatus }) { return <StageBadge kind="journey" status={status} />; }
 
-export function TravelManager({ data, initialTab, initialFilter }: { data: Data; initialTab: TravelTab; initialFilter: TravelFilter }) {
-  const [tab, setTab] = useState<TravelTab>(initialTab);
+export function TravelManager({ data, initialTab, initialFilter, tabFromUrl = false }: { data: Data; initialTab: TravelTab; initialFilter: TravelFilter; tabFromUrl?: boolean }) {
+  const [tab, setTab] = useRememberedState<TravelTab>("travel-tab", initialTab, ["needs", "accommodation", "transport", "summaries"], tabFromUrl);
   const [printing, setPrinting] = useState<"hotel" | "driver" | null>(null);
   const tz = data.wedding.timezone;
   const guestName = useMemo(() => new Map(data.guests.map((guest) => [guest.guest_id, guest.full_name])), [data.guests]);
@@ -64,8 +65,8 @@ export function TravelManager({ data, initialTab, initialFilter }: { data: Data;
   const print = (kind: "hotel" | "driver") => { setPrinting(kind); requestAnimationFrame(() => { window.print(); setPrinting(null); }); };
 
   return <div className="travel-page" data-print={printing ?? undefined}>
-    <PageHeading eyebrow="Guest logistics" title="Stays & transport"
-      description="Rooms, nights and journeys for existing guests. Proposed allocations stay separate from confirmed ones, and only confirmed stays or journeys you share appear in the guest portal." />
+    <PageHeading eyebrow="Wedding week" title="Who's staying where & getting around"
+      description="Rooms and rides for your guests. Planned arrangements stay separate from confirmed ones, and guests only see confirmed stays and rides you choose to share." />
     <div className="metric-inline travel-gaps" aria-label="Guests needing allocations">
       <a className="metric-chip" href="/travel?tab=needs&filter=rooms-missing"><strong>{counts.roomsNotAssigned}</strong> need a room · not assigned</a>
       <a className="metric-chip" href="/travel?tab=needs&filter=arrivals-missing"><strong>{counts.arrivalsNotAssigned}</strong> need arrival transport · not assigned</a>
@@ -100,8 +101,10 @@ function NeedsPanel({ data, initialFilter }: { data: Data; initialFilter: Travel
     if (filter === "room-unknown") return state.accommodation === "unknown";
     return true;
   });
+  const paged = useShowMore(rows);
   if (!data.guests.length) return <Card><EmptyState title="No guests yet" description="Add people on the Guests page first. Stays and journeys are always linked to existing guest records." /></Card>;
-  return <Card title="Guest travel needs" subtitle="“Not assigned” means a need is marked required but nothing is allocated. “Unknown” means nobody has recorded the need yet.">
+  return <Card title="Guest travel needs" subtitle="Who needs a room or a ride, and whether it is arranged.">
+    <p className="field-help"><Term term="notAssigned">Not assigned</Term> · <Term term="unknown">Unknown</Term></p>
     <div className="table-toolbar">
       <div className="filter-group" role="group" aria-label="Filter guests">
         {FILTERS.map((option) => <button key={option.id} type="button" className={`chip ${filter === option.id ? "is-active" : ""}`} aria-pressed={filter === option.id} onClick={() => setFilter(option.id)}>{option.label}</button>)}
@@ -110,7 +113,7 @@ function NeedsPanel({ data, initialFilter }: { data: Data; initialFilter: Travel
     </div>
     <p className="field-help" role="status">{rows.length} of {data.guests.length} guests shown.</p>
     {!rows.length ? <EmptyState title="No guests match" description="Nobody matches this filter. That is good news for the “not assigned” filters." /> :
-      <div className="travel-guest-list">{rows.map((guest) => {
+      <><div className="travel-guest-list">{paged.visible.map((guest) => {
         const state = states.get(guest.guest_id)!;
         const profile = profiles.get(guest.guest_id);
         return <article key={guest.guest_id} className="travel-guest">
@@ -141,7 +144,7 @@ function NeedsPanel({ data, initialFilter }: { data: Data; initialFilter: Travel
             </ActionForm>
           </details>}
         </article>;
-      })}</div>}
+      })}</div>{paged.remaining > 0 && <button type="button" className="button button-secondary show-more" onClick={paged.showMore}>Show more ({paged.remaining} left)</button>}</>}
   </Card>;
 }
 
@@ -225,20 +228,26 @@ function AccommodationPanel({ data, guestName }: { data: Data; guestName: Map<st
                 <td>{stay.special_requirements || "—"}</td>
                 {data.canEdit && <td><ActionForm action={setStayStatusAction} submitLabel="Update" className="inline-action-form" ariaLabel={`Change stay status for ${guestName.get(stay.guest_id) ?? "guest"}`}>
                   <input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="stayId" value={stay.id} /><input type="hidden" name="version" value={stay.version} />
-                  <Select label="Status" name="status" defaultValue={stay.status}><option value="proposed">Proposed</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option></Select>
+                  <Select label="Status" name="status" defaultValue={stay.status}>{statusOptions("stay").map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</Select>
                 </ActionForm></td>}
               </tr>)}</tbody></table></div>}
         </Card>;
       })}
     {data.canEdit && data.rooms.length > 0 && <AllocateStay data={data} roomLabel={roomLabel} />}
+    {data.canEdit && data.rooms.length > 0 && data.households.length > 0 && <AllocateHousehold data={data} roomLabel={roomLabel} />}
   </>;
 }
 
 function AllocateStay({ data, roomLabel }: { data: Data; roomLabel: (roomId: string) => string }) {
+  const stayDefaults = (guest: string) => {
+    const profile = data.profiles.find((row) => row.guest_id === guest);
+    return defaultStayDates({ functionDates: data.functions.map((fn) => (fn as { function_date?: string | null }).function_date ?? null), arrivalAt: profile?.arrival_at ?? null, departureAt: profile?.departure_at ?? null, timezone: data.wedding.timezone });
+  };
+  const initial = stayDefaults("");
   const [guestId, setGuestId] = useState("");
   const [roomId, setRoomId] = useState("");
-  const [checkIn, setCheckIn] = useState("");
-  const [checkOut, setCheckOut] = useState("");
+  const [checkIn, setCheckIn] = useState(initial.checkIn);
+  const [checkOut, setCheckOut] = useState(initial.checkOut);
   const [extraBed, setExtraBed] = useState(false);
   const [status, setStatus] = useState<AllocationStatus>("proposed");
   const issues = useMemo(() => {
@@ -258,11 +267,11 @@ function AllocateStay({ data, roomLabel }: { data: Data; roomLabel: (roomId: str
   return <Card title="Allocate a room" subtitle="The database rejects allocations outside held nights, above occupancy, or that double-book a guest. Warnings below preview those checks.">
     <ActionForm action={createStayAction} submitLabel="Allocate room" className="field-grid">
       <input type="hidden" name="weddingId" value={data.wedding.id} />
-      <Select label="Guest" name="guest_id" required value={guestId} onChange={(event) => setGuestId(event.target.value)}><option value="">Choose a guest</option>{data.guests.map((guest) => <option key={guest.guest_id} value={guest.guest_id}>{guest.full_name}{guest.household_name ? ` (${guest.household_name})` : ""}</option>)}</Select>
+      <Select label="Guest" name="guest_id" required value={guestId} hint="Dates fill in from the guest's recorded arrival and departure when known." onChange={(event) => { setGuestId(event.target.value); const next = stayDefaults(event.target.value); setCheckIn(next.checkIn); setCheckOut(next.checkOut); }}><option value="">Choose a guest</option>{data.guests.map((guest) => <option key={guest.guest_id} value={guest.guest_id}>{guest.full_name}{guest.household_name ? ` (${guest.household_name})` : ""}</option>)}</Select>
       <Select label="Room" name="room_id" required value={roomId} onChange={(event) => setRoomId(event.target.value)}><option value="">Choose a room</option>{data.rooms.map((room) => <option key={room.id} value={room.id}>{data.properties.find((property) => property.id === data.roomTypes.find((type) => type.id === room.room_type_id)?.property_id)?.name} · {roomLabel(room.id)}</option>)}</Select>
       <TextInput label="Check-in" name="check_in_date" type="date" required value={checkIn} onChange={(event) => setCheckIn(event.target.value)} />
       <TextInput label="Check-out" name="check_out_date" type="date" required value={checkOut} onChange={(event) => setCheckOut(event.target.value)} />
-      <Select label="Allocation" name="status" value={status} onChange={(event) => setStatus(event.target.value as AllocationStatus)}><option value="proposed">Proposed</option><option value="confirmed">Confirmed</option></Select>
+      <Select label="Allocation" name="status" value={status} onChange={(event) => setStatus(event.target.value as AllocationStatus)}><option value="proposed">Planned (not yet confirmed with the hotel)</option><option value="confirmed">Confirmed</option></Select>
       <Select label="Who pays" name="payment_responsibility" defaultValue="unknown">{Object.entries(PAYMENT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
       <Checkbox label="Uses an extra bed" name="uses_extra_bed" checked={extraBed} onChange={(event) => setExtraBed(event.target.checked)} />
       <TextArea label="Special requirements" name="special_requirements" maxLength={2000} hint="For example ground floor or a cot." />
@@ -272,19 +281,39 @@ function AllocateStay({ data, roomLabel }: { data: Data; roomLabel: (roomId: str
   </Card>;
 }
 
-function JourneyFields({ data, journey }: { data: Data; journey?: Data["journeys"][number] }) {
+type JourneyPrefill = Pick<PickupSuggestion, "kind" | "title" | "pickupLocal" | "dropoffLocal" | "location" | "guestIds">;
+function AllocateHousehold({ data, roomLabel }: { data: Data; roomLabel: (roomId: string) => string }) {
+  const span = defaultStayDates({ functionDates: data.functions.map((fn) => (fn as { function_date?: string | null }).function_date ?? null), arrivalAt: null, departureAt: null, timezone: data.wedding.timezone });
+  return <Card title="Place a whole household" subtitle="Fills the rooms you tick in order, up to each room's occupancy. Each stay is still checked for held nights and clashes; anyone who cannot be placed is listed.">
+    <ActionForm action={allocateHouseholdAction} submitLabel="Place household" className="field-grid">
+      <input type="hidden" name="weddingId" value={data.wedding.id} />
+      <Select label="Household" name="householdId" required defaultValue=""><option value="" disabled>Choose a household</option>{data.households.map((household) => <option key={household.id} value={household.id}>{household.name} ({household.guest_ids.length})</option>)}</Select>
+      <TextInput label="Check-in" name="checkIn" type="date" required defaultValue={span.checkIn} />
+      <TextInput label="Check-out" name="checkOut" type="date" required defaultValue={span.checkOut} />
+      <Select label="Allocation" name="status" defaultValue="proposed"><option value="proposed">Planned (not yet confirmed with the hotel)</option><option value="confirmed">Confirmed</option></Select>
+      <Select label="Who pays" name="payment" defaultValue="unknown">{Object.entries(PAYMENT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
+      <fieldset className="check-list field-full"><legend className="field-label">Rooms, in the order to fill</legend>
+        {data.rooms.map((room) => <label key={room.id} className="check-row"><input type="checkbox" name="roomIds" value={room.id} /> {data.properties.find((property) => property.id === data.roomTypes.find((type) => type.id === room.room_type_id)?.property_id)?.name} · {roomLabel(room.id)}</label>)}
+      </fieldset>
+    </ActionForm>
+  </Card>;
+}
+
+function JourneyFields({ data, journey, prefill }: { data: Data; journey?: Data["journeys"][number]; prefill?: JourneyPrefill }) {
   const tz = data.wedding.timezone;
   return <>
-    <Select label="Journey type" name="kind" defaultValue={journey?.kind ?? "arrival"}>{Object.entries(JOURNEY_KIND_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
-    <TextInput label="Title" name="title" required maxLength={180} defaultValue={journey?.title} placeholder="Airport pickup – Friday morning" />
-    <TextInput label="Pickup location" name="pickup_location" required maxLength={300} defaultValue={journey?.pickup_location} />
+    {prefill?.guestIds.map((guestId) => <input key={guestId} type="hidden" name="board_guest_ids" value={guestId} />)}
+    <Select label="Journey type" name="kind" defaultValue={journey?.kind ?? prefill?.kind ?? "arrival"}>{Object.entries(JOURNEY_KIND_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
+    <TextInput label="Title" name="title" required maxLength={180} defaultValue={journey?.title ?? prefill?.title} placeholder="Airport pickup – Friday morning" />
+    <TextInput label="Pickup location" name="pickup_location" required maxLength={300} defaultValue={journey?.pickup_location ?? (prefill?.kind === "arrival" ? prefill.location : undefined)} />
     <TextInput label="Drop-off location" name="dropoff_location" required maxLength={300} defaultValue={journey?.dropoff_location} />
-    <TextInput label={`Pickup (${tz})`} name="pickup_at" type="datetime-local" required defaultValue={instantToLocalInput(journey?.pickup_at, tz)} />
-    <TextInput label={`Estimated drop-off (${tz})`} name="estimated_dropoff_at" type="datetime-local" required defaultValue={instantToLocalInput(journey?.estimated_dropoff_at, tz)} />
+    <TextInput label={`Pickup (${tz})`} name="pickup_at" type="datetime-local" required defaultValue={journey ? instantToLocalInput(journey.pickup_at, tz) : prefill?.pickupLocal} />
+    <TextInput label={`Estimated drop-off (${tz})`} name="estimated_dropoff_at" type="datetime-local" required defaultValue={journey ? instantToLocalInput(journey.estimated_dropoff_at, tz) : prefill?.dropoffLocal} />
+    {prefill && <p className="field-help field-full">{prefill.guestIds.length} guest(s) from this suggestion will be boarded when you create the journey. Times are suggestions from manually entered travel details.</p>}
     <Select label="Vehicle" name="vehicle_id" defaultValue={journey?.vehicle_id ?? ""}><option value="">Not assigned yet</option>{data.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.label} · {vehicle.passenger_capacity} seats</option>)}</Select>
     <Select label="Coordinator" name="coordinator_user_id" defaultValue={journey?.coordinator_user_id ?? ""}><option value="">None</option>{data.members.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</Select>
     <Select label="Linked function" name="function_id" defaultValue={journey?.function_id ?? ""}><option value="">None</option>{data.functions.map((fn) => <option key={fn.id} value={fn.id}>{fn.name}</option>)}</Select>
-    <Select label="Status" name="status" defaultValue={journey?.status ?? "planned"}>{Object.entries(JOURNEY_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
+    <Select label="Status" name="status" defaultValue={journey?.status ?? "planned"}>{statusOptions("journey").map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</Select>
     <TextInput label="Status note" name="status_note" maxLength={1000} defaultValue={journey?.status_note} placeholder="For example: flight delayed 40 minutes" />
     <Checkbox label="Share with guests in the portal" name="shared_with_guests" defaultChecked={journey?.shared_with_guests} hint="Only when the arrangement is confirmed. Driver phone numbers are never shown to guests." />
     <TextArea label="Notes" name="notes" maxLength={2000} defaultValue={journey?.notes} />
@@ -296,6 +325,8 @@ function TransportPanel({ data, guestName }: { data: Data; guestName: Map<string
   const vehicleById = new Map(data.vehicles.map((vehicle) => [vehicle.id, vehicle]));
   const memberName = new Map(data.members.map((member) => [member.userId, member.name]));
   const conflicts = vehicleConflicts(data.journeys as never);
+  const [prefill, setPrefill] = useState<PickupSuggestion | null>(null);
+  const suggestions = useMemo(() => pickupSuggestions({ states: data.states, profiles: data.profiles, timezone: data.wedding.timezone }), [data]);
   const conflictIds = new Set(conflicts.flat());
   return <>
     <div className="section-grid">
@@ -328,11 +359,18 @@ function TransportPanel({ data, guestName }: { data: Data; guestName: Map<string
       </Card>
     </div>
     {conflicts.length > 0 && <p className="travel-warning" role="alert">{conflicts.length} vehicle clash(es): the same vehicle is on overlapping journeys. Reassign one of the highlighted journeys.</p>}
-    {data.canEdit && <Card title="Plan a pickup or drop-off" subtitle="Each journey is one pickup task with a coordinator and status.">
-      <ActionForm action={createJourneyAction} submitLabel="Create journey" resetOnSuccess idempotent className="field-grid">
+    {data.canEdit && suggestions.length > 0 && <Card title="Suggested pickups" subtitle="Guests who need a ride and have recorded travel times, grouped by hour.">
+      <ul className="reference-list">{suggestions.map((suggestion) => <li key={suggestion.key} className="reference-row">
+        <span><span className="row-title">{suggestion.title}</span><span className="row-meta">{suggestion.guestIds.map((guestId) => guestName.get(guestId)).join(", ")}{suggestion.detail ? ` · ${suggestion.detail}` : ""}</span></span>
+        <button type="button" className="button button-secondary" onClick={() => { setPrefill(suggestion); document.getElementById("plan-journey")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Plan this</button>
+      </li>)}</ul>
+    </Card>}
+    {data.canEdit && <Card id="plan-journey" title="Plan a pickup or drop-off" subtitle={prefill ? "Filled in from a suggestion. Check the details and add a vehicle." : "Each journey is one pickup task with a coordinator and status."}>
+      <ActionForm key={prefill?.key ?? "blank"} action={createJourneyAction} submitLabel="Create journey" resetOnSuccess idempotent className="field-grid">
         <input type="hidden" name="weddingId" value={data.wedding.id} />
-        <JourneyFields data={data} />
+        <JourneyFields data={data} prefill={prefill ?? undefined} />
       </ActionForm>
+      {prefill && <button type="button" className="button button-quiet" onClick={() => setPrefill(null)}>Clear suggestion</button>}
     </Card>}
     {!data.journeys.length ? <Card><EmptyState title="No journeys yet" description="Plan arrival and departure runs, then board guests or whole travel groups." /></Card> :
       data.journeys.map((journey) => {
@@ -413,7 +451,7 @@ function SummariesPanel({ data, guestName, onPrint }: { data: Data; guestName: M
           {!runs.length ? <p className="field-help">No active journeys.</p> : <ol className="run-sheet">{runs.map((journey) => {
             const onboard = data.passengers.filter((row) => row.journey_id === journey.id);
             return <li key={journey.id}><p className="row-title">{formatDateTime(journey.pickup_at, tz)} · {journey.pickup_location} → {journey.dropoff_location}</p>
-              <p className="row-meta">{JOURNEY_KIND_LABELS[journey.kind as keyof typeof JOURNEY_KIND_LABELS]} · {JOURNEY_STATUS_LABELS[journey.status as JourneyStatus]} · {onboard.length}/{vehicle.passenger_capacity} passengers{journey.coordinator_user_id ? ` · Coordinator ${memberName.get(journey.coordinator_user_id) ?? ""}` : ""}</p>
+              <p className="row-meta">{JOURNEY_KIND_LABELS[journey.kind as keyof typeof JOURNEY_KIND_LABELS]} · {describeStatus("journey", journey.status).text} · {onboard.length}/{vehicle.passenger_capacity} passengers{journey.coordinator_user_id ? ` · Coordinator ${memberName.get(journey.coordinator_user_id) ?? ""}` : ""}</p>
               {journey.status_note && <p className="travel-delay">{journey.status_note}</p>}
               <ul>{onboard.map((row) => { const guest = guestById.get(row.guest_id); return <li key={row.guest_id}>{guestName.get(row.guest_id)}{data.canSeeGuestContacts && guest?.phone ? ` · ${guest.phone}` : ""}{guest?.assistance_needs ? ` · Assistance: ${guest.assistance_needs}` : ""}</li>; })}</ul>
             </li>;

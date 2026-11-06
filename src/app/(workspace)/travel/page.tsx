@@ -11,5 +11,5 @@ export default async function TravelPage({ searchParams }: { searchParams: Promi
   const tab = tabs.find((value) => value === params.tab) ?? "needs";
   const filter = filters.find((value) => value === params.filter) ?? "all";
   const data = await getTravelWorkspace(workspace.wedding.id);
-  return <TravelManager data={data} initialTab={tab} initialFilter={filter} />;
+  return <TravelManager data={data} initialTab={tab} initialFilter={filter} tabFromUrl={typeof params.tab === "string"} />;
 }

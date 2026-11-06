@@ -19,7 +19,9 @@ export type PortalStay = { property: string; address: string; notes: string; roo
 /** Journeys the planners explicitly shared; driver contact details are never included. */
 export type PortalJourney = { kind: "arrival" | "departure" | "transfer"; title: string; pickup_at: string; pickup_location: string; dropoff_location: string; timezone: string };
 export type PortalGuest = { id: string; full_name: string; meal_preference: string; allergies: string; assistance_needs: string; updated_at: string; invitations: PortalInvitation[]; stays?: PortalStay[]; journeys?: PortalJourney[] };
-export type GuestPortalData = { household: { name: string }; couple_names: string[]; people: PortalGuest[] };
+/** The wedding's chosen invitation design, with wording overrides for this household's language only. */
+export type PortalInvitationDesign = { theme: string; accent: string | null; texts: Record<string, string> };
+export type GuestPortalData = { household: { name: string; language?: string }; invitation?: PortalInvitationDesign | null; couple_names: string[]; people: PortalGuest[] };
 
 function publicSupabase() {
   const env = getSupabaseEnvironment();

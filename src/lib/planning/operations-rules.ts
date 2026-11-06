@@ -124,3 +124,29 @@ export function unresolvedIssueCounts(issues: Array<{ severity: IssueSeverity; s
 export function checklistProgress(items: Array<{ is_done: boolean }>) {
   return { done: items.filter((item) => item.is_done).length, total: items.length };
 }
+
+/**
+ * Wedding-day view of one function's run sheet at a moment in time.
+ * - now: items underway (started or within their planned window), not done or cancelled
+ * - next: the next few items still to start
+ * - late: items that should have started (or finished) by now but have not
+ */
+export function dayOfView<T extends ScheduleItemForRules & { vendor_arrival_at: string | null }>(items: T[], now: Date, options: { nextCount?: number; arrivalWindowMinutes?: number } = {}) {
+  const t = now.getTime();
+  const open = items.filter((item) => item.status !== "done" && item.status !== "cancelled").sort((a, b) => a.planned_start.localeCompare(b.planned_start));
+  const startOf = (item: T) => new Date(item.planned_start).getTime();
+  const endOf = (item: T) => new Date(item.planned_end).getTime();
+  const underway = open.filter((item) => item.status === "in_progress" || item.status === "delayed" && Boolean(item.actual_start) || (startOf(item) <= t && t < endOf(item)));
+  const late = open.filter((item) => (!item.actual_start && startOf(item) < t) || (item.actual_start && !item.actual_end && endOf(item) < t));
+  const next = open.filter((item) => startOf(item) > t && !underway.includes(item)).slice(0, options.nextCount ?? 3);
+  const until = t + (options.arrivalWindowMinutes ?? 180) * 60_000;
+  const arrivals = items.filter((item) => item.status !== "cancelled" && item.vendor_arrival_at && new Date(item.vendor_arrival_at).getTime() >= t - 15 * 60_000 && new Date(item.vendor_arrival_at).getTime() <= until)
+    .sort((a, b) => a.vendor_arrival_at!.localeCompare(b.vendor_arrival_at!));
+  return { now: underway, next, late, arrivals };
+}
+
+/** The function to show by default: the one happening today in the wedding timezone, else the next upcoming, else the first. */
+export function defaultDayOfFunction<T extends { id: string; function_date: string | null }>(functions: T[], today: string): T | undefined {
+  const dated = functions.filter((fn) => fn.function_date).sort((a, b) => a.function_date!.localeCompare(b.function_date!));
+  return dated.find((fn) => fn.function_date === today) ?? dated.find((fn) => fn.function_date! > today) ?? functions[0];
+}

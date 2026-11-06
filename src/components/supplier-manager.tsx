@@ -10,7 +10,7 @@ import {
   saveSupplierPreferenceAction, updateSupplierSpaceAction, updateSupplierAction,
   type SupplierFormState,
 } from "@/app/actions/suppliers";
-import { Button, Card, EmptyState, NotificationRegion, PageHeading, StatusLabel } from "@/components/ui";
+import { Button, Card, EmptyState, NotificationRegion, PageHeading, StageBadge } from "@/components/ui";
 import { Dialog } from "@/components/dialog";
 import type { SupplierAssignee, WeddingSupplier } from "@/lib/data/suppliers";
 import { compareSuppliers, filterSuppliers } from "@/lib/planning/supplier-rules";
@@ -83,11 +83,12 @@ export function SupplierManager({
           : <div className="supplier-list">{filtered.map((supplier) => <article className="supplier-card" key={supplier.id}>
             <div className="supplier-card-header">
               <div><span className="eyebrow">{supplier.kind === "venue" ? "Venue" : "Vendor"} · {supplier.category}</span><h2>{supplier.name}</h2><p>{supplier.responsible_name ? `Responsible: ${supplier.responsible_name}` : "No responsible partner assigned"}</p></div>
-              <StatusLabel>{statusLabel[supplier.status]}</StatusLabel>
+              <StageBadge kind="supplier" status={supplier.status} />
             </div>
             <div className="supplier-card-actions">
               <label className="supplier-compare-check"><input type="checkbox" checked={compareIds.includes(supplier.id)} onChange={() => toggleCompare(supplier.id)} disabled={!compareIds.includes(supplier.id) && compareIds.length >= 3} /> Compare</label>
               {canEdit && <Button variant="secondary" onClick={() => { setEditorSupplier(supplier); setEditorOpen(true); }}>Edit supplier</Button>}
+              <a className="button button-quiet" href={`/documents?entity=supplier&id=${supplier.id}`}>Files</a>
             </div>
             <details className="supplier-details">
               <summary>Supplier details, quotes and notes</summary>

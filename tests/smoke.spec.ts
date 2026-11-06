@@ -9,7 +9,7 @@ test("authentication routes render and unauthenticated workspace routes redirect
   const protectedRoutes = [
     "/overview", "/functions", "/tasks", "/decisions", "/venues-vendors", "/budget",
     "/guests", "/logistics", "/documents", "/settings", "/design-system",
-    "/travel", "/schedule", "/schedule/pack", "/messages", "/overview/export",
+    "/travel", "/schedule", "/schedule/pack", "/messages", "/overview/export", "/invitations", "/today",
   ];
   for (const route of protectedRoutes) {
     await page.goto(route);

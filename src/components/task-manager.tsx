@@ -1,5 +1,8 @@
 "use client";
-import { matchesTaskView, type TaskView } from "@/lib/planning/task-rules";
+import { matchesTaskView, TASK_VIEWS, type TaskView } from "@/lib/planning/task-rules";
+import { useRememberedState } from "@/components/use-remembered";
+import { ActionForm } from "@/components/action-form";
+import { completeTasksAction } from "@/app/actions/bulk";
 
 import { useActionState, useCallback, useEffect, useState } from "react";
 import { CheckSquare2, CirclePlus, Pencil } from "lucide-react";
@@ -8,7 +11,8 @@ import {
   toggleTaskChecklistAction, updateTaskAction,
 } from "@/app/actions/tasks";
 import type { TaskFormState } from "@/app/actions/tasks";
-import { Button, Card, EmptyState, NotificationRegion, StatusLabel } from "@/components/ui";
+import { Button, Card, EmptyState, NotificationRegion, StageBadge } from "@/components/ui";
+import { describeStatus } from "@/lib/planning/status-vocabulary";
 import { Dialog } from "@/components/dialog";
 import type { WeddingFunction } from "@/lib/data/functions";
 import type { WeddingTask } from "@/lib/data/tasks";
@@ -41,6 +45,7 @@ export function TaskManager({
   assignees,
   canEdit,
   initialView = "all",
+  viewFromUrl = false,
 }: {
   weddingId: string;
   currentUserId: string;
@@ -51,14 +56,20 @@ export function TaskManager({
   assignees: Assignee[];
   canEdit: boolean;
   initialView?: string;
+  viewFromUrl?: boolean;
 }) {
-  const [view, setView] = useState(initialView);
+  const [view, setView] = useRememberedState<TaskView>("tasks", initialView as TaskView, TASK_VIEWS, viewFromUrl);
   const [groupBy, setGroupBy] = useState("none");
   const [editor, setEditor] = useState<WeddingTask | undefined>();
   const [editorOpen, setEditorOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const onSaved = useCallback((message: string) => setNotice(message), []);
   const filtered = tasks.filter((task) => matchesTaskView(task, view as TaskView, currentUserId, today));
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selectable = (task: WeddingTask) => canEdit && task.status !== "completed" && task.status !== "cancelled";
+  // Selection follows the latest data: finished or hidden tasks drop out automatically.
+  const selected = filtered.filter((task) => selectable(task) && selectedIds.includes(task.id));
+  const toggleSelected = (taskId: string) => setSelectedIds((current) => current.includes(taskId) ? current.filter((value) => value !== taskId) : [...current, taskId]);
   const groups = groupTasks(filtered, groupBy);
 
   return <>
@@ -66,7 +77,7 @@ export function TaskManager({
       <div className="task-toolbar">
         <div className="field">
           <label className="field-label" htmlFor="task-view">View</label>
-          <select id="task-view" className="field-control" value={view} onChange={(event) => setView(event.target.value)}>
+          <select id="task-view" className="field-control" value={view} onChange={(event) => setView(event.target.value as TaskView)}>
             <option value="mine">My tasks</option>
             <option value="mine-open">My open tasks</option>
             <option value="mine-overdue">My overdue tasks</option>
@@ -85,6 +96,14 @@ export function TaskManager({
         </div>
         {canEdit && <Button onClick={() => { setEditor(undefined); setEditorOpen(true); }}><CirclePlus size={15} aria-hidden="true" /> Add task</Button>}
       </div>
+      {selected.length > 0 && <div className="bulk-bar" role="region" aria-label="Selected tasks">
+        <span><strong>{selected.length}</strong> selected</span>
+        <ActionForm action={completeTasksAction} submitLabel="Mark selected done" variant="primary" className="inline-action-form">
+          <input type="hidden" name="weddingId" value={weddingId} />
+          {selected.map((task) => <input key={task.id} type="hidden" name="task" value={`${task.id}:${task.version}`} />)}
+        </ActionForm>
+        <Button variant="quiet" onClick={() => setSelectedIds([])}>Clear</Button>
+      </div>}
       {!filtered.length
         ? <EmptyState title={tasks.length ? "No tasks in this view" : "No tasks yet"} description={tasks.length ? "Try another view or check the due dates." : canEdit ? "Add a task to start planning." : "A planning editor can add the first task."} />
         : <div className="task-group-list">
@@ -93,8 +112,9 @@ export function TaskManager({
             {rows.map((task) => <article className="task-card" key={task.id}>
               <div className="task-card-main">
                 <div className="task-card-title-row">
+                  {selectable(task) && <input type="checkbox" className="task-select" checked={selectedIds.includes(task.id)} onChange={() => toggleSelected(task.id)} aria-label={"Select " + task.title} />}
                   <h3 className="task-card-title">{task.title}</h3>
-                  <StatusLabel>{statusLabels[task.status]}</StatusLabel>
+                  <StageBadge kind="task" status={task.status} />
                   {canEdit && <Button variant="quiet" aria-label={"Edit " + task.title} onClick={() => { setEditor(task); setEditorOpen(true); }}><Pencil size={14} aria-hidden="true" /> Edit</Button>}
                 </div>
                 <p className="task-card-description">{task.description || "No description"}</p>
@@ -107,7 +127,7 @@ export function TaskManager({
                 </div>
                 {task.depends_on_task_id && <p className={task.dependency_status === "completed" ? "task-dependency" : "task-dependency is-blocked"}>
                   <strong>{task.dependency_status === "completed" ? "Depends on" : "Blocked by"}:</strong> {task.dependency_title ?? "Another task"}
-                  {task.dependency_status && task.dependency_status !== "completed" && " · prerequisite " + statusLabels[task.dependency_status as WeddingTask["status"]]}
+                  {task.dependency_status && task.dependency_status !== "completed" && " · prerequisite " + describeStatus("task", task.dependency_status).text}
                 </p>}
               </div>
               <details className="task-detail">

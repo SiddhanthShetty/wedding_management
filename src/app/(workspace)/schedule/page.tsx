@@ -10,5 +10,5 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   const data = await getOperationsWorkspace(workspace.wedding.id);
   const tab = tabs.find((value) => value === params.tab) ?? "timeline";
   const functionId = data.functions.find((fn) => fn.id === params.function)?.id ?? null;
-  return <OperationsManager data={data} initialTab={tab} initialFunctionId={functionId} />;
+  return <OperationsManager data={data} initialTab={tab} initialFunctionId={functionId} tabFromUrl={typeof params.tab === "string"} />;
 }
