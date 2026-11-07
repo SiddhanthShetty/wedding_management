@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useRef, useState, useEffect } from "react";
-import { Copy, Download, Mail, MessageCircle, Palette, Send, Share2, Globe, Image as ImageIcon, Clapperboard } from "lucide-react";
+import { Copy, Download, Mail, MessageCircle, Palette, Send, Share2, Image as ImageIcon, Clapperboard, FileText, Sparkles, RotateCcw, Smartphone, Link2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { CARD_FORMATS, FormattedCard, InvitationCard, type CardFormat } from "@/components/invitation-card";
 import { qrPath } from "@/lib/invitations/qr";
@@ -9,114 +9,318 @@ import { resizePhoto } from "@/lib/invitations/photo";
 import { PORTAL_STRINGS } from "@/lib/guest-portal/i18n";
 import { Checkbox, Select, TextArea, TextInput } from "@/components/form-fields";
 import { TabList } from "@/components/tab-list";
-import { InvitationWebsiteEditor } from "@/components/invitation-website-editor";
+import { BlessingsModeration, EssentialsFields, WebsiteContentFields } from "@/components/invitation-website-editor";
+import { PortalPreview } from "@/components/guest-portal";
 import { Card, EmptyState, PageHeading } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { buildCardProps } from "@/lib/invitations/card-data";
+import { buildPreviewData, previewFunction } from "@/lib/invitations/preview";
+import { readSite, type InvitationSite } from "@/lib/invitations/site";
 import { DEFAULT_TEXTS, LANGUAGES, isLanguage, mailtoUrl, resolveTexts, shareMessage, TEXT_KEYS, TEXT_LABELS, THEMES, themeById, whatsappUrl, type LanguageCode, type TextOverrides, type ThemeId } from "@/lib/invitations/content";
 import { cardFileName, svgElementToPng } from "@/lib/invitations/export-card";
 import type { InvitationWorkspace } from "@/lib/data/invitations";
 import { createMissingLinksAction } from "@/app/actions/bulk";
-import { prepareInvitationAction, recordInvitationSharedAction, saveDesignAction, saveDesignPhotoAction, setDefaultDesignAction } from "@/app/actions/invitations";
+import { createPreviewLinkAction, prepareInvitationAction, recordInvitationSharedAction, saveDesignAction, saveDesignPhotoAction, setDefaultDesignAction } from "@/app/actions/invitations";
 
 type Data = InvitationWorkspace;
 type Design = Data["designs"][number];
 type Household = Data["households"][number];
 type Guest = Data["guests"][number];
-type Tab = "design" | "website" | "send";
+type Step = "design" | "content" | "extras" | "share";
+
+/** Everything the couple edits in the studio before saving: the card and the invitation website. */
+type Draft = { name: string; theme: ThemeId; useAccent: boolean; accent: string; texts: TextOverrides; showMonogram: boolean; site: InvitationSite };
+
+function draftFrom(design: Design | undefined): Draft {
+  return {
+    name: design?.name ?? "Our invitation", theme: design?.theme ?? "mallige", useAccent: Boolean(design?.accent),
+    accent: design?.accent ?? themeById(design?.theme ?? "mallige").accent, texts: design?.texts ?? {},
+    showMonogram: design?.show_monogram ?? true, site: readSite(design?.site),
+  };
+}
+
+/** Drops blank wording and empty list rows, so comparing and saving ignore untouched fields. */
+function cleanDraft(draft: Draft): Draft {
+  const texts = Object.fromEntries(Object.entries(draft.texts).map(([lang, lines]) => [lang, Object.fromEntries(Object.entries(lines ?? {}).filter(([, value]) => value?.trim()))]).filter(([, lines]) => Object.keys(lines as object).length)) as TextOverrides;
+  const site = { ...draft.site, closing: { ...draft.site.closing, names: draft.site.closing.names.map((name) => name.trim()).filter(Boolean) } };
+  return { ...draft, accent: draft.useAccent ? draft.accent : "", texts, site };
+}
+const sameDraft = (a: Draft, b: Draft) => JSON.stringify(cleanDraft(a)) === JSON.stringify(cleanDraft(b));
 
 export function InvitationStudio({ data }: { data: Data }) {
-  const [tab, setTab] = useState<Tab>(data.designs.length ? "send" : "design");
   const defaultDesign = data.designs.find((design) => design.is_default) ?? data.designs[0];
+  const [designId, setDesignId] = useState(defaultDesign?.id ?? "new");
+  const [step, setStep] = useState<Step>(data.designs.length ? "share" : "design");
+  // After "Create design", switch the studio to the new design so the next save updates it.
+  const designCount = useRef(data.designs.length);
+  useEffect(() => {
+    if (data.designs.length > designCount.current && designId === "new") setDesignId(data.designs[data.designs.length - 1]!.id);
+    designCount.current = data.designs.length;
+  }, [data.designs, designId]);
+  const design = data.designs.find((row) => row.id === designId);
   const invitedGuests = useMemo(() => data.guests.filter((guest) => data.invitations.some((invitation) => invitation.guest_id === guest.id)), [data]);
   return <div className="section-stack invitations-page">
-    <PageHeading eyebrow="Guests" title="Invitations" description="Design a personalised invitation once, then prepare a private RSVP link for each invited person. Nothing is sent automatically." />
-    <TabList tabs={[{ id: "design" as Tab, label: "Card", icon: Palette }, { id: "website" as Tab, label: "Website", icon: Globe }, { id: "send" as Tab, label: "Share with guests", icon: Send }]} selected={tab} onSelect={setTab} label="Invitation sections" idPrefix="invite" />
-    <section role="tabpanel" id={`invite-panel-${tab}`} aria-labelledby={`invite-tab-${tab}`} tabIndex={0} className="section-stack">
-      {tab === "design" ? <DesignStudio data={data} guests={invitedGuests} /> : tab === "website" ? (defaultDesign ? <InvitationWebsiteEditor key={`${defaultDesign.id}:${defaultDesign.version}`} data={data} design={defaultDesign} /> : <Card><EmptyState title="Create a card design first" description="The website uses the theme of the design guests see." /></Card>) : !defaultDesign
-        ? <Card><EmptyState title="Create a design first" description="Choose a theme and wording on the Design tab. Then come back here to share it." /></Card>
-        : <SendPanel data={data} design={defaultDesign} guests={invitedGuests} />}
-    </section>
+    <PageHeading eyebrow="Guests" title="Invitations" description="Design your invitation in four steps and watch the guest page change as you go. Nothing is sent automatically." />
+    <StudioWorkspace key={designId} data={data} design={design} designId={designId} setDesignId={setDesignId} step={step} setStep={setStep} guests={invitedGuests} defaultDesign={defaultDesign} />
   </div>;
 }
 
-function DesignStudio({ data, guests }: { data: Data; guests: Guest[] }) {
-  const [designId, setDesignId] = useState(data.designs.find((design) => design.is_default)?.id ?? data.designs[0]?.id ?? "new");
-  const design = data.designs.find((row) => row.id === designId);
-  return <>
-    {data.designs.length > 0 && <Card>
-      <div className="field-grid">
-        <Select label="Design" value={designId} onChange={(event) => setDesignId(event.target.value)}>
-          {data.designs.map((row) => <option key={row.id} value={row.id}>{row.name}{row.is_default ? " (guests see this)" : ""}</option>)}
-          {data.canEdit && <option value="new">+ New design</option>}
-        </Select>
-        {design && !design.is_default && data.canEdit && <ActionForm action={setDefaultDesignAction} submitLabel="Show this design to guests" className="inline-action-form">
-          <input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="designId" value={design.id} />
-        </ActionForm>}
-      </div>
-    </Card>}
-    <DesignEditor key={designId} data={data} design={design} guests={guests} />
-  </>;
+function StudioWorkspace({ data, design, designId, setDesignId, step, setStep, guests, defaultDesign }: {
+  data: Data; design?: Design; designId: string; setDesignId: (id: string) => void; step: Step; setStep: (step: Step) => void; guests: Guest[]; defaultDesign?: Design;
+}) {
+  const [draft, setDraft] = useState<Draft>(() => draftFrom(design));
+  const [lang, setLang] = useState<LanguageCode>("en");
+  const [photo, setPhoto] = useState<string | null>(design?.photo_data ?? null);
+  useEffect(() => setPhoto(design?.photo_data ?? null), [design?.photo_data]);
+  const dirty = !sameDraft(draft, draftFrom(design));
+  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
+  const updateSite = <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => setDraft((current) => ({ ...current, site: { ...current.site, [key]: value } }));
+  const readOnly = !data.canEdit;
+  const steps = [
+    { id: "design" as Step, label: "1 · Design", icon: Palette }, { id: "content" as Step, label: "2 · Content", icon: FileText },
+    { id: "extras" as Step, label: "3 · Extras", icon: Sparkles }, { id: "share" as Step, label: "4 · Share", icon: Send },
+  ];
+  // Leaving with unsaved changes asks first (the browser shows its own wording).
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  return <div className="studio">
+    <div className="studio-main section-stack">
+      {(data.designs.length > 0 || data.canEdit) && <Card>
+        <div className="field-grid">
+          <Select label="Design" value={designId} onChange={(event) => { if (!dirty || window.confirm("Discard unsaved changes to this design?")) setDesignId(event.target.value); }}>
+            {data.designs.map((row) => <option key={row.id} value={row.id}>{row.name}{row.is_default ? " (guests see this)" : ""}</option>)}
+            {data.canEdit && <option value="new">+ New design</option>}
+          </Select>
+          {design && !design.is_default && data.canEdit && <ActionForm action={setDefaultDesignAction} submitLabel="Show this design to guests" className="inline-action-form">
+            <input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="designId" value={design.id} />
+          </ActionForm>}
+        </div>
+        {readOnly && <p className="readonly-note">You can preview designs. Guest-list edit access is needed to change them.</p>}
+      </Card>}
+      <TabList tabs={steps} selected={step} onSelect={setStep} label="Invitation steps" idPrefix="invite" />
+      <section role="tabpanel" id={`invite-panel-${step}`} aria-labelledby={`invite-tab-${step}`} tabIndex={0} className="section-stack">
+        {step === "design" && <DesignStep data={data} design={design} draft={draft} set={set} updateSite={updateSite} onPhoto={setPhoto} readOnly={readOnly} />}
+        {step === "content" && <ContentStep data={data} draft={draft} set={set} updateSite={updateSite} lang={lang} setLang={setLang} readOnly={readOnly} />}
+        {step === "extras" && <ExtrasStep data={data} draft={draft} photo={photo} lang={lang} />}
+        {step === "share" && <ShareStep data={data} design={design} defaultDesign={defaultDesign} guests={guests} dirty={dirty} />}
+      </section>
+      {step !== "share" && data.canEdit && <SaveBar data={data} design={design} draft={draft} dirty={dirty} />}
+    </div>
+    <aside className="studio-preview" aria-label="Live preview">
+      <PhonePreview data={data} draft={draft} photo={photo} lang={lang} setLang={setLang} guests={guests} />
+    </aside>
+    <a className="studio-preview-jump button button-secondary" href="#studio-phone"><Smartphone size={15} aria-hidden="true" /> Preview</a>
+  </div>;
 }
 
-function DesignEditor({ data, design, guests }: { data: Data; design?: Design; guests: Guest[] }) {
-  const [name, setName] = useState(design?.name ?? "Our invitation");
-  const [theme, setTheme] = useState<ThemeId>(design?.theme ?? "mallige");
-  const [useAccent, setUseAccent] = useState(Boolean(design?.accent));
-  const [accent, setAccent] = useState(design?.accent ?? themeById(design?.theme ?? "mallige").accent);
-  const [texts, setTexts] = useState<TextOverrides>(design?.texts ?? {});
-  const [language, setLanguage] = useState<LanguageCode>("en");
-  const [previewId, setPreviewId] = useState(guests[0]?.id ?? "");
-  const [showMonogram, setShowMonogram] = useState(design?.show_monogram ?? true);
-  const previewDesign = { theme, accent: useAccent ? accent : null, texts, photo_data: design?.photo_data ?? null, show_monogram: showMonogram };
-  const previewGuest = guests.find((row) => row.id === previewId);
-  const card = previewGuest ? guestCard(data, previewDesign, previewGuest, language) : buildCardProps({ ...previewDesign, overrides: texts, language, couple: data.coupleNames, greetingName: "Guest name", functions: data.functions.slice(0, 3), photoUrl: previewDesign.photo_data, showMonogram });
-  const languageInfo = LANGUAGES.find((item) => item.code === language)!;
-  const setText = (key: typeof TEXT_KEYS[number], value: string) => setTexts((current) => ({ ...current, [language]: { ...current[language], [key]: value } }));
-  return <div className="invite-editor">
-    <Card title="Preview" subtitle="Exactly what the selected guest will receive.">
-      <div className="field-grid">
-        <Select label="Preview as" value={previewId} onChange={(event) => setPreviewId(event.target.value)}>
-          {!guests.length && <option value="">Sample guest</option>}
-          {guests.map((guest) => <option key={guest.id} value={guest.id}>{guest.full_name}</option>)}
-        </Select>
-        <Select label="Language" value={language} onChange={(event) => setLanguage(event.target.value as LanguageCode)}>{LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select>
-      </div>
-      <div className="invite-preview"><InvitationCard {...card} /></div>
-    </Card>
-    <Card title="Theme and wording">
-      {!data.canEdit && <p className="readonly-note">You can preview designs. Guest-list edit access is needed to change them.</p>}
-      <fieldset className="theme-picker" disabled={!data.canEdit}>
+/** One save for the card and the website, so both always match what the preview shows. */
+function SaveBar({ data, design, draft, dirty }: { data: Data; design?: Design; draft: Draft; dirty: boolean }) {
+  const clean = cleanDraft(draft);
+  return <div className={`studio-savebar ${dirty ? "is-dirty" : ""}`}>
+    <p className="studio-save-state" role="status">{!design ? "Not created yet" : dirty ? "Unsaved changes" : "All changes saved"}</p>
+    <ActionForm action={saveDesignAction} submitLabel={design ? "Save changes" : "Create design"} variant="primary" className="inline-action-form">
+      <input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="designId" value={design?.id ?? ""} /><input type="hidden" name="version" value={design?.version ?? ""} />
+      <input type="hidden" name="name" value={clean.name} /><input type="hidden" name="theme" value={clean.theme} />
+      <input type="hidden" name="useAccent" value={clean.useAccent ? "on" : ""} /><input type="hidden" name="accent" value={clean.accent} />
+      <input type="hidden" name="showMonogram" value={clean.showMonogram ? "on" : ""} />
+      <input type="hidden" name="texts" value={JSON.stringify(clean.texts)} /><input type="hidden" name="site" value={JSON.stringify(clean.site)} />
+    </ActionForm>
+  </div>;
+}
+
+function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }: {
+  data: Data; design?: Design; draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
+  updateSite: <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => void; onPhoto: (photo: string | null) => void; readOnly: boolean;
+}) {
+  return <>
+    <Card title="Template and colours" subtitle="Each theme sets the card, the guest page and your workspace colours.">
+      <TextInput label="Design name" required maxLength={80} value={draft.name} onChange={(event) => set("name", event.target.value)} disabled={readOnly} hint="Only you see this name." />
+      <fieldset className="theme-picker" disabled={readOnly}>
         <legend className="field-label">Theme</legend>
-        {THEMES.map((option) => <label key={option.id} className={`theme-option ${theme === option.id ? "is-selected" : ""}`}>
-          <input type="radio" name="theme-choice" value={option.id} checked={theme === option.id} onChange={() => { setTheme(option.id); if (!useAccent) setAccent(option.accent); }} />
+        {THEMES.map((option) => <label key={option.id} className={`theme-option ${draft.theme === option.id ? "is-selected" : ""}`}>
+          <input type="radio" name="theme-choice" value={option.id} checked={draft.theme === option.id} onChange={() => { set("theme", option.id); if (!draft.useAccent) set("accent", option.accent); }} />
           <span className="theme-swatch" style={{ background: option.background, borderColor: option.accent }} aria-hidden="true"><span style={{ background: option.accent }} /></span>
           <span><strong>{option.name}</strong><span className="row-meta">{option.description}</span></span>
         </label>)}
       </fieldset>
-      {design && <PhotoUploader data={data} design={design} />}
-      <ActionForm action={saveDesignAction} submitLabel={design ? "Save design" : "Create design"} className="field-grid">
-        <input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="designId" value={design?.id ?? ""} /><input type="hidden" name="version" value={design?.version ?? ""} />
-        <input type="hidden" name="theme" value={theme} /><input type="hidden" name="texts" value={JSON.stringify(texts)} />
-        <TextInput label="Design name" name="name" required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} disabled={!data.canEdit} />
+      <div className="field-grid">
         <div className="field">
-          <Checkbox label="Use my own accent colour" name="useAccent" checked={useAccent} onChange={(event) => setUseAccent(event.target.checked)} disabled={!data.canEdit} />
-          {useAccent && <TextInput label="Accent colour" name="accent" type="color" value={accent} onChange={(event) => setAccent(event.target.value)} />}
-          <Checkbox label="Show our monogram (initials) when there is no photo" name="showMonogram" checked={showMonogram} onChange={(event) => setShowMonogram(event.target.checked)} disabled={!data.canEdit} />
+          <Checkbox label="Use my own accent colour" checked={draft.useAccent} onChange={(event) => set("useAccent", event.target.checked)} disabled={readOnly} />
+          {draft.useAccent && <TextInput label="Accent colour" type="color" value={draft.accent} onChange={(event) => set("accent", event.target.value)} hint="Text keeps the theme colour if yours is too light to read." />}
         </div>
-        <fieldset className="field-full wording" disabled={!data.canEdit}>
-          <legend className="field-label">Wording in {languageInfo.label}</legend>
-          {languageInfo.draft && <p className="travel-warning">The built-in {languageInfo.label} wording is a draft. Please have a native speaker check it{language === "tcy" ? ", especially Tulu" : ""}. Edit any line below.</p>}
-          <p className="field-help">Use {"{{name}}"} for the invited person, {"{{couple}}"} for your names and {"{{link}}"} for that person's private RSVP link. Leave a line blank to use the default shown.</p>
-          {TEXT_KEYS.map((key) => <TextArea key={`${language}-${key}`} label={TEXT_LABELS[key]} rows={key === "share" || key === "body" ? 3 : 1} maxLength={600} lang={language}
-            value={texts[language]?.[key] ?? ""} placeholder={DEFAULT_TEXTS[language][key]} onChange={(event) => setText(key, event.target.value)} />)}
-        </fieldset>
-      </ActionForm>
+      </div>
     </Card>
+    <Card title="Photo and monogram">
+      {design ? <PhotoUploader data={data} design={design} onPreview={onPhoto} /> : <p className="field-help">Create the design first, then add a couple photo.</p>}
+      <Checkbox label="Show our monogram (initials) on the card when there is no photo, and on the opening seal" checked={draft.showMonogram} onChange={(event) => set("showMonogram", event.target.checked)} disabled={readOnly} />
+    </Card>
+    <Card title="How guests open it">
+      <fieldset className="check-list" disabled={readOnly}>
+        <Checkbox label="Opening animation: an envelope with your seal that guests tap to open (skipped for people who prefer less motion)" checked={draft.site.opening_animation} onChange={(event) => updateSite("opening_animation", event.target.checked)} />
+        <Checkbox label="Countdown to the next function" checked={draft.site.countdown} onChange={(event) => updateSite("countdown", event.target.checked)} />
+        <Checkbox label="Blessings wall (guests leave wishes; you approve each one before others see it)" checked={draft.site.blessings_enabled} onChange={(event) => updateSite("blessings_enabled", event.target.checked)} />
+      </fieldset>
+      <p className="field-help">Use “Replay opening” above the phone preview to see the opening again.</p>
+    </Card>
+  </>;
+}
+
+function ContentStep({ data, draft, set, updateSite, lang, setLang, readOnly }: {
+  data: Data; draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
+  updateSite: <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => void; lang: LanguageCode; setLang: (lang: LanguageCode) => void; readOnly: boolean;
+}) {
+  const languageInfo = LANGUAGES.find((item) => item.code === lang)!;
+  const setText = (key: typeof TEXT_KEYS[number], value: string) => set("texts", { ...draft.texts, [lang]: { ...draft.texts[lang], [key]: value } });
+  const edited = Object.values(draft.texts[lang] ?? {}).filter((value) => value?.trim()).length;
+  return <Card title="Invitation details" subtitle="Open a section to edit it. The preview updates as you type.">
+    <div className="studio-groups">
+      <EssentialsFields site={draft.site} update={updateSite} partners={data.couplePartners} readOnly={readOnly} />
+      <details className="studio-group">
+        <summary><span className="studio-group-title">Card wording</span><span className="studio-group-summary">{languageInfo.label}{edited ? ` · ${edited} line${edited === 1 ? "" : "s"} edited` : " · built-in wording"}</span></summary>
+        <fieldset className="studio-group-body wording" disabled={readOnly}>
+          <Select label="Language" value={lang} onChange={(event) => setLang(event.target.value as LanguageCode)} hint="The preview switches to this language too.">{LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select>
+          {languageInfo.draft && <p className="travel-warning">The built-in {languageInfo.label} wording is a draft. Please have a native speaker check it{lang === "tcy" ? ", especially Tulu" : ""}. Edit any line below.</p>}
+          <p className="field-help">Use {"{{name}}"} for the invited person, {"{{couple}}"} for your names and {"{{link}}"} for that person's private link. Leave a line blank to use the default shown.</p>
+          {TEXT_KEYS.map((key) => <TextArea key={`${lang}-${key}`} label={TEXT_LABELS[key]} rows={key === "share" || key === "body" ? 3 : 1} maxLength={600} lang={lang}
+            value={draft.texts[lang]?.[key] ?? ""} placeholder={DEFAULT_TEXTS[lang][key]} onChange={(event) => setText(key, event.target.value)} />)}
+        </fieldset>
+      </details>
+      <WebsiteContentFields data={data} site={draft.site} update={updateSite} readOnly={readOnly} />
+    </div>
+  </Card>;
+}
+
+/** A sample card in every format, to check before making each guest's own. */
+function ExtrasStep({ data, draft, photo, lang }: { data: Data; draft: Draft; photo: string | null; lang: LanguageCode }) {
+  const [format, setFormat] = useState<CardFormat>("print");
+  const [error, setError] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const card = buildCardProps({ theme: draft.theme, accent: draft.useAccent ? draft.accent : null, overrides: draft.texts, language: lang, couple: data.coupleNames, greetingName: PORTAL_STRINGS[lang].previewGuest, functions: data.functions.slice(0, 4), photoUrl: photo, showMonogram: draft.showMonogram });
+  const download = async () => {
+    setError("");
+    try {
+      const svg = ref.current?.querySelector("svg"); if (!svg) throw new Error("The card is not ready.");
+      const url = URL.createObjectURL(await svgElementToPng(svg)); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `invitation-sample-${format}.png`; anchor.click(); URL.revokeObjectURL(url);
+    } catch (problem) { setError((problem as Error).message); }
+  };
+  return <>
+    <Card title="Card formats" subtitle="Check how the card looks as a phone image, a status story, a square post or a printable A5 card. Each guest's own card, with their name and QR code, is made in Share.">
+      <Select label="Format" value={format} onChange={(event) => setFormat(event.target.value as CardFormat)} hint={CARD_FORMATS[format].hint}>
+        {(Object.keys(CARD_FORMATS) as CardFormat[]).map((value) => <option key={value} value={value}>{CARD_FORMATS[value].label}</option>)}
+      </Select>
+      <div className="invite-preview" ref={ref}><FormattedCard format={format} card={card} qr={format === "print" ? qrPath("https://example.invalid/guest#sample-qr-code") : null} qrLabel={PORTAL_STRINGS[lang].openInvitation} /></div>
+      {format === "print" && <p className="field-help">This sample QR code does not open anything. Each guest's card gets a QR code for their own private link.</p>}
+      <div className="doc-actions"><button type="button" className="button button-secondary" onClick={download}><Download size={15} aria-hidden="true" /> Download sample</button></div>
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </Card>
+    <Card title="Video invitation">
+      <p className="field-help"><Clapperboard size={15} aria-hidden="true" /> An 8-second video with falling petals, made on this device for each guest. Open a guest in Share, create their link, then choose “Make a video invitation”.</p>
+    </Card>
+  </>;
+}
+
+function ShareStep({ data, design, defaultDesign, guests, dirty }: { data: Data; design?: Design; defaultDesign?: Design; guests: Guest[]; dirty: boolean }) {
+  if (!defaultDesign) return <Card><EmptyState title="Create a design first" description="Choose a theme in Design, then save. Then come back here to share it." /></Card>;
+  const showBlessings = readSite(defaultDesign.site).blessings_enabled || data.blessings.length > 0;
+  return <>
+    {design && data.canEdit && <FamilyPreviewLink data={data} design={design} dirty={dirty} />}
+    {design && !design.is_default && <p className="travel-warning">Guests see “{defaultDesign.name}”. Sharing below uses that design. Choose “Show this design to guests” to switch.</p>}
+    <SendPanel data={data} design={defaultDesign} guests={guests} />
+    {showBlessings && <BlessingsModeration data={data} />}
+  </>;
+}
+
+/** A 30-minute link for family to see the saved design before invitations go out. Replies are off. */
+function FamilyPreviewLink({ data, design, dirty }: { data: Data; design: Design; dirty: boolean }) {
+  const [link, setLink] = useState<{ url: string; expiresAt: string } | null>(null);
+  const [status, setStatus] = useState<{ error?: string; message?: string }>({});
+  const [busy, setBusy] = useState(false);
+  const create = async () => {
+    setBusy(true); setStatus({});
+    const result = await createPreviewLinkAction(data.wedding.id, design.id);
+    setBusy(false);
+    if (!result.token) { setStatus({ error: result.error ?? "Could not create the preview link." }); return; }
+    setLink({ url: `${window.location.origin}/guest/preview#${result.token}`, expiresAt: result.expiresAt! });
+  };
+  const message = link ? `Please take a look at our wedding invitation before we send it: ${link.url}\n(This preview link works for 30 minutes.)` : "";
+  return <Card title="Get a second opinion" subtitle="Share a preview with family before you send. It works for 30 minutes, is marked as a preview, and replies are switched off. It shows your saved design with a sample guest, never your guest list.">
+    {dirty && <p className="travel-warning">You have unsaved changes. The preview link shows the last saved version.</p>}
+    {!link ? <button type="button" className="button button-secondary" disabled={busy} onClick={create}><Link2 size={15} aria-hidden="true" /> {busy ? "Creating…" : "Create preview link"}</button> : <>
+      <p className="field-success" role="status">Preview link ready until {formatDateTime(link.expiresAt, data.wedding.timezone)}. It is shown only now.</p>
+      <TextInput label="Preview link" readOnly value={link.url} onFocus={(event) => event.target.select()} />
+      <div className="doc-actions">
+        <a className="button button-secondary" href={whatsappUrl("", message).url} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} aria-hidden="true" /> WhatsApp</a>
+        <button type="button" className="button button-secondary" onClick={() => navigator.clipboard?.writeText(link.url).then(() => setStatus({ message: "Link copied." }), () => setStatus({ error: "Copy failed; select the link instead." }))}><Copy size={15} aria-hidden="true" /> Copy</button>
+        <a className="button button-quiet" href={link.url} target="_blank" rel="noopener noreferrer">Open</a>
+        <button type="button" className="button button-quiet" onClick={() => setLink(null)}>Done</button>
+      </div>
+    </>}
+    {status.error && <p className="field-error" role="alert">{status.error}</p>}
+    {!status.error && status.message && <p className="field-success" role="status">{status.message}</p>}
+  </Card>;
+}
+
+/** The guest page as a phone shows it, built from the unsaved draft, plus how the message looks in WhatsApp. */
+function PhonePreview({ data, draft, photo, lang, setLang, guests }: { data: Data; draft: Draft; photo: string | null; lang: LanguageCode; setLang: (lang: LanguageCode) => void; guests: Guest[] }) {
+  const [mode, setMode] = useState<"invite" | "whatsapp">("invite");
+  const [replay, setReplay] = useState(0);
+  const [guestId, setGuestId] = useState("");
+  const guest = guests.find((row) => row.id === guestId);
+  const fnRows = guest ? guestFunctions(data, guest) : data.functions;
+  const guestName = guest?.full_name ?? PORTAL_STRINGS[lang].previewGuest;
+  const accent = draft.useAccent ? draft.accent : null;
+  const portal = useMemo(() => buildPreviewData({
+    coupleNames: data.couplePartners.length ? data.couplePartners : [data.coupleNames], guestName, language: lang,
+    functions: fnRows.map((fn) => previewFunction(fn, data.wedding.timezone)),
+    design: { theme: draft.theme, accent, texts: draft.texts, show_monogram: draft.showMonogram, photo_url: photo, site: draft.site },
+  }), [data, guestName, lang, fnRows, draft, accent, photo]);
+  return <div className="phone-preview" id="studio-phone">
+    <div className="phone-toolbar">
+      <div className="segmented" role="group" aria-label="Preview">
+        <button type="button" className={mode === "invite" ? "is-active" : ""} aria-pressed={mode === "invite"} onClick={() => setMode("invite")}>Invite</button>
+        <button type="button" className={mode === "whatsapp" ? "is-active" : ""} aria-pressed={mode === "whatsapp"} onClick={() => setMode("whatsapp")}>WhatsApp</button>
+      </div>
+      {mode === "invite" && <button type="button" className="button button-quiet" onClick={() => setReplay((n) => n + 1)} disabled={!draft.site.opening_animation} title={draft.site.opening_animation ? "Show the opening again" : "The opening animation is off"}><RotateCcw size={14} aria-hidden="true" /> Replay opening</button>}
+    </div>
+    <div className="field-grid phone-options">
+      <Select label="Preview as" value={guestId} onChange={(event) => setGuestId(event.target.value)}>
+        <option value="">Sample guest (all functions)</option>
+        {guests.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}
+      </Select>
+      <Select label="Language" value={lang} onChange={(event) => setLang(event.target.value as LanguageCode)}>{LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select>
+    </div>
+    <div className="phone-frame">
+      <div className="phone-screen guest-portal-shell">
+        {mode === "invite" ? <PortalPreview data={portal} lang={lang} setLang={setLang} replay={replay} embedded />
+          : <WhatsAppMock data={data} draft={draft} photo={photo} lang={lang} guestName={guestName} fnRows={fnRows} />}
+      </div>
+    </div>
+    <p className="field-help">{mode === "invite" ? "The guest page with your unsaved changes. Replies are switched off in previews." : "How the card and message arrive when you share them from Share. Your real message contains the guest's private link."}</p>
   </div>;
 }
 
-function PhotoUploader({ data, design }: { data: Data; design: Design }) {
+function WhatsAppMock({ data, draft, photo, lang, guestName, fnRows }: { data: Data; draft: Draft; photo: string | null; lang: LanguageCode; guestName: string; fnRows: Data["functions"] }) {
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const card = buildCardProps({ theme: draft.theme, accent: draft.useAccent ? draft.accent : null, overrides: draft.texts, language: lang, couple: data.coupleNames, greetingName: guestName, functions: fnRows, photoUrl: photo, showMonogram: draft.showMonogram });
+  const message = shareMessage(resolveTexts(lang, draft.texts), { name: guestName, couple: data.coupleNames, link: `${origin}/guest#…` });
+  return <div className="wa-mock" lang={lang}>
+    <div className="wa-header"><span className="wa-avatar" aria-hidden="true">{guestName.slice(0, 1)}</span><span>{guestName}</span></div>
+    <div className="wa-chat">
+      <div className="wa-bubble">
+        <div className="wa-card"><InvitationCard {...card} /></div>
+        <p className="wa-text">{message}</p>
+        <span className="wa-time">11:02 ✓✓</span>
+      </div>
+    </div>
+  </div>;
+}
+
+function PhotoUploader({ data, design, onPreview }: { data: Data; design: Design; onPreview?: (photo: string | null) => void }) {
   const [photo, setPhoto] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -131,7 +335,7 @@ function PhotoUploader({ data, design }: { data: Data; design: Design }) {
           const file = event.target.files?.[0]; event.target.value = "";
           if (!file) return;
           setBusy(true); setError("");
-          try { setPhoto(await resizePhoto(file)); } catch (problem) { setError((problem as Error).message); } finally { setBusy(false); }
+          try { const resized = await resizePhoto(file); setPhoto(resized); onPreview?.(resized); } catch (problem) { setError((problem as Error).message); } finally { setBusy(false); }
         }} />
       </label>
       {error && <p className="field-error" role="alert">{error}</p>}

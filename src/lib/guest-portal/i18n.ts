@@ -23,6 +23,8 @@ export type PortalStrings = {
   liveNow: string; watchLive: string; ourStory: string; faqTitle: string; palette: string;
   blessingsTitle: string; blessingsIntro: string; blessingPlaceholder: string; sendBlessing: string; sendingBlessing: string;
   blessingThanks: string; blessingPending: (n: number) => string; blessingLimit: string; noBlessingsYet: string;
+  revealTitle: string; infoTitle: string; navInfo: string; call: string; closingTitle: string; shareMoments: string;
+  previewBanner: string; previewUntil: (time: string) => string; previewRsvpOff: string; previewGuest: string;
   // Server results, shown after saving.
   savedResponses: (count: number) => string; alreadySaved: string; savedInfo: string; conflict: string; unavailableShort: string; invalid: string;
 };
@@ -56,6 +58,8 @@ const en: PortalStrings = {
   blessingPlaceholder: "Your wishes…", sendBlessing: "Send blessing", sendingBlessing: "Sending…",
   blessingThanks: "Thank you! Your blessing will appear once the couple has seen it.", blessingPending: (n) => `${n} of your ${n === 1 ? "blessing is" : "blessings are"} waiting for the couple.`,
   blessingLimit: "You've already sent the maximum number of blessings. Thank you!", noBlessingsYet: "Be the first to leave a blessing.",
+  revealTitle: "You are cordially invited", infoTitle: "Guest information", navInfo: "Info", call: "Call", closingTitle: "With best compliments from", shareMoments: "Share your photos with",
+  previewBanner: "Preview · replies are switched off", previewUntil: (time) => `This preview link works until ${time}.`, previewRsvpOff: "Guests reply here. Replies are switched off in this preview.", previewGuest: "Guest name",
   savedResponses: (n) => `${n} ${n === 1 ? "response" : "responses"} saved.`, alreadySaved: "These responses were already saved.", savedInfo: "Your information has been updated.",
   conflict: "This was changed a moment ago. Please refresh the page and try again.", unavailableShort: "This invitation is no longer available. Please contact your hosts.", invalid: "Please check your answers and try again.",
 };
@@ -89,6 +93,8 @@ const hi: PortalStrings = {
   blessingPlaceholder: "आपकी शुभकामनाएँ…", sendBlessing: "आशीर्वाद भेजें", sendingBlessing: "भेजा जा रहा है…",
   blessingThanks: "धन्यवाद! जोड़े के देखने के बाद आपका आशीर्वाद यहाँ दिखेगा।", blessingPending: (n) => `आपके ${n} आशीर्वाद जोड़े के देखने की प्रतीक्षा में हैं।`,
   blessingLimit: "आप अधिकतम आशीर्वाद भेज चुके हैं। धन्यवाद!", noBlessingsYet: "सबसे पहले आशीर्वाद दें।",
+  revealTitle: "आप सादर आमंत्रित हैं", infoTitle: "अतिथि जानकारी", navInfo: "सूचना", call: "कॉल करें", closingTitle: "शुभेच्छु", shareMoments: "अपनी तस्वीरें साझा करें",
+  previewBanner: "पूर्वावलोकन · उत्तर बंद हैं", previewUntil: (time) => `यह पूर्वावलोकन लिंक ${time} तक चलेगा।`, previewRsvpOff: "मेहमान यहाँ उत्तर देंगे। इस पूर्वावलोकन में उत्तर बंद हैं।", previewGuest: "अतिथि का नाम",
   savedResponses: (n) => `${n} उत्तर सहेजे गए।`, alreadySaved: "ये उत्तर पहले ही सहेजे जा चुके हैं।", savedInfo: "आपकी जानकारी अपडेट हो गई है।",
   conflict: "यह अभी-अभी बदला गया है। कृपया पेज रीफ़्रेश करके फिर कोशिश करें।", unavailableShort: "यह निमंत्रण अब उपलब्ध नहीं है। कृपया मेज़बानों से संपर्क करें।", invalid: "कृपया अपने उत्तर जाँचकर फिर कोशिश करें।",
 };
@@ -122,6 +128,8 @@ const kn: PortalStrings = {
   blessingPlaceholder: "ನಿಮ್ಮ ಶುಭಾಶಯಗಳು…", sendBlessing: "ಆಶೀರ್ವಾದ ಕಳುಹಿಸಿ", sendingBlessing: "ಕಳುಹಿಸಲಾಗುತ್ತಿದೆ…",
   blessingThanks: "ಧನ್ಯವಾದ! ದಂಪತಿಗಳು ನೋಡಿದ ನಂತರ ನಿಮ್ಮ ಆಶೀರ್ವಾದ ಇಲ್ಲಿ ಕಾಣುತ್ತದೆ.", blessingPending: (n) => `ನಿಮ್ಮ ${n} ಆಶೀರ್ವಾದಗಳು ದಂಪತಿಗಳಿಗಾಗಿ ಕಾಯುತ್ತಿವೆ.`,
   blessingLimit: "ನೀವು ಗರಿಷ್ಠ ಆಶೀರ್ವಾದಗಳನ್ನು ಕಳುಹಿಸಿದ್ದೀರಿ. ಧನ್ಯವಾದ!", noBlessingsYet: "ಮೊದಲ ಆಶೀರ್ವಾದ ನಿಮ್ಮದಾಗಲಿ.",
+  revealTitle: "ತಮಗೆ ಸಾದರ ಆಹ್ವಾನ", infoTitle: "ಅತಿಥಿಗಳಿಗೆ ಮಾಹಿತಿ", navInfo: "ಸೂಚನೆ", call: "ಕರೆ ಮಾಡಿ", closingTitle: "ಶುಭಾಕಾಂಕ್ಷಿಗಳು", shareMoments: "ನಿಮ್ಮ ಫೋಟೋಗಳನ್ನು ಹಂಚಿಕೊಳ್ಳಿ",
+  previewBanner: "ಮುನ್ನೋಟ · ಉತ್ತರಗಳು ಸ್ಥಗಿತ", previewUntil: (time) => `ಈ ಮುನ್ನೋಟ ಲಿಂಕ್ ${time} ರವರೆಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ.`, previewRsvpOff: "ಅತಿಥಿಗಳು ಇಲ್ಲಿ ಉತ್ತರಿಸುತ್ತಾರೆ. ಈ ಮುನ್ನೋಟದಲ್ಲಿ ಉತ್ತರಗಳು ಸ್ಥಗಿತ.", previewGuest: "ಅತಿಥಿಯ ಹೆಸರು",
   savedResponses: (n) => `${n} ಉತ್ತರಗಳನ್ನು ಉಳಿಸಲಾಗಿದೆ.`, alreadySaved: "ಈ ಉತ್ತರಗಳನ್ನು ಈಗಾಗಲೇ ಉಳಿಸಲಾಗಿದೆ.", savedInfo: "ನಿಮ್ಮ ಮಾಹಿತಿ ನವೀಕರಿಸಲಾಗಿದೆ.",
   conflict: "ಇದನ್ನು ಈಗಷ್ಟೇ ಬದಲಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಪುಟವನ್ನು ರಿಫ್ರೆಶ್ ಮಾಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.", unavailableShort: "ಈ ಆಹ್ವಾನ ಈಗ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಆತಿಥೇಯರನ್ನು ಸಂಪರ್ಕಿಸಿ.", invalid: "ದಯವಿಟ್ಟು ನಿಮ್ಮ ಉತ್ತರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
 };
@@ -143,6 +151,7 @@ const tcy: PortalStrings = {
   travelHelp: "ದಾಲ ತಪ್ಪು ತೋಜಿಂಡ ಆತಿಥೇಯೆರೆನ್ ಸಂಪರ್ಕ ಮಲ್ಪುಲೆ.",
   openInvitation: "ಈರೆನ ಲೆಪ್ಪು ತೆರಲೆ", navInvitation: "ಲೆಪ್ಪು", navStory: "ಎಂಕುಲೆನ ಕತೆ", ourStory: "ಎಂಕುಲೆನ ಕತೆ",
   blessingsTitle: "ಆಶೀರ್ವಾದೊಲು", sendBlessing: "ಆಶೀರ್ವಾದ ಕಡಪುಡ್ಲೆ", blessingPlaceholder: "ಈರೆನ ಶುಭಾಶಯೊಲು…",
+  revealTitle: "ಈರೆಗ್ ಪ್ರೀತಿದ ಲೆಪ್ಪು", call: "ಫೋನ್ ಮಲ್ಪುಲೆ", previewGuest: "ಬಿನ್ನೆರೆನ ಪುದರ್",
 };
 
 export const PORTAL_STRINGS: Record<LanguageCode, PortalStrings> = { en, hi, kn, tcy };

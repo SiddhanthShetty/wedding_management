@@ -42,11 +42,11 @@ describe("card export fonts", () => {
 });
 
 describe("invitation website content", async () => {
-  const { countdownParts, isLiveWindow, nextFunctionStart, parseSite, readSite } = await import("../src/lib/invitations/site");
+  const { countdownParts, EMPTY_SITE, isLiveWindow, nextFunctionStart, parseSite, readSite } = await import("../src/lib/invitations/site");
   it("validates website content strictly and reads stored content leniently", () => {
     const fn = "a2000000-0000-4000-8000-000000000001";
     expect(parseSite({ story: [{ title: " Met in Mangaluru ", text: "", when: "2019" }], faqs: [], palettes: { [fn]: ["#E9B44C"] }, livestream_url: "", extra: "dropped" }))
-      .toEqual({ opening_animation: true, countdown: true, blessings_enabled: false, livestream_url: null, story: [{ title: "Met in Mangaluru", text: "", when: "2019" }], faqs: [], palettes: { [fn]: ["#E9B44C"] } });
+      .toEqual({ ...EMPTY_SITE, story: [{ title: "Met in Mangaluru", text: "", when: "2019" }], palettes: { [fn]: ["#E9B44C"] } });
     expect(() => parseSite({ livestream_url: "http://insecure.example" })).toThrow(/https/);
     expect(() => parseSite({ palettes: { [fn]: ["red"] } })).toThrow(/#E9B44C/);
     expect(() => parseSite({ story: Array.from({ length: 9 }, () => ({ title: "x", text: "", when: "" })) })).toThrow(/8/);

@@ -169,3 +169,11 @@ Still unverified: keyboard tab behaviour and signed-in mobile forms in a real br
   - The print layout is tidier.
   - Accent text meets 4.5:1 contrast in every theme (tested).
 - **Checks run:** `tsc --noEmit` passed. `vitest run` passed 162 tests in 12 files. `next build` passed. The Playwright smoke tests passed 4 tests.
+
+## Invitation studio, Milestone 1 (2026-11)
+
+- **New migration, applied to `wedding_management` on 2026-11-07** after a schema and data dump and a dry run: `20261115100000_invitation_preview_links.sql` adds the `invitation_preview_links` table (RLS on, no API access), `create_invitation_preview_link` (signed-in guest-list editors only) and `get_invitation_preview` (`anon` only).
+- **Data impact:** additive. Nothing existing changes. Expired preview rows for a wedding are deleted whenever a new preview link is created for it.
+- **Checked on the live project afterwards:** migration history matches. The table has RLS on, no policies, and no grants to `anon` or `authenticated`. `create_invitation_preview_link` can be run by `authenticated` only, and `get_invitation_preview` by `anon` only (plus the service role in both cases).
+- **Checks run:** `tsc --noEmit` passed. `vitest run` passed 174 tests in 13 files. `next build` passed. The Playwright smoke tests passed 4 tests. The studio was also checked visually through a temporary demo page with fake data (since deleted), at desktop and phone widths.
+- **Not run:** a signed-in check against the real database, and a family preview link created and opened end to end.

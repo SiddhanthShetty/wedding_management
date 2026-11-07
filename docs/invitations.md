@@ -57,6 +57,31 @@ The built-in Hindi, Kannada and Tulu wording are **drafts**. The studio says so 
 - **Sending.** Filters (Not sent, Sent not opened, Opened), "Send in order" through the queue, and "Opened … ago" taken from when each link was last used.
 - **Link preview.** A generic "You are invited" image with no names, because the private token never reaches the server in a preview.
 
+## Invitation studio (Milestone 1, 2026-11)
+
+The studio follows the structure of modern invitation builders, with our own design and themes.
+
+- **Four steps:**
+  - Design: template, colours, photo, monogram, and how guests open it.
+  - Content: names and parents' lines, blessing line, card wording, story, guest information, FAQ, palettes, livestream, closing family names, hashtag and Instagram, opening-screen wording and section titles.
+  - Extras: every card format as a sample.
+  - Share: family preview link, sending, and blessings.
+- **Live phone preview.** It shows the real guest page built from the unsaved draft, as a sample guest or as any invited guest, in any of the four languages. It has a "Replay opening" button and a WhatsApp view of how the card and message arrive. Replies and blessings are switched off in previews.
+- **One save.** The card and the website are saved together in one versioned update. The studio shows "Unsaved changes" and warns before you leave the page.
+- **Family preview link.** `/guest/preview#token` works for 30 minutes and is marked as a preview. Replies are off, and it never contains guest data: it shows the saved design, its website and the wedding's functions with a sample guest. Only guest-list editors can create one, at most 20 open per wedding. Only a keyed digest of the token is stored.
+- **Content fields** are stored in `invitation_designs.site`, so they need no schema change. They are validated strictly on save:
+  - hashtags may use any script;
+  - Instagram handles follow Instagram's rules;
+  - phone numbers may only contain digits and + ( ) -;
+  - the whole website must stay under 60 KB.
+
+  Websites saved earlier are read with defaults for the new fields.
+- **Contrast fix.** Countdown numbers, the hashtag and the section-menu hover now use the readable accent colour (`--portal-accent-text`). Before this, they could be unreadable on the Kolam theme.
+
+**Next milestones (not built):**
+- M2: more opening styles, celebration effects, music, a photo gallery and two new templates.
+- M3: a multi-page PDF card and Save the Date as its own invitation.
+
 ### Pending decisions
 
 - **Re-send without revoking.** Links are stored only as hashes, so a link can be shown once, but it can't be re-sent later without creating a new one. Allowing re-sends would mean storing link tokens encrypted. This needs your decision; it is not built.

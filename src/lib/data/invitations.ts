@@ -2,6 +2,7 @@ import "server-only";
 import type { InvitationSite } from "@/lib/invitations/site";
 import { AuthorizationDeniedError, authorizeWeddingOperation } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { digestGuestPortalValue, newGuestPortalToken } from "@/lib/guest-portal/crypto";
 import { createGuestPortalLink } from "@/lib/data/guests";
 import { isDuplicateSubmission } from "@/lib/data/travel";
 import { isLanguage, TEXT_KEYS, unknownInvitationPlaceholders, type LanguageCode, type TextOverrides, type ThemeId } from "@/lib/invitations/content";
@@ -36,6 +37,7 @@ export async function getInvitationWorkspace(weddingId: string) {
     wedding: context.wedding,
     canEdit: context.membership.role === "owner" || context.membership.role === "co_owner" || context.moduleAccess.guests === "edit",
     coupleNames: [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean).join(" & ") || context.wedding.name,
+    couplePartners: [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean) as string[],
     designs: (designs.data ?? []) as Array<{ id: string; name: string; theme: ThemeId; accent: string | null; texts: TextOverrides; site: unknown; photo_data: string | null; show_monogram: boolean; is_default: boolean; version: number; updated_at: string }>,
     households: (households.data ?? []) as Array<{ id: string; name: string; contact_name: string; contact_email: string; contact_phone: string; preferred_language: LanguageCode }>,
     guests: (guests.data ?? []) as Array<{ id: string; household_id: string | null; full_name: string; email: string; phone: string }>,
@@ -86,7 +88,7 @@ async function editor(weddingId: string) {
   return { context, supabase: await createSupabaseServerClient() };
 }
 
-export async function saveDesign(weddingId: string, designId: string | null, expectedVersion: number | null, input: { name: string; theme: ThemeId; accent: string | null; texts: TextOverrides; show_monogram: boolean }) {
+export async function saveDesign(weddingId: string, designId: string | null, expectedVersion: number | null, input: { name: string; theme: ThemeId; accent: string | null; texts: TextOverrides; show_monogram: boolean; site?: InvitationSite }) {
   const { context, supabase } = await editor(weddingId);
   if (!designId) {
     const existing = await supabase.from("invitation_designs").select("id").eq("wedding_id", weddingId).limit(1);
@@ -151,11 +153,17 @@ export async function recordInvitationShared(weddingId: string, input: { guestId
 }
 
 /** Saves the invitation website content of one design, if nobody changed the design meanwhile. */
-export async function saveSite(weddingId: string, designId: string, expectedVersion: number, site: InvitationSite) {
+/**
+ * A 30-minute preview link to one design, for family to look at before invitations go out.
+ * Only the digest is stored; the token is returned once, to be put after # in the link.
+ */
+export async function createPreviewLink(weddingId: string, designId: string) {
   const { supabase } = await editor(weddingId);
-  const { data, error } = await supabase.from("invitation_designs").update({ site }).eq("wedding_id", weddingId).eq("id", designId).eq("version", expectedVersion).select("id").maybeSingle();
-  check(error, "Could not save the website.");
-  if (!data) throw new InvitationConflictError();
+  const token = newGuestPortalToken();
+  const { data, error } = await supabase.rpc("create_invitation_preview_link", { p_wedding_id: weddingId, p_design_id: designId, p_token_digest: digestGuestPortalValue("preview", token) });
+  if (error?.code === "23514" || error?.code === "P0002") throw new InvitationRuleError(error.message);
+  check(error, "Could not create the preview link.");
+  return { token, expiresAt: String(data) };
 }
 
 /** Approves or hides a guest's blessing. Hidden blessings are never shown to guests. */

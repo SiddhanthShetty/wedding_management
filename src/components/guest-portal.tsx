@@ -9,11 +9,11 @@ import { recordGuestPortalRsvpBatchAction, saveGuestPortalProfileAction, type Gu
 import type { GuestPortalData, PortalGuest, PortalInvitation } from "@/lib/guest-portal/server";
 import { Button } from "@/components/ui";
 import { InvitationCard } from "@/components/invitation-card";
-import { BlessingsSection, CountdownBanner, FaqSection, OpeningOverlay, Palette, PetalBurst, SectionNav, StorySection } from "@/components/portal-site";
+import { BlessingHeader, BlessingsSection, ClosingSection, CountdownBanner, FamilyLines, FaqSection, InfoSection, OpeningOverlay, Palette, PetalBurst, SectionNav, StorySection } from "@/components/portal-site";
 import { nextFunctionStart, readSite, type InvitationSite } from "@/lib/invitations/site";
 import { resolveFunctionSchedule } from "@/lib/planning/schedule";
-import { buildCardProps } from "@/lib/invitations/card-data";
-import { isLanguage, LANGUAGES, THEMES, type LanguageCode, type ThemeId } from "@/lib/invitations/content";
+import { buildCardProps, monogramFor } from "@/lib/invitations/card-data";
+import { isLanguage, LANGUAGES, readableAccent, THEMES, type LanguageCode, type ThemeId } from "@/lib/invitations/content";
 
 const initial: GuestActionState = {};
 const LANGUAGE_KEY = "wedding-desk:portal-language";
@@ -22,10 +22,11 @@ const useT = () => useContext(PortalLanguage).t;
 const useLocale = () => PORTAL_LOCALES[useContext(PortalLanguage).lang];
 
 /** The household's language by default; a guest's own choice is remembered on their device. */
-function LanguageProvider({ initialLang, children }: { initialLang: LanguageCode; children: React.ReactNode }) {
-  const [lang, setLangState] = useState<LanguageCode>(initialLang);
-  useEffect(() => { try { const saved = window.localStorage.getItem(LANGUAGE_KEY); if (saved && isLanguage(saved)) setLangState(saved); } catch { /* preference only */ } }, []);
-  const setLang = (next: LanguageCode) => { setLangState(next); try { window.localStorage.setItem(LANGUAGE_KEY, next); } catch { /* preference only */ } };
+function LanguageProvider({ initialLang, controlled, children }: { initialLang: LanguageCode; controlled?: { lang: LanguageCode; setLang: (lang: LanguageCode) => void }; children: React.ReactNode }) {
+  const [own, setOwn] = useState<LanguageCode>(initialLang);
+  useEffect(() => { if (controlled) return; try { const saved = window.localStorage.getItem(LANGUAGE_KEY); if (saved && isLanguage(saved)) setOwn(saved); } catch { /* preference only */ } }, [controlled]);
+  const setLang = controlled?.setLang ?? ((next: LanguageCode) => { setOwn(next); try { window.localStorage.setItem(LANGUAGE_KEY, next); } catch { /* preference only */ } });
+  const lang = controlled?.lang ?? own;
   return <PortalLanguage.Provider value={{ lang, t: PORTAL_STRINGS[lang], setLang }}>{children}</PortalLanguage.Provider>;
 }
 
@@ -62,15 +63,17 @@ function TokenExchangeInner() {
   return <PortalFrame><div className="guest-portal-state" role="status"><span className="guest-portal-heart"><Heart size={18}/></span><h1>{t.privateInvitation}</h1><p>{failed ? t.unavailable : t.checking}</p></div></PortalFrame>;
 }
 
-function PortalFrame({children,style}:{children:React.ReactNode;style?:React.CSSProperties}) {
+function PortalFrame({children,style,embedded=false}:{children:React.ReactNode;style?:React.CSSProperties;embedded?:boolean}) {
   const { lang, t, setLang } = useContext(PortalLanguage);
-  return <main className="guest-portal-main" lang={lang === "tcy" ? "tcy" : lang} style={style}>
+  // Embedded in the studio's phone preview, the page must not add a second <main> landmark.
+  const Frame = embedded ? "div" : "main";
+  return <Frame className="guest-portal-main" lang={lang === "tcy" ? "tcy" : lang} style={style}>
     <div className="guest-portal-brand"><span className="guest-portal-heart"><Heart size={17}/></span><span>{t.brand}</span>
       <label className="portal-language"><span className="sr-only">{t.language}</span>
         <select value={lang} onChange={(event)=>setLang(event.target.value as LanguageCode)} aria-label={t.language}>{LANGUAGES.map((item)=><option key={item.code} value={item.code}>{item.label.split(" · ")[0]}</option>)}</select>
       </label>
     </div>
-    {children}<p className="guest-portal-footer">{t.footer}</p></main>;
+    {children}<p className="guest-portal-footer">{t.footer}</p></Frame>;
 }
 
 function useFormatters(){
@@ -252,10 +255,10 @@ function PortalInvitationCard({data}:{data:GuestPortalData}){
   const seen=new Map<string,PortalInvitation["function"]>();
   for(const person of data.people)for(const invitation of person.invitations)seen.set(invitation.function.id,invitation.function);
   const card=buildCardProps({
-    theme:(THEMES.some((theme)=>theme.id===data.invitation!.theme)?data.invitation.theme:"mallige") as ThemeId,accent:data.invitation.accent,overrides:language===householdLanguage?{[language]:data.invitation.texts}:{},language,
+    theme:(THEMES.some((theme)=>theme.id===data.invitation!.theme)?data.invitation.theme:"mallige") as ThemeId,accent:data.invitation.accent,overrides:data.invitation.all_texts??(language===householdLanguage?{[language]:data.invitation.texts}:{}),language,
     couple:data.couple_names.length?data.couple_names.join(" & "):"Our family",greetingName:portalGuest?.full_name??data.household.name,
     functions:[...seen.values()].map((fn)=>({name:fn.name,function_date:fn.date,start_time:fn.start_time,venue_name:fn.location})),
-    photoUrl:data.invitation.has_photo?"/guest/photo":null,showMonogram:data.invitation.show_monogram!==false,
+    photoUrl:data.invitation.photo_url!==undefined?data.invitation.photo_url:data.invitation.has_photo?"/guest/photo":null,showMonogram:data.invitation.show_monogram!==false,
   });
   return <div className="guest-portal-invitation"><InvitationCard {...card}/></div>;
 }
@@ -286,8 +289,25 @@ export function GuestPortal({data}:{data:GuestPortalData|null}) {
   return <LanguageProvider initialLang={initialLang}><PortalContent data={data}/></LanguageProvider>;
 }
 
-function PortalContent({data}:{data:GuestPortalData}) {
+/** The guest page with sample or draft content, for the studio's phone preview and family preview links. */
+export function PortalPreview({data,lang,setLang,replay=0,embedded=false}:{data:GuestPortalData;lang?:LanguageCode;setLang?:(lang:LanguageCode)=>void;replay?:number;embedded?:boolean}) {
+  const initialLang=isLanguage(data.household.language??"en")?data.household.language as LanguageCode:"en";
+  return <LanguageProvider initialLang={initialLang} controlled={lang&&setLang?{lang,setLang}:undefined}><PortalContent data={data} replay={replay} embedded={embedded}/></LanguageProvider>;
+}
+
+function PreviewReplies({data}:{data:GuestPortalData}){
   const t=useT();
+  const person=data.people[0];
+  return <section className="guest-portal-person">
+    <div className="guest-portal-person-heading"><h2>{person?.full_name??t.previewGuest}</h2><span>{t.invitations(person?.invitations.length??0)}</span></div>
+    <p className="portal-preview-note">{t.previewRsvpOff}</p>
+    {person&&<div className="guest-portal-functions">{person.invitations.map((invitation)=><FunctionCard key={invitation.id} invitation={invitation}><div className="rsvp-choice is-disabled" aria-hidden="true">{RESPONSE_VALUES.map((value)=><span key={value} className={`rsvp-option rsvp-${value}`}>{t[value]}</span>)}</div></FunctionCard>)}</div>}
+  </section>;
+}
+
+function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;replay?:number;embedded?:boolean}) {
+  const t=useT(); const locale=useLocale();
+  const preview=data.preview;
   const portalGuest=data.people.find((person)=>person.id===data.portal_guest_id);
   const proxyPeople=data.people.filter((person)=>person.is_proxy);
   const site=readSite(data.site);
@@ -306,24 +326,31 @@ function PortalContent({data}:{data:GuestPortalData}) {
   const liveTarget=functionStarts.filter((fn)=>fn.startsAt).map((fn)=>({name:fn.name,startsAt:new Date(fn.startsAt!)})).sort((a,b)=>Math.abs(a.startsAt.getTime()-now.getTime())-Math.abs(b.startsAt.getTime()-now.getTime()))[0]??null;
   const sections=[
     data.invitation?{id:"invitation",label:t.navInvitation}:null,
-    site.story.length?{id:"story",label:t.navStory}:null,
+    site.story.length?{id:"story",label:site.titles.story||t.navStory}:null,
     {id:"plan",label:t.navPlan},
+    site.info_cards.length?{id:"info",label:site.titles.info||t.navInfo}:null,
     {id:"reply",label:t.navReply},
-    site.faqs.length?{id:"faq",label:t.navFaq}:null,
-    site.blessings_enabled?{id:"blessings",label:t.navBlessings}:null,
+    site.faqs.length?{id:"faq",label:site.titles.faq||t.navFaq}:null,
+    site.blessings_enabled?{id:"blessings",label:site.titles.blessings||t.navBlessings}:null,
   ].filter((item):item is {id:string;label:string}=>Boolean(item));
   const theme=THEMES.find((item)=>item.id===data.invitation?.theme);
-  const themeStyle=theme?{["--portal-accent" as string]:data.invitation?.accent||theme.accent,["--portal-theme-bg" as string]:theme.background,["--portal-theme-ink" as string]:theme.ink} as React.CSSProperties:undefined;
-  return <PortalFrame style={themeStyle}>
-    {data.invitation&&<OpeningOverlay t={t} couple={couple} enabled={site.opening_animation}/>}
+  const themeStyle=theme?{["--portal-accent" as string]:data.invitation?.accent||theme.accent,["--portal-accent-text" as string]:readableAccent(theme.id,data.invitation?.accent??null),["--portal-theme-bg" as string]:theme.background,["--portal-theme-ink" as string]:theme.ink} as React.CSSProperties:undefined;
+  const monogram=data.invitation?.show_monogram!==false&&data.couple_names.length?monogramFor(couple)??undefined:undefined;
+  return <PortalFrame style={themeStyle} embedded={embedded}>
+    {preview&&<p className="portal-preview-banner" role="status">{t.previewBanner}{preview.expires_at?` · ${t.previewUntil(new Intl.DateTimeFormat(locale,{hour:"numeric",minute:"2-digit"}).format(new Date(preview.expires_at)))}`:""}</p>}
+    {/* In the studio the opening plays only on "Replay opening"; guests and family previews see it once per visit. */}
+    {data.invitation&&!(embedded&&replay===0)&&<OpeningOverlay key={replay} t={t} couple={couple} enabled={site.opening_animation} site={site} monogram={monogram} always={embedded}/>}
     <SectionNav t={t} sections={sections}/>
     <section id="invitation" className="portal-hero" aria-label={t.navInvitation}>
+      <BlessingHeader site={site}/>
       <PortalInvitationCard data={data}/>
+      <FamilyLines names={data.couple_names} site={site}/>
       <CountdownBanner t={t} target={target} liveTarget={liveTarget} site={site}/>
     </section>
     <StorySection t={t} site={site}/>
     <PortalItinerary data={data} site={site}/>
-    <div id="reply" className="portal-reply">
+    <InfoSection t={t} site={site}/>
+    {preview?<div id="reply" className="portal-reply"><PreviewReplies data={data}/></div>:<div id="reply" className="portal-reply">
     <header className="guest-portal-welcome"><p className="guest-portal-eyebrow">{t.celebrationWith}</p><h1>{data.couple_names.length?data.couple_names.join(" & "):t.ourFamily}</h1><p>{t.welcome(portalGuest?.full_name??"")} {proxyPeople.length?t.proxyNote(proxyPeople.map((person)=>person.full_name).join(", ")):t.onlyYours}</p></header>
     {data.people.length>1&&data.people.reduce((total,person)=>total+person.invitations.length,0)>1&&<AuthorizedGuestsAcceptAll count={data.people.length}/>}
     {!data.people.length?<section className="guest-portal-state"><h2>{t.notAvailableTitle}</h2><p>{t.unavailable}</p></section>:data.people.map(person=><section className="guest-portal-person" key={person.id}>
@@ -332,9 +359,10 @@ function PortalContent({data}:{data:GuestPortalData}) {
       <TravelArrangements person={person}/>
       <GuestProfileForm person={person}/>
     </section>)}
-    </div>
+    </div>}
     <FaqSection t={t} site={site}/>
-    <BlessingsSection t={t} site={site} blessings={data.blessings??[]} pending={data.my_pending_blessings??0}/>
+    <BlessingsSection t={t} site={site} blessings={data.blessings??[]} pending={data.my_pending_blessings??0} preview={Boolean(preview)}/>
+    <ClosingSection t={t} site={site}/>
     <aside className="guest-portal-help"><p>{t.contactHosts}</p></aside>
   </PortalFrame>;
 }

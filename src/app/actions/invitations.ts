@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { z, ZodError } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
-import { moderateBlessing, saveDesignPhoto, saveSite } from "@/lib/data/invitations";
+import { createPreviewLink, moderateBlessing, saveDesignPhoto } from "@/lib/data/invitations";
 import { checkPhotoDataUrl } from "@/lib/invitations/photo";
 import { parseSite } from "@/lib/invitations/site";
 import { cleanTextOverrides, InvitationConflictError, InvitationRuleError, prepareGuestInvitation, recordInvitationShared, saveDesign, setDefaultDesign, setHouseholdLanguage } from "@/lib/data/invitations";
@@ -39,8 +39,15 @@ export async function saveDesignAction(_state: InvitationActionState, form: Form
     }).parse({ name: text(form, "name"), theme: text(form, "theme"), accent: text(form, "useAccent") === "on" ? text(form, "accent") : "", show_monogram: text(form, "showMonogram") === "on" });
     let raw: unknown;
     try { raw = JSON.parse(text(form, "texts") || "{}"); } catch { throw new InvitationRuleError("The wording could not be read. Refresh and try again."); }
-    await saveDesign(weddingId, designId || null, version === "" ? null : version, { ...input, texts: cleanTextOverrides(raw) });
-    return designId ? "Design saved." : "Design created.";
+    // The studio saves the card and the invitation website together; older forms send only the card.
+    let site;
+    if (form.has("site")) {
+      let rawSite: unknown;
+      try { rawSite = JSON.parse(text(form, "site") || "{}"); } catch { throw new InvitationRuleError("The website content could not be read. Refresh and try again."); }
+      try { site = parseSite(rawSite); } catch (error) { throw new InvitationRuleError((error as Error).message); }
+    }
+    await saveDesign(weddingId, designId || null, version === "" ? null : version, { ...input, texts: cleanTextOverrides(raw), ...(site ? { site } : {}) });
+    return designId ? "Saved. Guests see the changes the next time they open their link." : "Design created.";
   });
 }
 
@@ -62,6 +69,13 @@ export async function prepareInvitationAction(weddingId: string, guestId: string
   try { return await prepareGuestInvitation(parsed.data.weddingId, parsed.data.guestId); } catch (error) { return { error: failure(error).error }; }
 }
 
+/** A 30-minute family preview link for one design; the token is shown once. */
+export async function createPreviewLinkAction(weddingId: string, designId: string): Promise<{ token?: string; expiresAt?: string; error?: string }> {
+  const parsed = z.object({ weddingId: id, designId: id }).safeParse({ weddingId, designId });
+  if (!parsed.success) return { error: "Save the design first." };
+  try { return await createPreviewLink(parsed.data.weddingId, parsed.data.designId); } catch (error) { return { error: failure(error).error }; }
+}
+
 export async function recordInvitationSharedAction(input: { weddingId: string; guestId: string; designId: string; channel: string; message: string; link: string }): Promise<InvitationActionState> {
   const parsed = z.object({ weddingId: id, guestId: id, designId: id, channel: z.enum(["whatsapp", "email", "other"]), message: z.string().min(1).max(8000), link: z.string().max(500) }).safeParse(input);
   if (!parsed.success) return { error: "Could not record this invitation." };
@@ -70,19 +84,6 @@ export async function recordInvitationSharedAction(input: { weddingId: string; g
     revalidatePath("/invitations"); revalidatePath("/messages");
     return { message: result.recorded ? "Recorded as sent manually. Delivery is not confirmed." : "Already recorded for this design and channel.", at: Date.now() };
   } catch (error) { return failure(error); }
-}
-
-export async function saveSiteAction(_state: InvitationActionState, form: FormData): Promise<InvitationActionState> {
-  return run(form, async (weddingId) => {
-    const designId = id.parse(text(form, "designId"));
-    const version = z.coerce.number().int().positive().parse(text(form, "version"));
-    let raw: unknown;
-    try { raw = JSON.parse(text(form, "site") || "{}"); } catch { throw new InvitationRuleError("The website content could not be read. Refresh and try again."); }
-    let site;
-    try { site = parseSite(raw); } catch (error) { throw new InvitationRuleError((error as Error).message); }
-    await saveSite(weddingId, designId, version, site);
-    return "Website saved. Guests see it the next time they open their link.";
-  });
 }
 
 export async function moderateBlessingAction(_state: InvitationActionState, form: FormData): Promise<InvitationActionState> {

@@ -6,6 +6,9 @@ import { z } from "zod";
 
 export type StoryMoment = { title: string; text: string; when: string };
 export type Faq = { question: string; answer: string };
+/** A "for your guests" card: where to stay, how to get there, who to call. */
+export type InfoCard = { title: string; text: string; phone: string };
+export type SectionTitles = { story: string; info: string; faq: string; blessings: string };
 export type InvitationSite = {
   opening_animation: boolean;
   countdown: boolean;
@@ -15,9 +18,30 @@ export type InvitationSite = {
   faqs: Faq[];
   /** Dress-code colour palette per function id, e.g. ["#e9b44c", "#7d1747"]. */
   palettes: Record<string, string[]>;
+  /** A line above the invitation, e.g. "|| Shree Ganeshaya Namah ||". */
+  blessing_header: string;
+  /** The parents' line under each partner's name, in the couple's own words (S/o, D/o, grandchild of …). */
+  parents: { one: string; two: string };
+  info_cards: InfoCard[];
+  /** "With best compliments from" and the family names that close the invitation. */
+  closing: { title: string; names: string[] };
+  hashtag: string;
+  /** Instagram handles without the @. */
+  instagram: string[];
+  /** Wording on the opening screen; blank uses the built-in text in the guest's language. */
+  reveal: { title: string; hint: string };
+  /** Section headings; blank uses the built-in heading in the guest's language. */
+  titles: SectionTitles;
 };
 
-export const EMPTY_SITE: InvitationSite = { opening_animation: true, countdown: true, blessings_enabled: false, livestream_url: null, story: [], faqs: [], palettes: {} };
+/** Common blessing lines; the couple can also write their own. */
+export const BLESSING_PRESETS = ["|| Shree Ganeshaya Namah ||", "॥ ಶ್ರೀ ಗಣೇಶಾಯ ನಮಃ ॥", "॥ श्री गणेशाय नमः ॥", "|| Om ||"] as const;
+
+export const EMPTY_SITE: InvitationSite = {
+  opening_animation: true, countdown: true, blessings_enabled: false, livestream_url: null, story: [], faqs: [], palettes: {},
+  blessing_header: "", parents: { one: "", two: "" }, info_cards: [], closing: { title: "", names: [] }, hashtag: "", instagram: [],
+  reveal: { title: "", hint: "" }, titles: { story: "", info: "", faq: "", blessings: "" },
+};
 
 const text = (max: number) => z.string().trim().max(max);
 const siteSchema = z.object({
@@ -28,12 +52,25 @@ const siteSchema = z.object({
   story: z.array(z.object({ title: text(80).min(1, "Give each story moment a title."), text: text(600), when: text(40) })).max(8, "Up to 8 story moments.").default([]),
   faqs: z.array(z.object({ question: text(160).min(1, "Write each question."), answer: text(800).min(1, "Answer each question.") })).max(12, "Up to 12 questions.").default([]),
   palettes: z.record(z.uuid(), z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use colours like #E9B44C.")).max(5)).default({}),
+  blessing_header: text(80).default(""),
+  parents: z.object({ one: text(200).default(""), two: text(200).default("") }).default({ one: "", two: "" }),
+  info_cards: z.array(z.object({
+    title: text(60).min(1, "Give each guest information card a title."), text: text(500).default(""),
+    phone: text(30).regex(/^[+0-9 ()-]*$/, "Phone numbers may only use digits, spaces, +, ( ) and -.").default(""),
+  })).max(6, "Up to 6 guest information cards.").default([]),
+  closing: z.object({ title: text(80).default(""), names: z.array(text(80).min(1, "Remove empty family names.")).max(16, "Up to 16 family names.").default([]) }).default({ title: "", names: [] }),
+  hashtag: text(40).regex(/^(#[\p{L}\p{M}\p{N}_]+)?$/u, "Write the hashtag as one word starting with #, e.g. #RaviWedsMeera.").default(""),
+  instagram: z.array(text(31).transform((value) => value.replace(/^@/, "")).pipe(z.string().regex(/^[A-Za-z0-9._]{1,30}$/, "Instagram handles use letters, numbers, dots and underscores."))).max(3, "Up to 3 Instagram handles.").default([]),
+  reveal: z.object({ title: text(80).default(""), hint: text(80).default("") }).default({ title: "", hint: "" }),
+  titles: z.object({ story: text(60).default(""), info: text(60).default(""), faq: text(60).default(""), blessings: text(60).default("") }).default({ story: "", info: "", faq: "", blessings: "" }),
 });
 
 /** Validates submitted website content. Unknown fields are dropped; invalid content throws a readable error. */
 export function parseSite(input: unknown): InvitationSite {
   const result = siteSchema.safeParse(input ?? {});
   if (!result.success) throw new Error(result.error.issues[0]?.message ?? "Check the website content.");
+  // The database keeps the whole website under 64 KB; stop a little earlier with a clear message.
+  if (new TextEncoder().encode(JSON.stringify(result.data)).length > 60_000) throw new Error("The website content is too long. Shorten the story, FAQ or guest information.");
   return result.data;
 }
 

@@ -12,7 +12,7 @@ export function newGuestPortalToken() {
   return randomBytes(32).toString("base64url");
 }
 
-export function digestGuestPortalValue(kind: "link" | "session" | "rate", value: string) {
+export function digestGuestPortalValue(kind: "link" | "session" | "rate" | "preview", value: string) {
   return createHmac("sha256", secret()).update(`wedding-guest-portal:v1:${kind}:${value}`).digest("hex");
 }
 

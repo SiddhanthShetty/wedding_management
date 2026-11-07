@@ -20,12 +20,18 @@ export type PortalStay = { property: string; address: string; notes: string; roo
 export type PortalJourney = { kind: "arrival" | "departure" | "transfer"; title: string; pickup_at: string; pickup_location: string; dropoff_location: string; timezone: string };
 export type PortalGuest = { id: string; full_name: string; is_proxy: boolean; meal_preference: string; allergies: string; assistance_needs: string; updated_at: string; invitations: PortalInvitation[]; stays?: PortalStay[]; journeys?: PortalJourney[] };
 /** The wedding's chosen invitation design, with wording overrides for the household's language only. */
-export type PortalInvitationDesign = { theme: string; accent: string | null; texts: Record<string, string>; has_photo?: boolean; show_monogram?: boolean };
+export type PortalInvitationDesign = {
+  theme: string; accent: string | null; texts: Record<string, string>; has_photo?: boolean; show_monogram?: boolean;
+  /** Previews only: wording for every language, and the photo as a data URL. */
+  all_texts?: Record<string, Record<string, string>>; photo_url?: string | null;
+};
 export type PortalBlessing = { name: string; message: string; created_at: string };
 export type GuestPortalData = {
   household: { name: string; language?: string }; portal_guest_id: string; invitation?: PortalInvitationDesign | null; couple_names: string[]; people: PortalGuest[];
   /** Invitation website content; validated when saved and re-read leniently on display. */
   site?: unknown; blessings?: PortalBlessing[]; my_pending_blessings?: number;
+  /** A preview for the couple or their family: replies and blessings are switched off. */
+  preview?: { expires_at: string | null };
 };
 
 function publicSupabase() {
@@ -136,6 +142,16 @@ export async function getGuestPortalPhoto(): Promise<{ type: string; bytes: Buff
     if (error || typeof data !== "string") return null;
     const match = /^data:(image\/(?:jpeg|webp));base64,([A-Za-z0-9+/]+=*)$/.exec(data);
     return match ? { type: match[1]!, bytes: Buffer.from(match[2]!, "base64") } : null;
+  } catch { return null; }
+}
+
+/** A family preview of one design, or null when the link is wrong or has expired. */
+export async function getInvitationPreview(token: string): Promise<{ expires_at: string; couple_names: string[]; design: { theme: string; accent: string | null; texts: Record<string, Record<string, string>>; site: unknown; photo_data: string | null; show_monogram: boolean }; functions: PortalFunction[] } | null> {
+  try {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    const { data, error } = await publicSupabase().rpc("get_invitation_preview", { p_token_digest: digestGuestPortalValue("preview", token) });
+    if (error || !data || typeof data !== "object") return null;
+    return data as never;
   } catch { return null; }
 }
 
