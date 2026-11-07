@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, Heart, Menu, Settings, X } from "lucide-react";
 import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
+import type { WorkspaceBranding } from "@/lib/data/branding";
 import { AREAS, areaForPath, currentSectionLabel, isActiveLink, visibleNavGroups } from "@/lib/navigation";
 
 const COLLAPSED_KEY = "wedding-desk:nav-collapsed";
@@ -12,7 +13,7 @@ function readCollapsed(): string[] {
   try { const value = JSON.parse(window.localStorage.getItem(COLLAPSED_KEY) ?? "[]"); return Array.isArray(value) ? value.filter((item) => typeof item === "string") : []; } catch { return []; }
 }
 
-export function WorkspaceShell({ children, weddingName, displayName, role, moduleAccess }: { children: React.ReactNode; weddingName: string; displayName: string; role: MemberRole; moduleAccess: Partial<Record<WeddingModule, AccessLevel>> }) {
+export function WorkspaceShell({ children, weddingName, displayName, role, moduleAccess, branding = null }: { children: React.ReactNode; weddingName: string; displayName: string; role: MemberRole; moduleAccess: Partial<Record<WeddingModule, AccessLevel>>; branding?: WorkspaceBranding | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -45,11 +46,15 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
   const isOwner = role === "owner" || role === "co_owner";
   const groups = visibleNavGroups(role, moduleAccess);
 
-  return <div className="app-shell">
+  const brandStyle = branding ? { ["--brand-accent" as string]: branding.accent, ["--brand-accent-text" as string]: branding.accentText, ["--brand-bg" as string]: branding.background } as React.CSSProperties : undefined;
+  // Phone tab bar: the main destinations this member can open, plus "More" for the full menu.
+  const tabFor = (href: string) => groups.flatMap((group) => group.links).find((link) => link.href === href);
+  const phoneTabs = ["/overview", "/guests", "/schedule"].map(tabFor).filter((link): link is NonNullable<typeof link> => Boolean(link));
+  return <div className="app-shell" style={brandStyle}>
     <button className={`mobile-backdrop ${open ? "is-open" : ""}`} aria-label="Close navigation" onClick={() => setOpen(false)} tabIndex={open ? 0 : -1} />
     <aside ref={sidebarRef} className={`sidebar ${open ? "is-open" : ""}`} aria-label="Workspace navigation" role={open ? "dialog" : undefined} aria-modal={open ? "true" : undefined}>
       <Link href="/overview" className="brand" aria-label="Wedding Desk home">
-        <span className="brand-mark"><Heart size={18} strokeWidth={1.7} aria-hidden="true" /></span><span className="brand-name">Wedding Desk</span>
+        <span className={`brand-mark ${branding?.monogram ? "has-monogram" : ""}`}>{branding?.monogram ? <span aria-hidden="true">{branding.monogram}</span> : <Heart size={18} strokeWidth={1.7} aria-hidden="true" />}</span><span className="brand-name">{branding?.coupleNames || "Wedding Desk"}</span>
       </Link>
       <div className="workspace-switcher">
         <span><span className="switch-title">{weddingName}</span><span className="switch-meta">Workspace</span></span>
@@ -79,6 +84,10 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
         <div className="topbar-right"><span className="topbar-date">{isDemoPage ? "Demo sample records" : "Wedding data"}</span><span className="avatar" aria-label={displayName}>{displayName.slice(0, 2).toUpperCase()}</span></div>
       </header>
       {isDemoPage && <div className="demo-banner"><span className="demo-pill">SAMPLE DATA</span><span>Sample records, dates and figures are synthetic and are not saved to your wedding.</span></div>}
+      <nav className="phone-tabs" aria-label="Quick navigation" inert={open}>
+        {phoneTabs.map((link) => { const Icon = link.icon; return <Link key={link.href} href={link.href} className="phone-tab" aria-current={isActiveLink(pathname, link) ? "page" : undefined}><Icon size={20} aria-hidden="true" /><span>{link.label}</span></Link>; })}
+        <button type="button" className="phone-tab" onClick={() => setOpen(true)} aria-expanded={open}><Menu size={20} aria-hidden="true" /><span>More</span></button>
+      </nav>
       <main id="main-content" className="main-content" inert={open}>{area && <nav className="area-tabs" aria-label={area === "guests" ? "Guests sections" : "Wedding week sections"}>
         {AREAS[area].filter((tab) => groups.some((group) => group.links.some((link) => link.area === area))).map((tab) => <Link key={tab.href} href={tab.href} className="area-tab" aria-current={pathname === tab.href || pathname.startsWith(`${tab.href}/`) ? "page" : undefined}>{tab.label}</Link>)}
       </nav>}{children}<p className="footer-note">{isDemoPage ? "Private wedding planning workspace · Demo shell" : "Private wedding planning workspace · Changes are saved to this wedding"}</p></main>

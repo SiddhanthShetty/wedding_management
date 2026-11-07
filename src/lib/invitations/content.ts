@@ -123,12 +123,34 @@ export function formatFunctionDate(date: string | null, time: string | null, lan
 }
 
 export type ThemeId = "mallige" | "veena" | "kolam" | "thoranam" | "yakshagana" | "kanchi";
-export const THEMES: Array<{ id: ThemeId; name: string; description: string; background: string; ink: string; accent: string; soft: string }> = [
-  { id: "mallige", name: "Mallige", description: "Mangalore jasmine strings on ivory, with a gold border.", background: "#fbf7ee", ink: "#2f3a2c", accent: "#b38a2e", soft: "#e9dfc5" },
-  { id: "veena", name: "Veena", description: "Carnatic evening: deep silk maroon, gold zari, a veena and the seven swaras.", background: "#5b1622", ink: "#fbecd0", accent: "#e2b45a", soft: "#7a2633" },
-  { id: "kolam", name: "Kolam", description: "Rice-flour kolam dots and loops on warm turmeric.", background: "#f3c35a", ink: "#4a2a0c", accent: "#fffaf0", soft: "#e8ad3c" },
-  { id: "thoranam", name: "Thoranam", description: "Mango-leaf thoranam and marigolds over banana-leaf green.", background: "#f6f3e4", ink: "#1f3d24", accent: "#e98b1d", soft: "#cfe0b8" },
-  { id: "yakshagana", name: "Yakshagana", description: "Coastal Karnataka stage colours: vermilion, gold and black, with a crown-arch frame.", background: "#1d1412", ink: "#f8e6c4", accent: "#d9a23a", soft: "#a5251c" },
-  { id: "kanchi", name: "Kanchi silk", description: "Temple-border silk: magenta body, gold temple triangles.", background: "#7d1747", ink: "#fdeedd", accent: "#e8b34b", soft: "#9a2b5d" },
+/** `accent` decorates (borders, motifs); `accentText` is the same hue darkened to at least 4.5:1 for text. */
+export const THEMES: Array<{ id: ThemeId; name: string; description: string; background: string; ink: string; accent: string; accentText: string; soft: string }> = [
+  { id: "mallige", name: "Mallige", description: "Mangalore jasmine strings on ivory, with a gold border.", background: "#fbf7ee", ink: "#2f3a2c", accent: "#b38a2e", accentText: "#7f5b14", soft: "#e9dfc5" },
+  { id: "veena", name: "Veena", description: "Carnatic evening: deep silk maroon, gold zari, a veena and the seven swaras.", background: "#5b1622", ink: "#fbecd0", accent: "#e2b45a", accentText: "#e2b45a", soft: "#7a2633" },
+  { id: "kolam", name: "Kolam", description: "Rice-flour kolam dots and loops on warm turmeric.", background: "#f3c35a", ink: "#4a2a0c", accent: "#fffaf0", accentText: "#6b2f00", soft: "#e8ad3c" },
+  { id: "thoranam", name: "Thoranam", description: "Mango-leaf thoranam and marigolds over banana-leaf green.", background: "#f6f3e4", ink: "#1f3d24", accent: "#e98b1d", accentText: "#9a4400", soft: "#cfe0b8" },
+  { id: "yakshagana", name: "Yakshagana", description: "Coastal Karnataka stage colours: vermilion, gold and black, with a crown-arch frame.", background: "#1d1412", ink: "#f8e6c4", accent: "#d9a23a", accentText: "#d9a23a", soft: "#a5251c" },
+  { id: "kanchi", name: "Kanchi silk", description: "Temple-border silk: magenta body, gold temple triangles.", background: "#7d1747", ink: "#fdeedd", accent: "#e8b34b", accentText: "#e8b34b", soft: "#9a2b5d" },
 ];
+
+function luminance(hex: string) {
+  const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+}
+/** WCAG contrast ratio between two #rrggbb colours (1–21). */
+export function contrastRatio(a: string, b: string) {
+  const [x, y] = [luminance(a), luminance(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/**
+ * Colour for accent-coloured text on a theme: the couple's own accent when it is readable
+ * (at least 4.5:1), otherwise the theme's text-safe accent, otherwise the body ink.
+ */
+export function readableAccent(themeId: ThemeId, customAccent: string | null | undefined) {
+  const theme = themeById(themeId);
+  if (customAccent && contrastRatio(customAccent, theme.background) >= 4.5) return customAccent;
+  return contrastRatio(theme.accentText, theme.background) >= 4.5 ? theme.accentText : theme.ink;
+}
+
 export const themeById = (id: string) => THEMES.find((theme) => theme.id === id) ?? THEMES[0]!;

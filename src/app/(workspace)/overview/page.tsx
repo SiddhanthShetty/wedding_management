@@ -68,6 +68,28 @@ async function Attention({ weddingId }: { weddingId: string }) {
   </Card>;
 }
 
+/** Names, days to go and the next function, in the couple's theme colours. */
+function OverviewHero({ header, weddingId }: { header: Awaited<ReturnType<typeof getDashboardHeader>>; weddingId: string }) {
+  if (!header.coupleNames && header.daysToGo === null) return null;
+  return <section className="overview-hero" aria-label="Your wedding">
+    <div>
+      <p className="eyebrow">{header.wedding.name}</p>
+      <h2 className="overview-hero-names">{header.coupleNames || header.wedding.name}</h2>
+      <Suspense fallback={null}><NextFunction weddingId={weddingId} /></Suspense>
+    </div>
+    {header.daysToGo !== null && <div className="overview-hero-count" aria-label={header.daysToGo > 0 ? `${header.daysToGo} days to go` : header.daysToGo === 0 ? "The wedding is today" : "The wedding has happened"}>
+      {header.daysToGo > 0 ? <><strong>{header.daysToGo}</strong><span>{header.daysToGo === 1 ? "day to go" : "days to go"}</span></> : header.daysToGo === 0 ? <><strong>Today</strong><span>is the day</span></> : <><strong>♥</strong><span>Married</span></>}
+    </div>}
+  </section>;
+}
+
+async function NextFunction({ weddingId }: { weddingId: string }) {
+  const section = await loadFunctionsSection(weddingId);
+  if (section.state !== "ok" || !section.data.upcoming[0]) return null;
+  const next = section.data.upcoming[0];
+  return <p className="overview-hero-next">Next: <Link className="text-link" href="/functions">{next.name}</Link> · {day(next.function_date)}{next.venue_name ? ` · ${next.venue_name}` : ""}</p>;
+}
+
 async function Setup({ weddingId }: { weddingId: string }) {
   return <SetupChecklist weddingId={weddingId} state={await getSetupState(weddingId)} />;
 }
@@ -84,7 +106,8 @@ export default async function OverviewPage() {
   const header = await getDashboardHeader(id);
   const tz = header.wedding.timezone;
   return <div className="dashboard">
-    <PageHeading eyebrow={`Welcome, ${header.displayName}`} title={header.wedding.name}
+    <OverviewHero header={header} weddingId={id} />
+    <PageHeading eyebrow={`Welcome, ${header.displayName}`} title="What's happening"
       description={`Everything that needs attention, from your wedding's own records. Updated ${formatDateTime(header.generatedAt, tz)} (${tz}).`}
       action={<div className="heading-actions no-print"><a className="button button-secondary" href="/overview/export" download><Download size={15} aria-hidden="true" /> Export CSV</a><PrintButton label="Print summary" /></div>} />
     <Suspense fallback={<SectionSkeleton title="What needs you today" />}><Attention weddingId={id} /></Suspense>

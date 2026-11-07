@@ -169,6 +169,8 @@ describe("exact financial calculations", () => {
     expect(toMinorUnits("0.01")).toBe(1n);
     expect(sumMoney(["19.99", "0.02", "100.00"])).toBe("120.01");
     expect(formatMoney("1234567.89", "EUR")).toBe("EUR 1,234,567.89");
+    expect(formatMoney("1234567.89", "INR")).toBe("₹12,34,567.89");
+    expect(formatMoney("-500", "INR")).toBe("−₹500.00");
     expect(() => toMinorUnits("1.001")).toThrow(/two decimal places/i);
   });
 

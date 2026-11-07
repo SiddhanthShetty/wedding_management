@@ -1,16 +1,22 @@
-import type { ReactNode } from "react";
-import { themeById, type ThemeId } from "@/lib/invitations/content";
+import { useId, type ReactNode } from "react";
+import { readableAccent, themeById, type ThemeId } from "@/lib/invitations/content";
 
 export type CardFunction = { name: string; when: string; venue: string | null };
 export type InvitationCardProps = {
   theme: ThemeId; accent?: string | null; greeting: string; heading: string; couple: string; body: string;
   functionsHeading: string; functions: CardFunction[]; rsvp: string; closing: string; lang: string; title?: string;
+  /** Couple photo (data URL in the studio, /guest/photo in the portal). */
+  photoUrl?: string | null;
+  /** Initials shown in a small seal when there is no photo, e.g. "P · A". */
+  monogram?: string | null;
 };
 
 export const CARD_WIDTH = 1080;
 export const CARD_HEIGHT = 1350;
-const SERIF = "'Noto Serif Kannada','Noto Serif Devanagari','Noto Serif',Georgia,'Times New Roman',serif";
-const SANS = "'Noto Sans Kannada','Noto Sans Devanagari','Noto Sans',system-ui,sans-serif";
+// CSS variables from next/font. They must be set through `style` (SVG presentation attributes do
+// not resolve var()); the PNG export swaps them for the resolved family names and embeds the fonts.
+const SERIF = "var(--font-display-stack, Georgia, serif)";
+const SANS = "var(--font-sans-stack, system-ui, sans-serif)";
 
 /** Splits text into lines of roughly `max` characters on word boundaries (good enough for all four scripts). */
 export function wrapText(text: string, max: number, maxLines = 4): string[] {
@@ -24,8 +30,50 @@ export function wrapText(text: string, max: number, maxLines = 4): string[] {
   return lines;
 }
 
+const graphemes = (text: string): string[] => typeof Intl !== "undefined" && "Segmenter" in Intl
+  ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text), (part) => part.segment)
+  : Array.from(text);
+
+/**
+ * Approximate rendered width in px. Kannada and Devanagari clusters are wider than Latin letters,
+ * so counting characters wrapped them unevenly; this estimates per grapheme and script instead.
+ */
+export function estimateWidth(text: string, size: number): number {
+  let units = 0;
+  for (const cluster of graphemes(text)) {
+    const code = cluster.codePointAt(0) ?? 0;
+    if (/\s/.test(cluster)) units += 0.28;
+    else if (code >= 0x0900 && code <= 0x0dff) units += 0.8;
+    else if (/[A-Z0-9&]/.test(cluster)) units += 0.64;
+    else units += 0.5;
+  }
+  return units * size;
+}
+
+/** Wraps text to a pixel width, shrinking the font (down to minSize) until it fits in maxLines. */
+export function fitLines(text: string, options: { maxWidth: number; size: number; minSize: number; maxLines: number }): { lines: string[]; size: number } {
+  const wrapAt = (size: number) => {
+    const lines: string[] = []; let line = "";
+    for (const word of text.split(/\s+/).filter(Boolean)) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && estimateWidth(next, size) > options.maxWidth) { lines.push(line); line = word; } else line = next;
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
+  for (let size = options.size; size >= options.minSize; size -= 2) {
+    const lines = wrapAt(size);
+    if (lines.length <= options.maxLines && lines.every((line) => estimateWidth(line, size) <= options.maxWidth)) return { lines, size };
+  }
+  const lines = wrapAt(options.minSize);
+  if (lines.length <= options.maxLines) return { lines, size: options.minSize };
+  const kept = lines.slice(0, options.maxLines);
+  kept[options.maxLines - 1] = `${kept[options.maxLines - 1]!.replace(/[.,;]?$/, "")}…`;
+  return { lines: kept, size: options.minSize };
+}
+
 function Lines({ lines, x, y, size, gap = 1.3, fill, family = SERIF, weight = 400, style }: { lines: string[]; x: number; y: number; size: number; gap?: number; fill: string; family?: string; weight?: number; style?: string }) {
-  return <text x={x} y={y} textAnchor="middle" fontFamily={family} fontSize={size} fontWeight={weight} fontStyle={style} fill={fill}>
+  return <text x={x} y={y} textAnchor="middle" fontSize={size} fontWeight={weight} fontStyle={style} fill={fill} style={{ fontFamily: family }}>
     {lines.map((line, index) => <tspan key={index} x={x} dy={index === 0 ? 0 : size * gap}>{line}</tspan>)}
   </text>;
 }
@@ -54,7 +102,7 @@ function Motifs({ theme, accent, soft }: { theme: ThemeId; accent: string; soft:
       return <g>
         <rect x={30} y={30} width={1020} height={1290} fill="none" stroke={accent} strokeWidth={6} />
         <rect x={52} y={52} width={976} height={1246} fill="none" stroke={accent} strokeWidth={1.5} strokeDasharray="2 10" />
-        <text x={540} y={140} textAnchor="middle" fontFamily={SERIF} fontSize={30} letterSpacing={14} fill={accent} opacity={0.75}>Sa · Ri · Ga · Ma · Pa · Da · Ni</text>
+        <text x={540} y={140} textAnchor="middle" style={{ fontFamily: SERIF }} fontSize={30} letterSpacing={14} fill={accent} opacity={0.75}>Sa · Ri · Ga · Ma · Pa · Da · Ni</text>
         <g transform="translate(860 1110) rotate(-35)" fill={accent} opacity={0.85}>
           <circle cx={0} cy={0} r={70} /><circle cx={0} cy={0} r={52} fill={soft} />
           <rect x={-9} y={-430} width={18} height={400} rx={6} />
@@ -104,42 +152,108 @@ function Motifs({ theme, accent, soft }: { theme: ThemeId; accent: string; soft:
   }
 }
 
-/**
- * The invitation card as an SVG (1080×1350, 4:5 for WhatsApp). Rendered in the studio, in the guest
- * portal, and converted to PNG on the planner's device for sharing.
- */
-export function InvitationCard(props: InvitationCardProps) {
+/** The card's drawing (1080×1350 units), usable inside any outer SVG frame. */
+export function InvitationCardBody(props: InvitationCardProps) {
+  const clipId = `card-photo-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const theme = themeById(props.theme);
-  const accent = props.accent || theme.accent;
-  const coupleLines = wrapText(props.couple, 22, 2);
-  const bodyLines = wrapText(props.body, 44, 3);
-  let y = props.theme === "kanchi" ? 250 : props.theme === "thoranam" ? 300 : 290;
+  const accent = props.accent || theme.accent; // borders and motifs
+  const accentText = readableAccent(props.theme, props.accent); // text: always at least 4.5:1
+  const top = props.theme === "kanchi" ? 250 : props.theme === "thoranam" ? 300 : 290;
+  // A photo or monogram sits above the greeting and pushes the text down.
+  const photoCenter = top + 30; const photoRadius = 112;
+  const sealCenter = top + 6; const sealRadius = 54;
+  let y = props.photoUrl ? photoCenter + photoRadius + 58 : props.monogram ? sealCenter + sealRadius + 54 : top;
+  const greeting = fitLines(props.greeting, { maxWidth: 900, size: 34, minSize: 26, maxLines: 1 });
+  const heading = fitLines(props.heading, { maxWidth: 900, size: 26, minSize: 20, maxLines: 1 });
+  const couple = fitLines(props.couple, { maxWidth: 920, size: props.photoUrl ? 64 : 72, minSize: 44, maxLines: 2 });
+  const body = fitLines(props.body, { maxWidth: 900, size: 32, minSize: 24, maxLines: 3 });
   const greetingY = y; y += 60;
-  const headingY = y; y += 90;
-  const coupleY = y; y += coupleLines.length * 82 + 20;
-  const bodyY = y; y += bodyLines.length * 42 + 50;
+  const headingY = y; y += couple.size + 18;
+  const coupleY = y; y += (couple.lines.length - 1) * couple.size * 1.12 + 52;
+  const bodyY = y; y += body.lines.length * body.size * 1.3 + 30;
   const functionsHeadingY = y; y += 56;
   const functionsY = y;
   // Fit as many functions as there is room for above the reply line; show "+N" for the rest.
   const room = Math.max(0, Math.floor((1110 - functionsY - 38) / 92) + 1);
   const shown = props.functions.slice(0, props.functions.length > room ? Math.max(0, room - 1) : room);
   const hidden = props.functions.length - shown.length;
-  return <svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`} width="100%" role="img" aria-label={props.title ?? `${props.couple}: wedding invitation`} lang={props.lang} className="invitation-card">
+  const rsvp = fitLines(props.rsvp, { maxWidth: 960, size: 25, minSize: 20, maxLines: 2 });
+  return <>
     <rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={theme.background} />
     <Motifs theme={theme.id} accent={accent} soft={theme.soft} />
-    <Lines lines={[props.greeting]} x={540} y={greetingY} size={34} fill={theme.ink} family={SERIF} style="italic" />
-    <Lines lines={wrapText(props.heading, 48, 1)} x={540} y={headingY} size={26} fill={accent} family={SANS} weight={600} />
-    <Lines lines={coupleLines} x={540} y={coupleY} size={72} gap={1.12} fill={theme.ink} family={SERIF} weight={600} />
-    <Lines lines={bodyLines} x={540} y={bodyY} size={32} fill={theme.ink} family={SERIF} />
+    {props.photoUrl ? <g>
+      <defs><clipPath id={clipId}><circle cx={540} cy={photoCenter} r={photoRadius} /></clipPath></defs>
+      <image href={props.photoUrl} x={540 - photoRadius} y={photoCenter - photoRadius} width={photoRadius * 2} height={photoRadius * 2} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clipId})`} />
+      <circle cx={540} cy={photoCenter} r={photoRadius} fill="none" stroke={accent} strokeWidth={6} />
+      <circle cx={540} cy={photoCenter} r={photoRadius + 12} fill="none" stroke={accent} strokeWidth={1.5} strokeDasharray="2 8" />
+    </g> : props.monogram ? <g>
+      <circle cx={540} cy={sealCenter} r={sealRadius} fill="none" stroke={accent} strokeWidth={3} />
+      <circle cx={540} cy={sealCenter} r={sealRadius - 8} fill="none" stroke={accent} strokeWidth={1} />
+      <Lines lines={[props.monogram]} x={540} y={sealCenter + 13} size={36} fill={accentText} family={SERIF} weight={600} />
+    </g> : null}
+    <Lines lines={greeting.lines} x={540} y={greetingY} size={greeting.size} fill={theme.ink} family={SERIF} style="italic" />
+    <Lines lines={heading.lines} x={540} y={headingY} size={heading.size} fill={accentText} family={SANS} weight={600} />
+    <Lines lines={couple.lines} x={540} y={coupleY} size={couple.size} gap={1.12} fill={theme.ink} family={SERIF} weight={600} />
+    <Lines lines={body.lines} x={540} y={bodyY} size={body.size} fill={theme.ink} family={SERIF} />
     {shown.length > 0 && <>
-      <Lines lines={[props.functionsHeading]} x={540} y={functionsHeadingY} size={26} fill={accent} family={SANS} weight={700} />
-      {shown.map((fn, index) => <g key={index}>
-        <Lines lines={[fn.name]} x={540} y={functionsY + index * 92} size={32} fill={theme.ink} family={SERIF} weight={600} />
-        <Lines lines={wrapText([fn.when, fn.venue].filter(Boolean).join(" · "), 60, 1)} x={540} y={functionsY + index * 92 + 38} size={23} fill={theme.ink} family={SANS} />
-      </g>)}
-      {hidden > 0 && <Lines lines={[`+${hidden}`]} x={540} y={functionsY + shown.length * 92} size={26} fill={accent} family={SANS} weight={700} />}
+      <Lines lines={[props.functionsHeading]} x={540} y={functionsHeadingY} size={26} fill={accentText} family={SANS} weight={700} />
+      {shown.map((fn, index) => { const name = fitLines(fn.name, { maxWidth: 900, size: 32, minSize: 24, maxLines: 1 }); const detail = fitLines([fn.when, fn.venue].filter(Boolean).join(" · "), { maxWidth: 960, size: 23, minSize: 18, maxLines: 1 }); return <g key={index}>
+        <Lines lines={name.lines} x={540} y={functionsY + index * 92} size={name.size} fill={theme.ink} family={SERIF} weight={600} />
+        <Lines lines={detail.lines} x={540} y={functionsY + index * 92 + 38} size={detail.size} fill={theme.ink} family={SANS} />
+      </g>; })}
+      {hidden > 0 && <Lines lines={[`+${hidden}`]} x={540} y={functionsY + shown.length * 92} size={26} fill={accentText} family={SANS} weight={700} />}
     </>}
-    <Lines lines={wrapText(props.rsvp, 54, 2)} x={540} y={1175} size={25} fill={theme.ink} family={SANS} />
-    <Lines lines={[props.closing]} x={540} y={1240} size={30} fill={accent} family={SERIF} style="italic" />
+    <Lines lines={rsvp.lines} x={540} y={1175} size={rsvp.size} fill={theme.ink} family={SANS} />
+    <Lines lines={[props.closing]} x={540} y={1240} size={30} fill={accentText} family={SERIF} style="italic" />
+  </>;
+}
+
+/**
+ * The invitation card as an SVG (1080×1350, 4:5 for WhatsApp). Rendered in the studio, in the guest
+ * portal, and converted to PNG on the planner's device for sharing.
+ */
+export function InvitationCard(props: InvitationCardProps) {
+  return <svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`} width="100%" role="img" aria-label={props.title ?? `${props.couple}: wedding invitation`} lang={props.lang} className="invitation-card">
+    <InvitationCardBody {...props} />
+  </svg>;
+}
+
+export type CardFormat = "portrait" | "story" | "square" | "print";
+export const CARD_FORMATS: Record<CardFormat, { width: number; height: number; label: string; hint: string }> = {
+  portrait: { width: 1080, height: 1350, label: "Portrait (4:5)", hint: "Best for WhatsApp and email." },
+  story: { width: 1080, height: 1920, label: "Status / Story (9:16)", hint: "For WhatsApp Status or Instagram Stories." },
+  square: { width: 1080, height: 1080, label: "Square (1:1)", hint: "For chats and social posts." },
+  print: { width: 1748, height: 2480, label: "Print A5 with QR code", hint: "A5 at 300 dpi-ready size; the QR opens this guest's private invitation." },
+};
+
+/**
+ * The card in another shape. The 4:5 design is placed inside a themed frame, so every format
+ * matches the original. The print format adds the guest's own QR code.
+ */
+export function FormattedCard({ format, card, qr, qrLabel }: { format: CardFormat; card: InvitationCardProps; qr?: { size: number; d: string } | null; qrLabel?: string }) {
+  if (format === "portrait") return <InvitationCard {...card} />;
+  const theme = themeById(card.theme);
+  const accent = card.accent || theme.accent;
+  const { width, height } = CARD_FORMATS[format];
+  const placement = format === "story" ? { x: 0, y: 285, w: 1080, h: 1350 } : format === "square" ? { x: 108, y: 0, w: 864, h: 1080 } : { x: 0, y: 0, w: 1748, h: 2185 };
+  return <svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${width} ${height}`} width="100%" role="img" aria-label={card.title ?? `${card.couple}: wedding invitation`} lang={card.lang} className="invitation-card">
+    <rect width={width} height={height} fill={format === "square" ? theme.soft : theme.background} />
+    {format === "story" && <>
+      <rect x={0} y={0} width={1080} height={285} fill={theme.soft} />
+      <rect x={0} y={1635} width={1080} height={285} fill={theme.soft} />
+      <rect x={0} y={281} width={1080} height={4} fill={accent} /><rect x={0} y={1635} width={1080} height={4} fill={accent} />
+      <Lines lines={[card.couple]} x={540} y={165} size={54} fill={theme.ink} family={SERIF} weight={600} />
+      <Lines lines={[card.closing]} x={540} y={1790} size={40} fill={theme.ink} family={SERIF} style="italic" />
+    </>}
+    <svg x={placement.x} y={placement.y} width={placement.w} height={placement.h} viewBox={`0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`}><InvitationCardBody {...card} /></svg>
+    {format === "print" && <>
+      <rect x={0} y={2185} width={1748} height={295} fill={theme.soft} />
+      <rect x={0} y={2185} width={1748} height={5} fill={accent} />
+      {qr ? <>
+        <rect x={1418} y={2215} width={240} height={240} fill="#ffffff" />
+        <svg x={1428} y={2225} width={220} height={220} viewBox={`0 0 ${qr.size} ${qr.size}`} shapeRendering="crispEdges"><path d={qr.d} fill="#111111" /></svg>
+        <Lines lines={fitLines(qrLabel ?? "", { maxWidth: 1200, size: 44, minSize: 30, maxLines: 2 }).lines} x={720} y={2320} size={40} fill={theme.ink} family={SERIF} />
+      </> : <Lines lines={[qrLabel ?? ""]} x={874} y={2345} size={40} fill={theme.ink} family={SERIF} />}
+    </>}
   </svg>;
 }

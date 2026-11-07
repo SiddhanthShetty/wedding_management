@@ -28,8 +28,10 @@ export function formatMoney(value: string, currency: string): string {
   const minor = toSignedMinorUnits(value);
   const absolute = minor < 0n ? -minor : minor;
   const whole = absolute / 100n;
-  const grouped = new Intl.NumberFormat("en", { maximumFractionDigits: 0 }).format(whole);
-  return `${minor < 0n ? "−" : ""}${currency} ${grouped}.${String(absolute % 100n).padStart(2, "0")}`;
+  // Rupees use the ₹ sign and Indian grouping (12,34,567); other currencies keep their code.
+  const indian = currency === "INR";
+  const grouped = new Intl.NumberFormat(indian ? "en-IN" : "en", { maximumFractionDigits: 0 }).format(whole);
+  return `${minor < 0n ? "−" : ""}${indian ? "₹" : `${currency} `}${grouped}.${String(absolute % 100n).padStart(2, "0")}`;
 }
 
 export type CurrencyTotal = { currency: string; budget: string | null; forecast: string; committed: string; netPaid: string; outstanding: string };

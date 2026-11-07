@@ -1,4 +1,5 @@
 import "server-only";
+import type { InvitationSite } from "@/lib/invitations/site";
 import { AuthorizationDeniedError, authorizeWeddingOperation } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createGuestPortalLink } from "@/lib/data/guests";
@@ -19,29 +20,46 @@ export async function getInvitationWorkspace(weddingId: string) {
   const context = await authorizeWeddingOperation(weddingId, "guests", "read");
   const supabase = await createSupabaseServerClient();
   const results = await Promise.all([
-    supabase.from("invitation_designs").select("id,name,theme,accent,texts,is_default,version,updated_at").eq("wedding_id", weddingId).order("created_at"),
+    supabase.from("invitation_designs").select("id,name,theme,accent,texts,site,photo_data,show_monogram,is_default,version,updated_at").eq("wedding_id", weddingId).order("created_at"),
     supabase.from("guest_households").select("id,name,contact_name,contact_email,contact_phone,preferred_language").eq("wedding_id", weddingId).order("name"),
     supabase.from("guests").select("id,household_id,full_name,email,phone").eq("wedding_id", weddingId).order("full_name"),
     supabase.from("guest_invitations").select("guest_id,function_id,status").eq("wedding_id", weddingId).eq("status", "invited"),
     supabase.rpc("get_guest_function_references", { p_wedding_id: weddingId }),
     supabase.from("weddings").select("partner_one_display_name,partner_two_display_name").eq("id", weddingId).maybeSingle(),
     supabase.from("communication_records").select("guest_id,channel,state,sent_at,dedupe_key").eq("wedding_id", weddingId).like("dedupe_key", "invite:%"),
+    supabase.from("guest_blessings").select("id,guest_id,message,status,created_at,approved_at").eq("wedding_id", weddingId).order("created_at", { ascending: false }).limit(300),
+    supabase.rpc("list_guest_portal_links", { p_wedding_id: weddingId, p_household_id: null }),
   ]);
   for (const result of results) if (result.error) throw new Error("Could not load invitations.");
-  const [designs, households, guests, invitations, functions, wedding, records] = results;
+  const [designs, households, guests, invitations, functions, wedding, records, blessings, links] = results;
   return {
     wedding: context.wedding,
     canEdit: context.membership.role === "owner" || context.membership.role === "co_owner" || context.moduleAccess.guests === "edit",
     coupleNames: [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean).join(" & ") || context.wedding.name,
-    designs: (designs.data ?? []) as Array<{ id: string; name: string; theme: ThemeId; accent: string | null; texts: TextOverrides; is_default: boolean; version: number; updated_at: string }>,
+    designs: (designs.data ?? []) as Array<{ id: string; name: string; theme: ThemeId; accent: string | null; texts: TextOverrides; site: unknown; photo_data: string | null; show_monogram: boolean; is_default: boolean; version: number; updated_at: string }>,
     households: (households.data ?? []) as Array<{ id: string; name: string; contact_name: string; contact_email: string; contact_phone: string; preferred_language: LanguageCode }>,
     guests: (guests.data ?? []) as Array<{ id: string; household_id: string | null; full_name: string; email: string; phone: string }>,
     invitations: (invitations.data ?? []) as Array<{ guest_id: string; function_id: string }>,
     functions: ((functions.data ?? []) as Array<{ id: string; name: string; function_date: string | null; start_time: string | null; venue_name: string | null; status: string; archived_at: string | null }>).filter((fn) => !fn.archived_at && fn.status !== "cancelled"),
     sent: (records.data ?? []) as Array<{ guest_id: string; channel: string; state: string; sent_at: string | null; dedupe_key: string }>,
+    linkActivity: linkActivity((links.data ?? []) as Array<{ guest_id: string | null; active: boolean; last_opened_at: string | null }>),
+    blessings: (blessings.data ?? []) as Array<{ id: string; guest_id: string; message: string; status: "pending" | "approved" | "hidden"; created_at: string; approved_at: string | null }>,
   };
 }
 export type InvitationWorkspace = Awaited<ReturnType<typeof getInvitationWorkspace>>;
+
+/** Per guest: whether they have an active link and when they last opened any of their links. */
+export function linkActivity(links: Array<{ guest_id: string | null; active: boolean; last_opened_at: string | null }>) {
+  const byGuest: Record<string, { active: boolean; lastOpenedAt: string | null }> = {};
+  for (const link of links) {
+    if (!link.guest_id) continue;
+    const current = byGuest[link.guest_id] ?? { active: false, lastOpenedAt: null };
+    current.active ||= link.active;
+    if (link.last_opened_at && (!current.lastOpenedAt || link.last_opened_at > current.lastOpenedAt)) current.lastOpenedAt = link.last_opened_at;
+    byGuest[link.guest_id] = current;
+  }
+  return byGuest;
+}
 
 /** Keeps only known languages and text keys, trims values, and rejects unknown placeholders. */
 export function cleanTextOverrides(input: unknown): TextOverrides {
@@ -68,7 +86,7 @@ async function editor(weddingId: string) {
   return { context, supabase: await createSupabaseServerClient() };
 }
 
-export async function saveDesign(weddingId: string, designId: string | null, expectedVersion: number | null, input: { name: string; theme: ThemeId; accent: string | null; texts: TextOverrides }) {
+export async function saveDesign(weddingId: string, designId: string | null, expectedVersion: number | null, input: { name: string; theme: ThemeId; accent: string | null; texts: TextOverrides; show_monogram: boolean }) {
   const { context, supabase } = await editor(weddingId);
   if (!designId) {
     const existing = await supabase.from("invitation_designs").select("id").eq("wedding_id", weddingId).limit(1);
@@ -130,4 +148,28 @@ export async function recordInvitationShared(weddingId: string, input: { guestId
   if (isDuplicateSubmission(error)) return { recorded: 0 };
   check(error, "Could not record the invitation.");
   return { recorded: data?.length ?? 0 };
+}
+
+/** Saves the invitation website content of one design, if nobody changed the design meanwhile. */
+export async function saveSite(weddingId: string, designId: string, expectedVersion: number, site: InvitationSite) {
+  const { supabase } = await editor(weddingId);
+  const { data, error } = await supabase.from("invitation_designs").update({ site }).eq("wedding_id", weddingId).eq("id", designId).eq("version", expectedVersion).select("id").maybeSingle();
+  check(error, "Could not save the website.");
+  if (!data) throw new InvitationConflictError();
+}
+
+/** Approves or hides a guest's blessing. Hidden blessings are never shown to guests. */
+export async function moderateBlessing(weddingId: string, blessingId: string, status: "approved" | "hidden") {
+  const { supabase } = await editor(weddingId);
+  const { data, error } = await supabase.from("guest_blessings").update({ status, approved_at: status === "approved" ? new Date().toISOString() : null }).eq("wedding_id", weddingId).eq("id", blessingId).select("id").maybeSingle();
+  check(error, "Could not update the blessing.");
+  if (!data) throw new AuthorizationDeniedError();
+}
+
+/** Sets or removes the couple photo of a design. The image was already checked by the action. */
+export async function saveDesignPhoto(weddingId: string, designId: string, expectedVersion: number, photoData: string | null) {
+  const { supabase } = await editor(weddingId);
+  const { data, error } = await supabase.from("invitation_designs").update({ photo_data: photoData }).eq("wedding_id", weddingId).eq("id", designId).eq("version", expectedVersion).select("id").maybeSingle();
+  check(error, "Could not save the photo.");
+  if (!data) throw new InvitationConflictError();
 }

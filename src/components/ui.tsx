@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
-import { AlertCircle, Check, CircleHelp, Info, LoaderCircle, TriangleAlert } from "lucide-react";
+import { AlertCircle, Check, Info, LoaderCircle, TriangleAlert } from "lucide-react";
 import { describeStatus, STAGE_HELP, type RecordKind } from "@/lib/planning/status-vocabulary";
 
 export function PageHeading({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
@@ -27,8 +27,17 @@ export function DemoNotice({ children = "Preview only. This workspace uses synth
   return <div className="demo-note" role="note"><Info size={15} aria-hidden="true" /><span>{children}</span></div>;
 }
 
+/** Default empty-state art: a small dot kolam drawn in line, in the wedding's accent colour. */
+function KolamArt() {
+  const dots = [[12, 12], [24, 12], [36, 12], [12, 24], [24, 24], [36, 24], [12, 36], [24, 36], [36, 36]];
+  return <svg className="kolam-art" width="34" height="34" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+    <path d="M24 4 L44 24 L24 44 L4 24 Z M24 12 C30 12 36 18 36 24 C36 30 30 36 24 36 C18 36 12 30 12 24 C12 18 18 12 24 12 Z M18 18 L30 30 M30 18 L18 30" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+    {dots.map(([x, y]) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.6" fill="currentColor" />)}
+  </svg>;
+}
+
 export function EmptyState({ title, description, icon }: { title: string; description: string; icon?: ReactNode }) {
-  return <div className="empty-state"><span className="state-icon">{icon ?? <CircleHelp size={19} aria-hidden="true" />}</span><h3 className="state-title">{title}</h3><p className="state-description">{description}</p></div>;
+  return <div className="empty-state"><span className="state-icon">{icon ?? <KolamArt />}</span><h3 className="state-title">{title}</h3><p className="state-description">{description}</p></div>;
 }
 
 export function ErrorState({ title = "This section could not load", description = "Try again in a moment. No changes have been saved.", onRetry }: { title?: string; description?: string; onRetry?: () => void }) {

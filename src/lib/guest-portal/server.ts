@@ -20,8 +20,13 @@ export type PortalStay = { property: string; address: string; notes: string; roo
 export type PortalJourney = { kind: "arrival" | "departure" | "transfer"; title: string; pickup_at: string; pickup_location: string; dropoff_location: string; timezone: string };
 export type PortalGuest = { id: string; full_name: string; is_proxy: boolean; meal_preference: string; allergies: string; assistance_needs: string; updated_at: string; invitations: PortalInvitation[]; stays?: PortalStay[]; journeys?: PortalJourney[] };
 /** The wedding's chosen invitation design, with wording overrides for the household's language only. */
-export type PortalInvitationDesign = { theme: string; accent: string | null; texts: Record<string, string> };
-export type GuestPortalData = { household: { name: string; language?: string }; portal_guest_id: string; invitation?: PortalInvitationDesign | null; couple_names: string[]; people: PortalGuest[] };
+export type PortalInvitationDesign = { theme: string; accent: string | null; texts: Record<string, string>; has_photo?: boolean; show_monogram?: boolean };
+export type PortalBlessing = { name: string; message: string; created_at: string };
+export type GuestPortalData = {
+  household: { name: string; language?: string }; portal_guest_id: string; invitation?: PortalInvitationDesign | null; couple_names: string[]; people: PortalGuest[];
+  /** Invitation website content; validated when saved and re-read leniently on display. */
+  site?: unknown; blessings?: PortalBlessing[]; my_pending_blessings?: number;
+};
 
 function publicSupabase() {
   const env = getSupabaseEnvironment();
@@ -108,6 +113,30 @@ export async function recordPortalGuestProfile(input: { guestId: string; mealPre
     if (error || !data || typeof data !== "object") return { status: "unavailable" } as const;
     return data as { status: "saved" | "duplicate" | "conflict" | "invalid" | "unavailable" };
   } catch { return { status: "unavailable" } as const; }
+}
+
+/** A guest's blessing for the couple; it stays private until a guest-list editor approves it. */
+export async function submitPortalBlessing(input: { message: string; submissionKey: string }) {
+  try {
+    if (!(await consumePortalRateLimit("submit"))) return { status: "unavailable" } as const;
+    const sessionDigest = await getGuestPortalSessionDigest();
+    if (!sessionDigest) return { status: "unavailable" } as const;
+    const { data, error } = await publicSupabase().rpc("submit_guest_portal_blessing", { p_session_digest: sessionDigest, p_message: input.message, p_submission_key: input.submissionKey });
+    if (error || !data || typeof data !== "object") return { status: "unavailable" } as const;
+    return data as { status: "saved" | "duplicate" | "limit" | "invalid" | "unavailable" };
+  } catch { return { status: "unavailable" } as const; }
+}
+
+/** The couple photo for a valid guest session, as bytes; null when there is none or the session is invalid. */
+export async function getGuestPortalPhoto(): Promise<{ type: string; bytes: Buffer } | null> {
+  try {
+    const sessionDigest = await getGuestPortalSessionDigest();
+    if (!sessionDigest || !(await consumePortalRateLimit("read"))) return null;
+    const { data, error } = await publicSupabase().rpc("get_guest_portal_photo", { p_session_digest: sessionDigest });
+    if (error || typeof data !== "string") return null;
+    const match = /^data:(image\/(?:jpeg|webp));base64,([A-Za-z0-9+/]+=*)$/.exec(data);
+    return match ? { type: match[1]!, bytes: Buffer.from(match[2]!, "base64") } : null;
+  } catch { return null; }
 }
 
 export function unavailableMessage() { return genericUnavailable; }

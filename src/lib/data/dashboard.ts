@@ -1,4 +1,6 @@
 import "server-only";
+import { daysBetween } from "@/lib/data/dashboard-dates";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cache } from "react";
 import { authorizeWeddingOperation, type WeddingModule, type WorkspaceContext } from "@/lib/auth/access";
 import { listWeddingFunctions } from "@/lib/data/functions";
@@ -116,7 +118,14 @@ export const loadIssuesSection = cache(async (weddingId: string) => {
 
 export async function getDashboardHeader(weddingId: string) {
   const { context, today } = await dashboardBase(weddingId);
-  return { wedding: context.wedding, displayName: context.displayName, isOwner: context.membership.role === "owner" || context.membership.role === "co_owner", today, generatedAt: new Date().toISOString() };
+  const supabase = await createSupabaseServerClient();
+  // Names and date for the Overview header; a failure only hides the countdown.
+  const { data: wedding } = await supabase.from("weddings").select("partner_one_display_name,partner_two_display_name,wedding_date").eq("id", weddingId).maybeSingle();
+  const coupleNames = [wedding?.partner_one_display_name, wedding?.partner_two_display_name].filter(Boolean).join(" & ");
+  return {
+    wedding: context.wedding, displayName: context.displayName, isOwner: context.membership.role === "owner" || context.membership.role === "co_owner", today, generatedAt: new Date().toISOString(),
+    coupleNames, weddingDate: (wedding?.wedding_date as string | null) ?? null, daysToGo: wedding?.wedding_date ? daysBetween(today, wedding.wedding_date as string) : null,
+  };
 }
 
 export async function getDashboard(weddingId: string) {

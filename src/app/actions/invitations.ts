@@ -2,6 +2,9 @@
 import { revalidatePath } from "next/cache";
 import { z, ZodError } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
+import { moderateBlessing, saveDesignPhoto, saveSite } from "@/lib/data/invitations";
+import { checkPhotoDataUrl } from "@/lib/invitations/photo";
+import { parseSite } from "@/lib/invitations/site";
 import { cleanTextOverrides, InvitationConflictError, InvitationRuleError, prepareGuestInvitation, recordInvitationShared, saveDesign, setDefaultDesign, setHouseholdLanguage } from "@/lib/data/invitations";
 import { messageWithoutLink } from "@/lib/invitations/content";
 
@@ -32,7 +35,8 @@ export async function saveDesignAction(_state: InvitationActionState, form: Form
     const input = z.object({
       name: z.string().trim().min(1, "Name the design.").max(80), theme: z.enum(themeIds),
       accent: z.union([z.literal(""), z.string().regex(/^#[0-9a-fA-F]{6}$/, "Choose a colour.")]).transform((value) => value || null),
-    }).parse({ name: text(form, "name"), theme: text(form, "theme"), accent: text(form, "useAccent") === "on" ? text(form, "accent") : "" });
+      show_monogram: z.boolean(),
+    }).parse({ name: text(form, "name"), theme: text(form, "theme"), accent: text(form, "useAccent") === "on" ? text(form, "accent") : "", show_monogram: text(form, "showMonogram") === "on" });
     let raw: unknown;
     try { raw = JSON.parse(text(form, "texts") || "{}"); } catch { throw new InvitationRuleError("The wording could not be read. Refresh and try again."); }
     await saveDesign(weddingId, designId || null, version === "" ? null : version, { ...input, texts: cleanTextOverrides(raw) });
@@ -66,4 +70,39 @@ export async function recordInvitationSharedAction(input: { weddingId: string; g
     revalidatePath("/invitations"); revalidatePath("/messages");
     return { message: result.recorded ? "Recorded as sent manually. Delivery is not confirmed." : "Already recorded for this design and channel.", at: Date.now() };
   } catch (error) { return failure(error); }
+}
+
+export async function saveSiteAction(_state: InvitationActionState, form: FormData): Promise<InvitationActionState> {
+  return run(form, async (weddingId) => {
+    const designId = id.parse(text(form, "designId"));
+    const version = z.coerce.number().int().positive().parse(text(form, "version"));
+    let raw: unknown;
+    try { raw = JSON.parse(text(form, "site") || "{}"); } catch { throw new InvitationRuleError("The website content could not be read. Refresh and try again."); }
+    let site;
+    try { site = parseSite(raw); } catch (error) { throw new InvitationRuleError((error as Error).message); }
+    await saveSite(weddingId, designId, version, site);
+    return "Website saved. Guests see it the next time they open their link.";
+  });
+}
+
+export async function moderateBlessingAction(_state: InvitationActionState, form: FormData): Promise<InvitationActionState> {
+  return run(form, async (weddingId) => {
+    const status = z.enum(["approved", "hidden"]).parse(text(form, "status"));
+    await moderateBlessing(weddingId, id.parse(text(form, "blessingId")), status);
+    return status === "approved" ? "Blessing approved. Guests can now see it." : "Blessing hidden.";
+  });
+}
+
+/** Photo arrives already resized on the device; the server still checks type, size and content. */
+export async function saveDesignPhotoAction(_state: InvitationActionState, form: FormData): Promise<InvitationActionState> {
+  return run(form, async (weddingId) => {
+    const designId = id.parse(text(form, "designId"));
+    const version = z.coerce.number().int().positive().parse(text(form, "version"));
+    const raw = text(form, "photo");
+    if (!raw) { await saveDesignPhoto(weddingId, designId, version, null); return "Photo removed."; }
+    const problem = checkPhotoDataUrl(raw);
+    if (problem) throw new InvitationRuleError(problem);
+    await saveDesignPhoto(weddingId, designId, version, raw);
+    return "Photo saved. It appears on the card and on guests' invitation pages.";
+  });
 }

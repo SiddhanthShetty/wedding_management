@@ -1,4 +1,5 @@
 "use client";
+import { formatMoney } from "@/lib/planning/money";
 import { supplierIdsWithExpiringItems } from "@/lib/planning/dashboard";
 
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
@@ -30,7 +31,7 @@ function dateLabel(value: string | null) {
 }
 
 function moneyLabel(amount: number | null, currency: string) {
-  return amount === null ? `Not provided · ${currency}` : `${currency} ${amount.toFixed(2)}`;
+  return amount === null ? `Not provided · ${currency}` : formatMoney(amount.toFixed(2), currency);
 }
 
 export function SupplierManager({

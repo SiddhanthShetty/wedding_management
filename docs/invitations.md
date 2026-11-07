@@ -44,6 +44,24 @@ The built-in Hindi, Kannada and Tulu wording are **drafts**. The studio says so 
 - Household language: changed only through `set_household_language` (guest edit).
 - Guests see only the default design's theme, accent and the wording for their own language.
 
+## Invitation website and upgrades (2026-11)
+
+- **Guest page as a website.** An optional envelope opening, a section menu, a countdown to the next function, a "Watch live" button from 30 minutes before to 6 hours after each function starts, an "our story" timeline (up to 8 moments), FAQ (up to 12), per-function colour palettes, and a blessings wall. Every blessing is held for the couple to approve first, and other guests see only the writer's first name. Edited under Invitations → Website.
+- **Guest page language.** The whole page, including messages from the server, is in English, Hindi, Kannada or Tulu. It starts in the household's language, and guests can switch. The Hindi, Kannada and **Tulu** wording are drafts: a native speaker needs to review them before real use.
+- **Fonts.** Inter, Cormorant Garamond, and Noto Sans or Serif in Kannada and Devanagari, loaded through `next/font`. Exported PNGs embed the fonts, so they look the same on every phone.
+- **Card.**
+  - An optional couple photo (resized on the device to at most 330 KB and stored on the design; guests receive it only through their session) or a monogram seal.
+  - Text is fitted to the card automatically.
+  - Formats: portrait 4:5, story 9:16, square, and print A5 with a QR code to the guest's link.
+- **Video.** An 8-second 9:16 video (the card, falling petals and a closing line), recorded in the browser. It saves as MP4 where the browser supports it, otherwise WebM, which may not play in WhatsApp; the app warns when this happens. You can add your own music. No music is bundled, and nothing is uploaded.
+- **Sending.** Filters (Not sent, Sent not opened, Opened), "Send in order" through the queue, and "Opened … ago" taken from when each link was last used.
+- **Link preview.** A generic "You are invited" image with no names, because the private token never reaches the server in a preview.
+
+### Pending decisions
+
+- **Re-send without revoking.** Links are stored only as hashes, so a link can be shown once, but it can't be re-sent later without creating a new one. Allowing re-sends would mean storing link tokens encrypted. This needs your decision; it is not built.
+- **Dark mode.** Deferred, because it can't be checked visually in this environment.
+
 ## Not included (on hold)
 
 Automatic email (Option B) and WhatsApp Business sending (Option C). See `messaging-integration-design.md`. You will be reminded once the remaining usability steps are done.

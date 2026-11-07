@@ -150,3 +150,22 @@ Still unverified: keyboard tab behaviour and signed-in mobile forms in a real br
 - Migration `20261107100000_invitations.sql` was **applied** to `wedding_management` on 2026-11-06, after a dry run and a schema and data dump. Verified on the live project: migration history matches; `invitation_designs` has RLS and its 3 policies; `guest_households.preferred_language` exists; `set_default_invitation_design` and `set_household_language` exist; the guest-portal function includes the design and is executable only by `anon` (and the service role), not by signed-in members.
 - The Overview now streams each section independently. Section loaders are cached per request (`React.cache`), so the “needs you today” list does not repeat queries.
 - Remembered views use browser storage for convenience only; the app works without it.
+
+## Invitation website and look-and-feel release (2026-11)
+
+- **Three new migrations, applied to `wedding_management` on 2026-11-07** after a schema and data dump and a dry run. Checked on the live project afterwards: migration history matches; `guest_blessings` has RLS on and both of its policies; the new columns exist; the guest-only functions can be run by `anon` only (plus the service role), and `list_guest_portal_links` by signed-in members only.
+  - `20261112100000_invitation_site.sql` adds `invitation_designs.site`, the `guest_blessings` table (with RLS and moderation), `submit_guest_portal_blessing`, and website data in the guest portal.
+  - `20261113100000_invitation_photo.sql` adds `photo_data` and `show_monogram`, and `get_guest_portal_photo`.
+  - `20261114100000_portal_link_activity.sql` adds `last_opened_at` to `list_guest_portal_links`.
+- **Data impact:** these migrations only add columns, a table and functions. Existing rows get the defaults (an empty site, no photo, monogram on), and no data is removed. Apply them before deploying the matching code: the invitations page reads the new columns.
+- **New dependency:** `qrcode-generator` 1.4.4 (MIT, no dependencies), used for the QR code on the print card.
+- **Look and feel:**
+  - The workspace takes the invitation theme's accent colour and the couple's monogram.
+  - The Overview header shows the couple's names, the days to go, and the next function.
+  - Money in INR shows as ₹ with Indian grouping.
+  - Empty states show a kolam drawing.
+  - A petal shower follows a "Yes" reply (none for reduced motion).
+  - Phones get a bottom tab bar.
+  - The print layout is tidier.
+  - Accent text meets 4.5:1 contrast in every theme (tested).
+- **Checks run:** `tsc --noEmit` passed. `vitest run` passed 162 tests in 12 files. `next build` passed. The Playwright smoke tests passed 4 tests.

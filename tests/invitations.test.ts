@@ -93,7 +93,7 @@ describe("invitation designs in the database", () => {
     await db.query("select public.create_guest_portal_session($1,$2)", ["f".repeat(64), "9".repeat(64)]);
     const portal = (await db.query<{ data: { household: { language: string }; invitation: { theme: string; texts: Record<string, string> } } }>("select public.get_guest_portal_data($1) data", ["9".repeat(64)])).rows[0]!.data;
     expect(portal.household.language).toBe("kn");
-    expect(portal.invitation).toEqual({ theme: "mallige", accent: null, texts: { greeting: "ನಮಸ್ಕಾರ {{name}}" } });
+    expect(portal.invitation).toEqual({ theme: "mallige", accent: null, texts: { greeting: "ನಮಸ್ಕಾರ {{name}}" }, has_photo: false, show_monogram: true });
     await expectDenied(db.query("select * from public.invitation_designs"));
     expect(FUNCTION_A_CEREMONY).toBeTruthy();
   });

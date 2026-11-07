@@ -6,6 +6,7 @@ export type CardFunctionInput = { name: string; function_date: string | null; st
 /** Everything the card needs for one invited person, in their household's chosen language. */
 export function buildCardProps(input: {
   theme: ThemeId; accent: string | null; overrides: TextOverrides; language: LanguageCode; couple: string; greetingName: string; functions: CardFunctionInput[];
+  photoUrl?: string | null; showMonogram?: boolean;
 }): InvitationCardProps {
   const texts = resolveTexts(input.language, input.overrides);
   const values = { name: input.greetingName, couple: input.couple };
@@ -15,7 +16,18 @@ export function buildCardProps(input: {
     greeting: fillText(texts.greeting, values), heading: fillText(texts.heading, values), couple: input.couple, body: fillText(texts.body, values),
     functionsHeading: fillText(texts.functionsHeading, values), rsvp: fillText(texts.rsvp, values), closing: fillText(texts.closing, values),
     functions: sorted.map((fn) => ({ name: fn.name, when: formatFunctionDate(fn.function_date, fn.start_time, input.language), venue: fn.venue_name })),
+    photoUrl: input.photoUrl ?? null,
+    monogram: input.showMonogram === false ? null : monogramFor(input.couple),
   };
+}
+
+/** "Priya & Arjun" → "P · A". Uses the first letter (grapheme) of each name; null when there are none. */
+export function monogramFor(couple: string): string | null {
+  const names = couple.split(/\s*(?:&|and|\+)\s*/i).map((name) => name.trim()).filter(Boolean).slice(0, 2);
+  const initials = names.map((name) => typeof Intl !== "undefined" && "Segmenter" in Intl
+    ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(name), (part) => part.segment)[0]!
+    : Array.from(name)[0]!).map((letter) => letter.toLocaleUpperCase());
+  return initials.length ? initials.join(" · ") : null;
 }
 
 /** Functions a household is invited to: any member's active invitation counts, each function once. */

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { createContext, useActionState, useContext, useEffect, useRef, useState } from "react";
+import { PORTAL_LOCALES, PORTAL_STRINGS, translateResult, type PortalStrings } from "@/lib/guest-portal/i18n";
 import { buildItinerary, functionIcs, mapLink } from "@/lib/guest-portal/itinerary";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, CalendarPlus, Heart, MapPin } from "lucide-react";
@@ -8,74 +9,104 @@ import { recordGuestPortalRsvpBatchAction, saveGuestPortalProfileAction, type Gu
 import type { GuestPortalData, PortalGuest, PortalInvitation } from "@/lib/guest-portal/server";
 import { Button } from "@/components/ui";
 import { InvitationCard } from "@/components/invitation-card";
+import { BlessingsSection, CountdownBanner, FaqSection, OpeningOverlay, Palette, PetalBurst, SectionNav, StorySection } from "@/components/portal-site";
+import { nextFunctionStart, readSite, type InvitationSite } from "@/lib/invitations/site";
+import { resolveFunctionSchedule } from "@/lib/planning/schedule";
 import { buildCardProps } from "@/lib/invitations/card-data";
-import { isLanguage, THEMES, type LanguageCode, type ThemeId } from "@/lib/invitations/content";
+import { isLanguage, LANGUAGES, THEMES, type LanguageCode, type ThemeId } from "@/lib/invitations/content";
 
 const initial: GuestActionState = {};
-const unavailableCopy = "This invitation link is not available. Please contact your hosts for help.";
+const LANGUAGE_KEY = "wedding-desk:portal-language";
+const PortalLanguage = createContext<{ lang: LanguageCode; t: PortalStrings; setLang: (lang: LanguageCode) => void }>({ lang: "en", t: PORTAL_STRINGS.en, setLang: () => {} });
+const useT = () => useContext(PortalLanguage).t;
+const useLocale = () => PORTAL_LOCALES[useContext(PortalLanguage).lang];
+
+/** The household's language by default; a guest's own choice is remembered on their device. */
+function LanguageProvider({ initialLang, children }: { initialLang: LanguageCode; children: React.ReactNode }) {
+  const [lang, setLangState] = useState<LanguageCode>(initialLang);
+  useEffect(() => { try { const saved = window.localStorage.getItem(LANGUAGE_KEY); if (saved && isLanguage(saved)) setLangState(saved); } catch { /* preference only */ } }, []);
+  const setLang = (next: LanguageCode) => { setLangState(next); try { window.localStorage.setItem(LANGUAGE_KEY, next); } catch { /* preference only */ } };
+  return <PortalLanguage.Provider value={{ lang, t: PORTAL_STRINGS[lang], setLang }}>{children}</PortalLanguage.Provider>;
+}
+
+function browserLanguage(): LanguageCode {
+  if (typeof navigator === "undefined") return "en";
+  const code = navigator.language.slice(0, 2);
+  return code === "hi" ? "hi" : code === "kn" ? "kn" : "en";
+}
 
 function TokenExchange() {
+  return <LanguageProvider initialLang={browserLanguage()}><TokenExchangeInner/></LanguageProvider>;
+}
+function TokenExchangeInner() {
+  const t = useT();
   const router = useRouter();
   const started = useRef(false);
-  const [message, setMessage] = useState("Checking your private invitation…");
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (started.current) return;
     started.current = true;
     const token = window.location.hash.slice(1);
     // Remove the bearer token from the address bar/history before making a request.
     window.history.replaceState(null, "", "/guest");
-    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) { setMessage(unavailableCopy); return; }
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) { setFailed(true); return; }
     void fetch("/api/guest-portal/exchange", {
       method: "POST", credentials: "same-origin", cache: "no-store",
       headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
     }).then(async (response) => {
-      if (!response.ok) { setMessage(unavailableCopy); return; }
+      if (!response.ok) { setFailed(true); return; }
       router.replace("/guest");
       router.refresh();
-    }).catch(() => setMessage(unavailableCopy));
+    }).catch(() => setFailed(true));
   }, [router]);
-  return <PortalFrame><div className="guest-portal-state" role="status"><span className="guest-portal-heart"><Heart size={18}/></span><h1>Private invitation</h1><p>{message}</p></div></PortalFrame>;
+  return <PortalFrame><div className="guest-portal-state" role="status"><span className="guest-portal-heart"><Heart size={18}/></span><h1>{t.privateInvitation}</h1><p>{failed ? t.unavailable : t.checking}</p></div></PortalFrame>;
 }
 
-function PortalFrame({children}:{children:React.ReactNode}) {
-  return <main className="guest-portal-main"><div className="guest-portal-brand"><span className="guest-portal-heart"><Heart size={17}/></span><span>Wedding invitation</span></div>{children}<p className="guest-portal-footer">A private invitation for you</p></main>;
+function PortalFrame({children,style}:{children:React.ReactNode;style?:React.CSSProperties}) {
+  const { lang, t, setLang } = useContext(PortalLanguage);
+  return <main className="guest-portal-main" lang={lang === "tcy" ? "tcy" : lang} style={style}>
+    <div className="guest-portal-brand"><span className="guest-portal-heart"><Heart size={17}/></span><span>{t.brand}</span>
+      <label className="portal-language"><span className="sr-only">{t.language}</span>
+        <select value={lang} onChange={(event)=>setLang(event.target.value as LanguageCode)} aria-label={t.language}>{LANGUAGES.map((item)=><option key={item.code} value={item.code}>{item.label.split(" · ")[0]}</option>)}</select>
+      </label>
+    </div>
+    {children}<p className="guest-portal-footer">{t.footer}</p></main>;
 }
 
-function formatDate(value:string|null) {
-  if (!value) return "Date to be confirmed";
-  const parsed = new Date(`${value}T12:00:00Z`);
-  if (Number.isNaN(parsed.valueOf())) return value;
-  return new Intl.DateTimeFormat("en-IE",{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:"UTC"}).format(parsed);
-}
-function formatTime(value:string|null) {
-  if (!value) return "";
-  const parsed = new Date(`2000-01-01T${value}Z`);
-  if (Number.isNaN(parsed.valueOf())) return value;
-  return new Intl.DateTimeFormat("en-IE",{hour:"numeric",minute:"2-digit",timeZone:"UTC"}).format(parsed);
+function useFormatters(){
+  const locale=useLocale(); const t=useT();
+  return {
+    date:(value:string|null)=>{ if(!value)return t.dateTbc; const parsed=new Date(`${value}T12:00:00Z`); if(Number.isNaN(parsed.valueOf()))return value; return new Intl.DateTimeFormat(locale,{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:"UTC"}).format(parsed); },
+    time:(value:string|null)=>{ if(!value)return ""; const parsed=new Date(`2000-01-01T${value}Z`); if(Number.isNaN(parsed.valueOf()))return value; return new Intl.DateTimeFormat(locale,{hour:"numeric",minute:"2-digit",timeZone:"UTC"}).format(parsed); },
+    instant:(value:string,timeZone:string,withDay=false)=>new Intl.DateTimeFormat(locale,withDay?{weekday:"long",day:"numeric",month:"long",hour:"numeric",minute:"2-digit",timeZone}:{hour:"numeric",minute:"2-digit",timeZone}).format(new Date(value)),
+  };
 }
 
 type PortalRsvpDraft={response:""|"yes"|"no"|"maybe";note:string};
 
-const RESPONSE_OPTIONS=[{value:"yes",label:"Yes, attending"},{value:"no",label:"Can't attend"},{value:"maybe",label:"Not sure yet"}] as const;
+const RESPONSE_VALUES=["yes","no","maybe"] as const;
 function RsvpFields({invitation,draft,onChange}:{invitation:PortalInvitation;draft:PortalRsvpDraft;onChange:(next:PortalRsvpDraft)=>void}){
+  const t=useT();
   return <div className="guest-portal-form">
     <fieldset className="rsvp-choice">
-      <legend className="guest-portal-label">Your response for {invitation.function.name}</legend>
-      {RESPONSE_OPTIONS.map((option)=><label key={option.value} className={`rsvp-option rsvp-${option.value} ${draft.response===option.value?"is-selected":""}`}>
+      <legend className="guest-portal-label">{t.responseFor(invitation.function.name)}</legend>
+      {RESPONSE_VALUES.map((value)=>({value,label:t[value]})).map((option)=><label key={option.value} className={`rsvp-option rsvp-${option.value} ${draft.response===option.value?"is-selected":""}`}>
         <input type="radio" name={`rsvp-${invitation.id}`} value={option.value} checked={draft.response===option.value} onChange={()=>onChange({...draft,response:option.value})}/>
         <span>{option.label}</span>
       </label>)}
     </fieldset>
     <details className="rsvp-note" open={Boolean(draft.note)}>
-      <summary>Add a note for your hosts</summary>
-      <label className="sr-only" htmlFor={`rsvp-note-${invitation.id}`}>Note for your hosts (optional)</label>
+      <summary>{t.addNote}</summary>
+      <label className="sr-only" htmlFor={`rsvp-note-${invitation.id}`}>{t.noteLabel}</label>
       <textarea id={`rsvp-note-${invitation.id}`} className="guest-portal-input" rows={2} maxLength={2000} value={draft.note} onChange={(event)=>onChange({...draft,note:event.currentTarget.value})}/>
     </details>
   </div>;
 }
 
 function PersonRsvpForm({person}:{person:PortalGuest}){
+  const t=useT();
   const [state,action,pending]=useActionState(recordGuestPortalRsvpBatchAction,initial);
+  const shown=translateResult(t,state);
   const [drafts,setDrafts]=useState<Record<string,PortalRsvpDraft>>(()=>Object.fromEntries(person.invitations.map((invitation)=>[invitation.id,{response:invitation.response??"",note:invitation.response_note??""}])));
   const [submissionKeys,setSubmissionKeys]=useState<Record<string,string>>({});
   const [batchSubmissionKey,setBatchSubmissionKey]=useState("");
@@ -90,12 +121,15 @@ function PersonRsvpForm({person}:{person:PortalGuest}){
     return ()=>window.removeEventListener("portal:accept-all",onAll);
   });
 
+  const saidYes=useRef(false);
+  const [burst,setBurst]=useState(0);
   useEffect(()=>{
     setSubmissionKeys(Object.fromEntries(person.invitations.map((invitation)=>[invitation.id,crypto.randomUUID()])));
     setBatchSubmissionKey(crypto.randomUUID());
   },[person.id]);
   useEffect(()=>{
     if(state.message&&state.savedId===batchSubmissionKey){
+      if(saidYes.current){saidYes.current=false;setBurst((count)=>count+1);}
       setSubmissionKeys(Object.fromEntries(person.invitations.map((invitation)=>[invitation.id,crypto.randomUUID()])));
       setBatchSubmissionKey(crypto.randomUUID());
       router.refresh();
@@ -118,55 +152,60 @@ function PersonRsvpForm({person}:{person:PortalGuest}){
       submissionKey:submissionKeys[invitation.id]??"",
     })),
   });
-  return <form ref={formRef} action={action} className="guest-portal-rsvp-batch">
-    {person.invitations.length>1&&<button type="button" className="rsvp-all" onClick={acceptAll}>Yes to all for {person.full_name}</button>}
+  return <form ref={formRef} action={action} className="guest-portal-rsvp-batch" onSubmit={()=>{saidYes.current=changed.some((invitation)=>drafts[invitation.id]?.response==="yes");}}>
+    {burst>0&&<PetalBurst key={burst}/>}
+    {person.invitations.length>1&&<button type="button" className="rsvp-all" onClick={acceptAll}>{t.yesToAll(person.full_name)}</button>}
     <div className="guest-portal-functions">{person.invitations.map((invitation)=><FunctionCard key={invitation.id} invitation={invitation}><RsvpFields invitation={invitation} draft={drafts[invitation.id]??{response:"",note:""}} onChange={(next)=>setDrafts((current)=>({...current,[invitation.id]:next}))}/></FunctionCard>)}</div>
     <input type="hidden" name="responsesJson" value={responses}/>
-    {state.error&&<p className="guest-portal-error" role="alert">{state.error}</p>}{state.message&&<p className="guest-portal-success" role="status">{state.message}</p>}
-    <Button type="submit" disabled={pending||!batchSubmissionKey||!changed.length}>{pending?"Saving responses…":"Save all responses"}</Button>
+    {shown.error&&<p className="guest-portal-error" role="alert">{shown.error}</p>}{shown.message&&<p className="guest-portal-success" role="status">{shown.message}</p>}
+    <Button type="submit" disabled={pending||!batchSubmissionKey||!changed.length}>{pending?t.saving:t.saveAll}</Button>
   </form>;
 }
 
 function GuestProfileForm({person}:{person:PortalGuest}) {
+  const t=useT();
   const [state,action,pending]=useActionState(saveGuestPortalProfileAction,initial);
+  const shown=translateResult(t,state);
   const [submissionKey,setSubmissionKey]=useState("");
   const router=useRouter();
   useEffect(()=>setSubmissionKey(crypto.randomUUID()),[]);
   useEffect(()=>{if(state.message&&state.savedId===submissionKey){setSubmissionKey(crypto.randomUUID());router.refresh();}},[state.message,state.savedId,submissionKey,router]);
-  return <details className="guest-portal-dietary"><summary>Dietary and assistance information</summary><p>Only your meal preference, allergies, and assistance needs are shared with your hosts.</p>
+  return <details className="guest-portal-dietary"><summary>{t.dietaryTitle}</summary><p>{t.dietaryIntro}</p>
     <form key={person.updated_at} action={action} className="guest-portal-form">
       <input type="hidden" name="guestId" value={person.id}/><input type="hidden" name="expectedUpdatedAt" value={person.updated_at}/><input type="hidden" name="submissionKey" value={submissionKey}/>
-      <label className="guest-portal-label" htmlFor={`meal-${person.id}`}>Meal preference</label><textarea id={`meal-${person.id}`} className="guest-portal-input" name="mealPreference" rows={2} maxLength={500} defaultValue={person.meal_preference}/>
-      <label className="guest-portal-label" htmlFor={`allergies-${person.id}`}>Allergies</label><textarea id={`allergies-${person.id}`} className="guest-portal-input" name="allergies" rows={2} maxLength={2000} defaultValue={person.allergies}/>
-      <label className="guest-portal-label" htmlFor={`assistance-${person.id}`}>Assistance needs</label><textarea id={`assistance-${person.id}`} className="guest-portal-input" name="assistanceNeeds" rows={2} maxLength={2000} defaultValue={person.assistance_needs}/>
-      {state.error&&<p className="guest-portal-error" role="alert">{state.error}</p>}{state.message&&<p className="guest-portal-success" role="status">{state.message}</p>}
-      <Button type="submit" variant="secondary" disabled={pending||!submissionKey}>{pending?"Saving…":"Save information"}</Button>
+      <label className="guest-portal-label" htmlFor={`meal-${person.id}`}>{t.meal}</label><textarea id={`meal-${person.id}`} className="guest-portal-input" name="mealPreference" rows={2} maxLength={500} defaultValue={person.meal_preference}/>
+      <label className="guest-portal-label" htmlFor={`allergies-${person.id}`}>{t.allergies}</label><textarea id={`allergies-${person.id}`} className="guest-portal-input" name="allergies" rows={2} maxLength={2000} defaultValue={person.allergies}/>
+      <label className="guest-portal-label" htmlFor={`assistance-${person.id}`}>{t.assistance}</label><textarea id={`assistance-${person.id}`} className="guest-portal-input" name="assistanceNeeds" rows={2} maxLength={2000} defaultValue={person.assistance_needs}/>
+      {shown.error&&<p className="guest-portal-error" role="alert">{shown.error}</p>}{shown.message&&<p className="guest-portal-success" role="status">{shown.message}</p>}
+      <Button type="submit" variant="secondary" disabled={pending||!submissionKey}>{pending?t.savingInfo:t.saveInfo}</Button>
     </form>
   </details>;
 }
 
 function FunctionCard({invitation,children}:{invitation:PortalInvitation;children:React.ReactNode}) {
+  const t=useT(); const format=useFormatters();
   const fn=invitation.function;
-  const start=fn.start_time?formatTime(fn.start_time):"";
-  const end=fn.end_time?formatTime(fn.end_time):"";
+  const start=fn.start_time?format.time(fn.start_time):"";
+  const end=fn.end_time?format.time(fn.end_time):"";
   return <article className="guest-portal-function">
-    <div className="guest-portal-function-heading"><div><p className="guest-portal-eyebrow">{fn.type}</p><h3>{fn.name}</h3></div><span className={`guest-portal-status ${fn.status}`}>{fn.status==="confirmed"?"Confirmed":"Tentative"}</span></div>
-    <p className="guest-portal-date">{formatDate(fn.date)} <span>· {fn.timezone}</span></p>
-    {(start||end)&&<p className="guest-portal-meta">{start||"Time to be confirmed"}{end?` – ${end}${start&&fn.end_time!.slice(0,8)<fn.start_time!.slice(0,8)?" (ends next day)":""}`:""}</p>}
+    <div className="guest-portal-function-heading"><div><p className="guest-portal-eyebrow">{fn.type}</p><h3>{fn.name}</h3></div><span className={`guest-portal-status ${fn.status}`}>{fn.status==="confirmed"?t.confirmed:t.tentative}</span></div>
+    <p className="guest-portal-date">{format.date(fn.date)} <span>· {fn.timezone}</span></p>
+    {(start||end)&&<p className="guest-portal-meta">{start||t.timeTbc}{end?` – ${end}${start&&fn.end_time!.slice(0,8)<fn.start_time!.slice(0,8)?` (${t.endsNextDay})`:""}`:""}</p>}
     {fn.location&&<p className="guest-portal-meta"><MapPin size={15} aria-hidden="true"/> {fn.location}</p>}
-    {fn.dress_code&&<p className="guest-portal-meta"><strong>Dress code:</strong> {fn.dress_code}</p>}
-    {fn.map_url&&<a className="guest-portal-map" href={fn.map_url} target="_blank" rel="noopener noreferrer">Open map <ArrowUpRight size={14}/></a>}
+    {fn.dress_code&&<p className="guest-portal-meta"><strong>{t.dressCode}:</strong> {fn.dress_code}</p>}
+    {fn.map_url&&<a className="guest-portal-map" href={fn.map_url} target="_blank" rel="noopener noreferrer">{t.openMap} <ArrowUpRight size={14}/></a>}
     {children}
   </article>;
 }
 
 function AuthorizedGuestsAcceptAll({count}:{count:number}){
+  const t=useT();
   const [confirming,setConfirming]=useState(false);
   return <section className="guest-portal-person household-accept">
-    <h2>Reply for everyone you’re authorized to help?</h2>
-    {!confirming?<button type="button" className="rsvp-all" onClick={()=>setConfirming(true)}>Yes, everyone is coming to everything</button>:<>
-      <p>This saves “Yes, attending” for every invitation you can access, across {count} {count===1?"person":"people"}. You can change any answer afterwards.</p>
-      <div className="guest-portal-link-actions"><Button type="button" onClick={()=>{window.dispatchEvent(new Event("portal:accept-all"));setConfirming(false);}}>Yes, save for everyone</Button><Button type="button" variant="secondary" onClick={()=>setConfirming(false)}>Cancel</Button></div>
+    <h2>{t.replyEveryoneTitle}</h2>
+    {!confirming?<button type="button" className="rsvp-all" onClick={()=>setConfirming(true)}>{t.replyEveryoneButton}</button>:<>
+      <p>{t.replyEveryoneConfirm(count)}</p>
+      <div className="guest-portal-link-actions"><Button type="button" onClick={()=>{window.dispatchEvent(new Event("portal:accept-all"));setConfirming(false);}}>{t.saveForEveryone}</Button><Button type="button" variant="secondary" onClick={()=>setConfirming(false)}>{t.cancel}</Button></div>
     </>}
   </section>;
 }
@@ -177,78 +216,125 @@ function downloadIcs(fn:Parameters<typeof functionIcs>[0]){
   const anchor=document.createElement("a");anchor.href=url;anchor.download=`${fn.name.replace(/[^\p{L}\p{N}]+/gu,"-").replace(/^-|-$/g,"")||"event"}.ics`;anchor.click();URL.revokeObjectURL(url);
 }
 
-function PortalItinerary({data}:{data:GuestPortalData}){
+function PortalItinerary({data,site}:{data:GuestPortalData;site:InvitationSite}){
+  const t=useT(); const format=useFormatters();
   const entries=buildItinerary(data.people);
   if(!entries.length)return null;
   const everyone=data.people.length;
-  const who=(people:string[])=>people.length===everyone&&everyone>1?"Everyone":people.join(", ");
-  return <section className="guest-portal-person itinerary" aria-labelledby="itinerary-title">
-    <div className="guest-portal-person-heading"><h2 id="itinerary-title">Your plan</h2><span>{entries.length} {entries.length===1?"item":"items"}</span></div>
+  const who=(people:string[])=>people.length===everyone&&everyone>1?t.everyone:people.join(", ");
+  return <section id="plan" className="guest-portal-person itinerary" aria-labelledby="itinerary-title">
+    <div className="guest-portal-person-heading"><h2 id="itinerary-title">{t.yourPlan}</h2><span>{t.items(entries.length)}</span></div>
     <ol className="itinerary-list">{entries.map((entry)=><li key={entry.key} className={`itinerary-item itinerary-${entry.type}`}>
-      <p className="itinerary-date">{formatDate(entry.date)}</p>
+      <p className="itinerary-date">{format.date(entry.date)}</p>
       {entry.type==="function"&&<>
-        <p className="itinerary-title">{entry.fn.name}{entry.fn.start_time?` · ${formatTime(entry.fn.start_time)}`:""}{entry.fn.status==="tentative"?" · timing to be confirmed":""}</p>
-        <p className="guest-portal-meta">{[entry.fn.location,entry.fn.dress_code&&`Dress code: ${entry.fn.dress_code}`].filter(Boolean).join(" · ")}</p>
+        <p className="itinerary-title">{entry.fn.name}{entry.fn.start_time?` · ${format.time(entry.fn.start_time)}`:""}{entry.fn.status==="tentative"?` · ${t.timingTbc}`:""}</p>
+        <p className="guest-portal-meta">{[entry.fn.location,entry.fn.dress_code&&`${t.dressCode}: ${entry.fn.dress_code}`].filter(Boolean).join(" · ")}</p>
         <p className="guest-portal-meta">{who(entry.people)}</p>
+        <Palette t={t} colors={site.palettes[entry.fn.id]} />
         <div className="guest-portal-link-actions">
-          {entry.fn.date&&<button type="button" className="itinerary-action" onClick={()=>downloadIcs(entry.fn)}><CalendarPlus size={15} aria-hidden="true"/> Add to calendar</button>}
-          {mapLink(entry.fn)&&<a className="itinerary-action" href={mapLink(entry.fn)!} target="_blank" rel="noopener noreferrer"><MapPin size={15} aria-hidden="true"/> Map</a>}
+          {entry.fn.date&&<button type="button" className="itinerary-action" onClick={()=>downloadIcs(entry.fn)}><CalendarPlus size={15} aria-hidden="true"/> {t.addToCalendar}</button>}
+          {mapLink(entry.fn)&&<a className="itinerary-action" href={mapLink(entry.fn)!} target="_blank" rel="noopener noreferrer"><MapPin size={15} aria-hidden="true"/> {t.map}</a>}
         </div>
       </>}
-      {entry.type==="stay"&&<><p className="itinerary-title">Stay at {entry.stay.property}</p><p className="guest-portal-meta">Until {formatDate(entry.stay.check_out_date)} · {who(entry.people)}</p></>}
-      {entry.type==="ride"&&<><p className="itinerary-title">{entry.ride.kind==="arrival"?"Pickup":entry.ride.kind==="departure"?"Departure ride":"Ride"} · {new Intl.DateTimeFormat("en-IE",{hour:"numeric",minute:"2-digit",timeZone:entry.ride.timezone}).format(new Date(entry.ride.pickup_at))}</p><p className="guest-portal-meta">{entry.ride.pickup_location} → {entry.ride.dropoff_location} · {who(entry.people)}</p></>}
+      {entry.type==="stay"&&<><p className="itinerary-title">{t.stayAt(entry.stay.property)}</p><p className="guest-portal-meta">{t.until(format.date(entry.stay.check_out_date))} · {who(entry.people)}</p></>}
+      {entry.type==="ride"&&<><p className="itinerary-title">{entry.ride.kind==="arrival"?t.pickup:entry.ride.kind==="departure"?t.departureRide:t.ride} · {format.instant(entry.ride.pickup_at,entry.ride.timezone)}</p><p className="guest-portal-meta">{entry.ride.pickup_location} → {entry.ride.dropoff_location} · {who(entry.people)}</p></>}
     </li>)}</ol>
   </section>;
 }
 
 function PortalInvitationCard({data}:{data:GuestPortalData}){
+  const { lang } = useContext(PortalLanguage);
   if(!data.invitation)return null;
   const portalGuest=data.people.find((person)=>person.id===data.portal_guest_id);
-  const language=isLanguage(data.household.language??"en")?data.household.language as LanguageCode:"en";
+  const householdLanguage=isLanguage(data.household.language??"en")?data.household.language as LanguageCode:"en";
+  // The couple's custom wording exists only for the household's language; other languages use the built-in text.
+  const language=lang;
   const seen=new Map<string,PortalInvitation["function"]>();
   for(const person of data.people)for(const invitation of person.invitations)seen.set(invitation.function.id,invitation.function);
   const card=buildCardProps({
-    theme:(THEMES.some((theme)=>theme.id===data.invitation!.theme)?data.invitation.theme:"mallige") as ThemeId,accent:data.invitation.accent,overrides:{[language]:data.invitation.texts},language,
+    theme:(THEMES.some((theme)=>theme.id===data.invitation!.theme)?data.invitation.theme:"mallige") as ThemeId,accent:data.invitation.accent,overrides:language===householdLanguage?{[language]:data.invitation.texts}:{},language,
     couple:data.couple_names.length?data.couple_names.join(" & "):"Our family",greetingName:portalGuest?.full_name??data.household.name,
     functions:[...seen.values()].map((fn)=>({name:fn.name,function_date:fn.date,start_time:fn.start_time,venue_name:fn.location})),
+    photoUrl:data.invitation.has_photo?"/guest/photo":null,showMonogram:data.invitation.show_monogram!==false,
   });
-  return <section className="guest-portal-invitation" aria-label="Your invitation"><InvitationCard {...card}/></section>;
+  return <div className="guest-portal-invitation"><InvitationCard {...card}/></div>;
 }
 
 function TravelArrangements({person}:{person:PortalGuest}) {
+  const t=useT(); const format=useFormatters();
   const stays=person.stays??[]; const journeys=person.journeys??[];
   if(!stays.length&&!journeys.length)return null;
   return <div className="guest-portal-function">
-    <h3 className="guest-portal-function-heading">Your confirmed travel arrangements</h3>
+    <h3 className="guest-portal-function-heading">{t.travelTitle}</h3>
     {stays.map((stay,index)=><div key={`stay-${index}`} className="guest-portal-meta">
       <p><strong>{stay.property}</strong>{stay.room_type?` · ${stay.room_type}`:""}</p>
-      <p>Check in {formatDate(stay.check_in_date)}{stay.check_in_time?` from ${formatTime(stay.check_in_time)}`:""} · check out {formatDate(stay.check_out_date)}{stay.check_out_time?` by ${formatTime(stay.check_out_time)}`:""}</p>
+      <p>{t.checkIn(format.date(stay.check_in_date),format.time(stay.check_in_time))} · {t.checkOut(format.date(stay.check_out_date),format.time(stay.check_out_time))}</p>
       {stay.address&&<p><MapPin size={15} aria-hidden="true"/> {stay.address}</p>}
       {stay.notes&&<p>{stay.notes}</p>}
     </div>)}
     {journeys.map((journey,index)=><div key={`journey-${index}`} className="guest-portal-meta">
-      <p><strong>{journey.kind==="arrival"?"Arrival transfer":journey.kind==="departure"?"Departure transfer":"Transfer"}</strong> · {new Intl.DateTimeFormat("en-IE",{weekday:"long",day:"numeric",month:"long",hour:"numeric",minute:"2-digit",timeZone:journey.timezone}).format(new Date(journey.pickup_at))}</p>
-      <p>From {journey.pickup_location} to {journey.dropoff_location}</p>
+      <p><strong>{journey.kind==="arrival"?t.arrivalTransfer:journey.kind==="departure"?t.departureTransfer:t.transfer}</strong> · {format.instant(journey.pickup_at,journey.timezone,true)}</p>
+      <p>{t.fromTo(journey.pickup_location,journey.dropoff_location)}</p>
     </div>)}
-    <p className="guest-portal-help">If anything here looks wrong, please contact your hosts.</p>
+    <p className="guest-portal-help">{t.travelHelp}</p>
   </div>;
 }
 
 export function GuestPortal({data}:{data:GuestPortalData|null}) {
   if(!data)return <TokenExchange/>;
+  const initialLang=isLanguage(data.household.language??"en")?data.household.language as LanguageCode:"en";
+  return <LanguageProvider initialLang={initialLang}><PortalContent data={data}/></LanguageProvider>;
+}
+
+function PortalContent({data}:{data:GuestPortalData}) {
+  const t=useT();
   const portalGuest=data.people.find((person)=>person.id===data.portal_guest_id);
   const proxyPeople=data.people.filter((person)=>person.is_proxy);
-  return <PortalFrame>
-    <PortalInvitationCard data={data}/>
-    <PortalItinerary data={data}/>
-    <header className="guest-portal-welcome"><p className="guest-portal-eyebrow">A celebration with</p><h1>{data.couple_names.length?data.couple_names.join(" & "):"Our family"}</h1><p>Welcome, {portalGuest?.full_name??"guest"}. {proxyPeople.length?`This link also lets you respond for ${proxyPeople.map((person)=>person.full_name).join(", ")}.`:"This private link shows only your invitations and responses."}</p></header>
+  const site=readSite(data.site);
+  const couple=data.couple_names.length?data.couple_names.join(" & "):t.ourFamily;
+  // Function start instants (wedding timezone) for the countdown and the "happening now" banner.
+  const seen=new Map<string,{name:string;startsAt:string|null}>();
+  for(const person of data.people)for(const invitation of person.invitations){
+    const fn=invitation.function;
+    let startsAt:string|null=null;
+    try{ startsAt=fn.date&&fn.start_time?resolveFunctionSchedule({date:fn.date,startTime:fn.start_time.slice(0,5),endTime:"",timezone:fn.timezone}).startsAt:null; }catch{ startsAt=null; }
+    seen.set(fn.id,{name:fn.name,startsAt});
+  }
+  const functionStarts=[...seen.values()];
+  const now=new Date();
+  const target=nextFunctionStart(functionStarts,now);
+  const liveTarget=functionStarts.filter((fn)=>fn.startsAt).map((fn)=>({name:fn.name,startsAt:new Date(fn.startsAt!)})).sort((a,b)=>Math.abs(a.startsAt.getTime()-now.getTime())-Math.abs(b.startsAt.getTime()-now.getTime()))[0]??null;
+  const sections=[
+    data.invitation?{id:"invitation",label:t.navInvitation}:null,
+    site.story.length?{id:"story",label:t.navStory}:null,
+    {id:"plan",label:t.navPlan},
+    {id:"reply",label:t.navReply},
+    site.faqs.length?{id:"faq",label:t.navFaq}:null,
+    site.blessings_enabled?{id:"blessings",label:t.navBlessings}:null,
+  ].filter((item):item is {id:string;label:string}=>Boolean(item));
+  const theme=THEMES.find((item)=>item.id===data.invitation?.theme);
+  const themeStyle=theme?{["--portal-accent" as string]:data.invitation?.accent||theme.accent,["--portal-theme-bg" as string]:theme.background,["--portal-theme-ink" as string]:theme.ink} as React.CSSProperties:undefined;
+  return <PortalFrame style={themeStyle}>
+    {data.invitation&&<OpeningOverlay t={t} couple={couple} enabled={site.opening_animation}/>}
+    <SectionNav t={t} sections={sections}/>
+    <section id="invitation" className="portal-hero" aria-label={t.navInvitation}>
+      <PortalInvitationCard data={data}/>
+      <CountdownBanner t={t} target={target} liveTarget={liveTarget} site={site}/>
+    </section>
+    <StorySection t={t} site={site}/>
+    <PortalItinerary data={data} site={site}/>
+    <div id="reply" className="portal-reply">
+    <header className="guest-portal-welcome"><p className="guest-portal-eyebrow">{t.celebrationWith}</p><h1>{data.couple_names.length?data.couple_names.join(" & "):t.ourFamily}</h1><p>{t.welcome(portalGuest?.full_name??"")} {proxyPeople.length?t.proxyNote(proxyPeople.map((person)=>person.full_name).join(", ")):t.onlyYours}</p></header>
     {data.people.length>1&&data.people.reduce((total,person)=>total+person.invitations.length,0)>1&&<AuthorizedGuestsAcceptAll count={data.people.length}/>}
-    {!data.people.length?<section className="guest-portal-state"><h2>Invitation details are not available</h2><p>{unavailableCopy}</p></section>:data.people.map(person=><section className="guest-portal-person" key={person.id}>
-      <div className="guest-portal-person-heading"><h2>{person.full_name}</h2><span>{person.is_proxy?"Proxy access · ":"Your invitation · "}{person.invitations.length} {person.invitations.length===1?"invitation":"invitations"}</span></div>
+    {!data.people.length?<section className="guest-portal-state"><h2>{t.notAvailableTitle}</h2><p>{t.unavailable}</p></section>:data.people.map(person=><section className="guest-portal-person" key={person.id}>
+      <div className="guest-portal-person-heading"><h2>{person.full_name}</h2><span>{person.is_proxy?t.proxyAccess:t.yourInvitation} · {t.invitations(person.invitations.length)}</span></div>
       <PersonRsvpForm key={`${person.id}:${person.invitations.map((invitation)=>`${invitation.id}:${invitation.updated_at??"new"}`).join("|")}`} person={person}/>
       <TravelArrangements person={person}/>
       <GuestProfileForm person={person}/>
     </section>)}
-    <aside className="guest-portal-help"><p>Need to update who is invited or have a question? Please contact your hosts.</p></aside>
+    </div>
+    <FaqSection t={t} site={site}/>
+    <BlessingsSection t={t} site={site} blessings={data.blessings??[]} pending={data.my_pending_blessings??0}/>
+    <aside className="guest-portal-help"><p>{t.contactHosts}</p></aside>
   </PortalFrame>;
 }
