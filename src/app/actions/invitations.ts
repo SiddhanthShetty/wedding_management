@@ -4,6 +4,7 @@ import { z, ZodError } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
 import { createPreviewLink, moderateBlessing, saveDesignPhoto } from "@/lib/data/invitations";
 import { checkPhotoDataUrl } from "@/lib/invitations/photo";
+import { captionInvitationMedia, deleteInvitationMedia } from "@/lib/data/invitation-media";
 import { parseSite } from "@/lib/invitations/site";
 import { cleanTextOverrides, InvitationConflictError, InvitationRuleError, prepareGuestInvitation, recordInvitationShared, saveDesign, setDefaultDesign, setHouseholdLanguage } from "@/lib/data/invitations";
 import { messageWithoutLink } from "@/lib/invitations/content";
@@ -84,6 +85,14 @@ export async function recordInvitationSharedAction(input: { weddingId: string; g
     revalidatePath("/invitations"); revalidatePath("/messages");
     return { message: result.recorded ? "Recorded as sent manually. Delivery is not confirmed." : "Already recorded for this design and channel.", at: Date.now() };
   } catch (error) { return failure(error); }
+}
+
+export async function deleteMediaAction(_state: InvitationActionState, form: FormData): Promise<InvitationActionState> {
+  return run(form, async (weddingId) => { await deleteInvitationMedia(weddingId, id.parse(text(form, "mediaId"))); return "Removed."; });
+}
+
+export async function captionMediaAction(_state: InvitationActionState, form: FormData): Promise<InvitationActionState> {
+  return run(form, async (weddingId) => { await captionInvitationMedia(weddingId, id.parse(text(form, "mediaId")), z.string().max(80).parse(text(form, "caption"))); return "Caption saved."; });
 }
 
 export async function moderateBlessingAction(_state: InvitationActionState, form: FormData): Promise<InvitationActionState> {

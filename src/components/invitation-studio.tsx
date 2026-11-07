@@ -15,7 +15,8 @@ import { Card, EmptyState, PageHeading } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { buildCardProps } from "@/lib/invitations/card-data";
 import { buildPreviewData, previewFunction } from "@/lib/invitations/preview";
-import { readSite, type InvitationSite } from "@/lib/invitations/site";
+import { EFFECTS, OPENING_STYLES, readSite, TEMPLATES, type InvitationSite } from "@/lib/invitations/site";
+import { GalleryEditor, MusicUploader, studioMedia } from "@/components/invitation-media-editor";
 import { DEFAULT_TEXTS, LANGUAGES, isLanguage, mailtoUrl, resolveTexts, shareMessage, TEXT_KEYS, TEXT_LABELS, THEMES, themeById, whatsappUrl, type LanguageCode, type TextOverrides, type ThemeId } from "@/lib/invitations/content";
 import { cardFileName, svgElementToPng } from "@/lib/invitations/export-card";
 import type { InvitationWorkspace } from "@/lib/data/invitations";
@@ -104,14 +105,14 @@ function StudioWorkspace({ data, design, designId, setDesignId, step, setStep, g
       <TabList tabs={steps} selected={step} onSelect={setStep} label="Invitation steps" idPrefix="invite" />
       <section role="tabpanel" id={`invite-panel-${step}`} aria-labelledby={`invite-tab-${step}`} tabIndex={0} className="section-stack">
         {step === "design" && <DesignStep data={data} design={design} draft={draft} set={set} updateSite={updateSite} onPhoto={setPhoto} readOnly={readOnly} />}
-        {step === "content" && <ContentStep data={data} draft={draft} set={set} updateSite={updateSite} lang={lang} setLang={setLang} readOnly={readOnly} />}
+        {step === "content" && <ContentStep data={data} designId={designId} draft={draft} set={set} updateSite={updateSite} lang={lang} setLang={setLang} readOnly={readOnly} />}
         {step === "extras" && <ExtrasStep data={data} draft={draft} photo={photo} lang={lang} />}
         {step === "share" && <ShareStep data={data} design={design} defaultDesign={defaultDesign} guests={guests} dirty={dirty} />}
       </section>
       {step !== "share" && data.canEdit && <SaveBar data={data} design={design} draft={draft} dirty={dirty} />}
     </div>
     <aside className="studio-preview" aria-label="Live preview">
-      <PhonePreview data={data} draft={draft} photo={photo} lang={lang} setLang={setLang} guests={guests} />
+      <PhonePreview data={data} draft={draft} photo={photo} lang={lang} setLang={setLang} guests={guests} designId={design?.id} />
     </aside>
     <a className="studio-preview-jump button button-secondary" href="#studio-phone"><Smartphone size={15} aria-hidden="true" /> Preview</a>
   </div>;
@@ -137,7 +138,17 @@ function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }:
   updateSite: <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => void; onPhoto: (photo: string | null) => void; readOnly: boolean;
 }) {
   return <>
-    <Card title="Template and colours" subtitle="Each theme sets the card, the guest page and your workspace colours.">
+    <Card title="Page template" subtitle="How the guest page is laid out. Every template works with every theme and language.">
+      <fieldset className="choice-cards" disabled={readOnly}>
+        <legend className="sr-only">Page template</legend>
+        {TEMPLATES.map((option) => <label key={option.id} className={`choice-card ${draft.site.template === option.id ? "is-selected" : ""}`}>
+          <input type="radio" name="template-choice" value={option.id} checked={draft.site.template === option.id} onChange={() => updateSite("template", option.id)} />
+          <span className={`choice-thumb is-${option.id}`} aria-hidden="true" />
+          <strong>{option.name}</strong><span className="row-meta">{option.description}</span>
+        </label>)}
+      </fieldset>
+    </Card>
+    <Card title="Theme and colours" subtitle="Each theme sets the card, the guest page and your workspace colours.">
       <TextInput label="Design name" required maxLength={80} value={draft.name} onChange={(event) => set("name", event.target.value)} disabled={readOnly} hint="Only you see this name." />
       <fieldset className="theme-picker" disabled={readOnly}>
         <legend className="field-label">Theme</legend>
@@ -160,17 +171,32 @@ function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }:
     </Card>
     <Card title="How guests open it">
       <fieldset className="check-list" disabled={readOnly}>
-        <Checkbox label="Opening animation: an envelope with your seal that guests tap to open (skipped for people who prefer less motion)" checked={draft.site.opening_animation} onChange={(event) => updateSite("opening_animation", event.target.checked)} />
+        <Checkbox label="Opening animation that guests tap to open (skipped for people who prefer less motion)" checked={draft.site.opening_animation} onChange={(event) => updateSite("opening_animation", event.target.checked)} />
+      </fieldset>
+      {draft.site.opening_animation && <fieldset className="choice-cards" disabled={readOnly}>
+        <legend className="field-label">Opening</legend>
+        {OPENING_STYLES.map((option) => <label key={option.id} className={`choice-card ${draft.site.opening_style === option.id ? "is-selected" : ""}`}>
+          <input type="radio" name="opening-choice" value={option.id} checked={draft.site.opening_style === option.id} onChange={() => updateSite("opening_style", option.id)} />
+          <strong>{option.name}</strong><span className="row-meta">{option.description}</span>
+        </label>)}
+      </fieldset>}
+      <Select label="Celebration effect" value={draft.site.effect} onChange={(event) => updateSite("effect", event.target.value as InvitationSite["effect"])} disabled={readOnly} hint="Plays after the opening and when a guest replies yes. Skipped for people who prefer less motion.">
+        {EFFECTS.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+      </Select>
+      <fieldset className="check-list" disabled={readOnly}>
         <Checkbox label="Countdown to the next function" checked={draft.site.countdown} onChange={(event) => updateSite("countdown", event.target.checked)} />
         <Checkbox label="Blessings wall (guests leave wishes; you approve each one before others see it)" checked={draft.site.blessings_enabled} onChange={(event) => updateSite("blessings_enabled", event.target.checked)} />
       </fieldset>
       <p className="field-help">Use “Replay opening” above the phone preview to see the opening again.</p>
     </Card>
+    <Card title="Music" subtitle="Saved straight away; it does not wait for “Save changes”.">
+      <MusicUploader data={data} design={design} />
+    </Card>
   </>;
 }
 
-function ContentStep({ data, draft, set, updateSite, lang, setLang, readOnly }: {
-  data: Data; draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
+function ContentStep({ data, designId, draft, set, updateSite, lang, setLang, readOnly }: {
+  data: Data; designId: string; draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
   updateSite: <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => void; lang: LanguageCode; setLang: (lang: LanguageCode) => void; readOnly: boolean;
 }) {
   const languageInfo = LANGUAGES.find((item) => item.code === lang)!;
@@ -188,6 +214,10 @@ function ContentStep({ data, draft, set, updateSite, lang, setLang, readOnly }: 
           {TEXT_KEYS.map((key) => <TextArea key={`${lang}-${key}`} label={TEXT_LABELS[key]} rows={key === "share" || key === "body" ? 3 : 1} maxLength={600} lang={lang}
             value={draft.texts[lang]?.[key] ?? ""} placeholder={DEFAULT_TEXTS[lang][key]} onChange={(event) => setText(key, event.target.value)} />)}
         </fieldset>
+      </details>
+      <details className="studio-group">
+        <summary><span className="studio-group-title">Photo gallery</span><span className="studio-group-summary">{(() => { const n = data.media.filter((row) => row.design_id === designId && row.kind === "gallery").length; return n ? `${n} photo${n === 1 ? "" : "s"} · saved straight away` : "None yet"; })()}</span></summary>
+        <div className="studio-group-body"><GalleryEditor data={data} design={data.designs.find((row) => row.id === designId)} /></div>
       </details>
       <WebsiteContentFields data={data} site={draft.site} update={updateSite} readOnly={readOnly} />
     </div>
@@ -265,7 +295,7 @@ function FamilyPreviewLink({ data, design, dirty }: { data: Data; design: Design
 }
 
 /** The guest page as a phone shows it, built from the unsaved draft, plus how the message looks in WhatsApp. */
-function PhonePreview({ data, draft, photo, lang, setLang, guests }: { data: Data; draft: Draft; photo: string | null; lang: LanguageCode; setLang: (lang: LanguageCode) => void; guests: Guest[] }) {
+function PhonePreview({ data, draft, photo, lang, setLang, guests, designId }: { data: Data; draft: Draft; photo: string | null; lang: LanguageCode; setLang: (lang: LanguageCode) => void; guests: Guest[]; designId?: string }) {
   const [mode, setMode] = useState<"invite" | "whatsapp">("invite");
   const [replay, setReplay] = useState(0);
   const [guestId, setGuestId] = useState("");
@@ -273,11 +303,12 @@ function PhonePreview({ data, draft, photo, lang, setLang, guests }: { data: Dat
   const fnRows = guest ? guestFunctions(data, guest) : data.functions;
   const guestName = guest?.full_name ?? PORTAL_STRINGS[lang].previewGuest;
   const accent = draft.useAccent ? draft.accent : null;
-  const portal = useMemo(() => buildPreviewData({
+  const media = studioMedia(data, designId);
+  const portal = useMemo(() => ({ ...buildPreviewData({
     coupleNames: data.couplePartners.length ? data.couplePartners : [data.coupleNames], guestName, language: lang,
     functions: fnRows.map((fn) => previewFunction(fn, data.wedding.timezone)),
     design: { theme: draft.theme, accent, texts: draft.texts, show_monogram: draft.showMonogram, photo_url: photo, site: draft.site },
-  }), [data, guestName, lang, fnRows, draft, accent, photo]);
+  }), media }), [data, guestName, lang, fnRows, draft, accent, photo, media]);
   return <div className="phone-preview" id="studio-phone">
     <div className="phone-toolbar">
       <div className="segmented" role="group" aria-label="Preview">

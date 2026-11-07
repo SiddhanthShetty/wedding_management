@@ -30,13 +30,15 @@ export async function getInvitationWorkspace(weddingId: string) {
     supabase.from("communication_records").select("guest_id,channel,state,sent_at,dedupe_key").eq("wedding_id", weddingId).like("dedupe_key", "invite:%"),
     supabase.from("guest_blessings").select("id,guest_id,message,status,created_at,approved_at").eq("wedding_id", weddingId).order("created_at", { ascending: false }).limit(300),
     supabase.rpc("list_guest_portal_links", { p_wedding_id: weddingId, p_household_id: null }),
+    supabase.from("invitation_media").select("id,design_id,kind,position,mime,byte_size,caption,created_at").eq("wedding_id", weddingId).order("position"),
   ]);
   for (const result of results) if (result.error) throw new Error("Could not load invitations.");
-  const [designs, households, guests, invitations, functions, wedding, records, blessings, links] = results;
+  const [designs, households, guests, invitations, functions, wedding, records, blessings, links, media] = results;
   return {
     wedding: context.wedding,
     canEdit: context.membership.role === "owner" || context.membership.role === "co_owner" || context.moduleAccess.guests === "edit",
     coupleNames: [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean).join(" & ") || context.wedding.name,
+    media: (media.data ?? []) as Array<{ id: string; design_id: string; kind: "music" | "gallery"; position: number; mime: string; byte_size: number; caption: string; created_at: string }>,
     couplePartners: [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean) as string[],
     designs: (designs.data ?? []) as Array<{ id: string; name: string; theme: ThemeId; accent: string | null; texts: TextOverrides; site: unknown; photo_data: string | null; show_monogram: boolean; is_default: boolean; version: number; updated_at: string }>,
     households: (households.data ?? []) as Array<{ id: string; name: string; contact_name: string; contact_email: string; contact_phone: string; preferred_language: LanguageCode }>,

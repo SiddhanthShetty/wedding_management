@@ -9,7 +9,30 @@ export type Faq = { question: string; answer: string };
 /** A "for your guests" card: where to stay, how to get there, who to call. */
 export type InfoCard = { title: string; text: string; phone: string };
 export type SectionTitles = { story: string; info: string; faq: string; blessings: string };
+export const TEMPLATES = [
+  { id: "classic", name: "Classic", description: "Clean cards on your theme colour. Works with every theme." },
+  { id: "mantapa", name: "Kalyana Mantapa", description: "A wedding hall: banana-stem pillars and a mango-leaf thoranam frame the page, sections arched like a mantapa." },
+  { id: "kacheri", name: "Kacheri", description: "Your wedding as a Carnatic concert programme: numbered items, fine rules and a veena line." },
+] as const;
+export type TemplateId = typeof TEMPLATES[number]["id"];
+export const OPENING_STYLES = [
+  { id: "envelope", name: "Envelope", description: "An envelope with your seal; guests tap to open it." },
+  { id: "letter", name: "Pull-out letter", description: "An invitation card rises out of its sleeve." },
+  { id: "doors", name: "Temple doors", description: "Carved doors with brass studs swing open." },
+] as const;
+export type OpeningStyle = typeof OPENING_STYLES[number]["id"];
+export const EFFECTS = [
+  { id: "petals", name: "Jasmine and marigold petals" },
+  { id: "confetti", name: "Confetti" },
+  { id: "none", name: "No effect" },
+] as const;
+export type CelebrationEffect = typeof EFFECTS[number]["id"];
+
 export type InvitationSite = {
+  template: TemplateId;
+  opening_style: OpeningStyle;
+  /** Plays when a guest opens the invitation and after they reply yes. Skipped for reduced motion. */
+  effect: CelebrationEffect;
   opening_animation: boolean;
   countdown: boolean;
   blessings_enabled: boolean;
@@ -38,6 +61,7 @@ export type InvitationSite = {
 export const BLESSING_PRESETS = ["|| Shree Ganeshaya Namah ||", "॥ ಶ್ರೀ ಗಣೇಶಾಯ ನಮಃ ॥", "॥ श्री गणेशाय नमः ॥", "|| Om ||"] as const;
 
 export const EMPTY_SITE: InvitationSite = {
+  template: "classic", opening_style: "envelope", effect: "petals",
   opening_animation: true, countdown: true, blessings_enabled: false, livestream_url: null, story: [], faqs: [], palettes: {},
   blessing_header: "", parents: { one: "", two: "" }, info_cards: [], closing: { title: "", names: [] }, hashtag: "", instagram: [],
   reveal: { title: "", hint: "" }, titles: { story: "", info: "", faq: "", blessings: "" },
@@ -45,6 +69,9 @@ export const EMPTY_SITE: InvitationSite = {
 
 const text = (max: number) => z.string().trim().max(max);
 const siteSchema = z.object({
+  template: z.enum(TEMPLATES.map((item) => item.id) as [TemplateId, ...TemplateId[]]).catch("classic").default("classic"),
+  opening_style: z.enum(OPENING_STYLES.map((item) => item.id) as [OpeningStyle, ...OpeningStyle[]]).catch("envelope").default("envelope"),
+  effect: z.enum(EFFECTS.map((item) => item.id) as [CelebrationEffect, ...CelebrationEffect[]]).catch("petals").default("petals"),
   opening_animation: z.boolean().default(true),
   countdown: z.boolean().default(true),
   blessings_enabled: z.boolean().default(false),

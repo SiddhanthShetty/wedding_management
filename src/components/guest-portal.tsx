@@ -9,8 +9,8 @@ import { recordGuestPortalRsvpBatchAction, saveGuestPortalProfileAction, type Gu
 import type { GuestPortalData, PortalGuest, PortalInvitation } from "@/lib/guest-portal/server";
 import { Button } from "@/components/ui";
 import { InvitationCard } from "@/components/invitation-card";
-import { BlessingHeader, BlessingsSection, ClosingSection, CountdownBanner, FamilyLines, FaqSection, InfoSection, OpeningOverlay, Palette, PetalBurst, SectionNav, StorySection } from "@/components/portal-site";
-import { nextFunctionStart, readSite, type InvitationSite } from "@/lib/invitations/site";
+import { BlessingHeader, BlessingsSection, CelebrationBurst, ClosingSection, CountdownBanner, FamilyLines, FaqSection, GallerySection, InfoSection, KacheriVeena, MantapaThoranam, MusicButton, OpeningOverlay, Palette, SectionNav, StorySection } from "@/components/portal-site";
+import { nextFunctionStart, readSite, type CelebrationEffect, type InvitationSite } from "@/lib/invitations/site";
 import { resolveFunctionSchedule } from "@/lib/planning/schedule";
 import { buildCardProps, monogramFor } from "@/lib/invitations/card-data";
 import { isLanguage, LANGUAGES, readableAccent, THEMES, type LanguageCode, type ThemeId } from "@/lib/invitations/content";
@@ -19,6 +19,8 @@ const initial: GuestActionState = {};
 const LANGUAGE_KEY = "wedding-desk:portal-language";
 const PortalLanguage = createContext<{ lang: LanguageCode; t: PortalStrings; setLang: (lang: LanguageCode) => void }>({ lang: "en", t: PORTAL_STRINGS.en, setLang: () => {} });
 const useT = () => useContext(PortalLanguage).t;
+/** The couple's chosen celebration effect, for the burst after a "yes". */
+const PortalEffect = createContext<CelebrationEffect>("petals");
 const useLocale = () => PORTAL_LOCALES[useContext(PortalLanguage).lang];
 
 /** The household's language by default; a guest's own choice is remembered on their device. */
@@ -63,11 +65,11 @@ function TokenExchangeInner() {
   return <PortalFrame><div className="guest-portal-state" role="status"><span className="guest-portal-heart"><Heart size={18}/></span><h1>{t.privateInvitation}</h1><p>{failed ? t.unavailable : t.checking}</p></div></PortalFrame>;
 }
 
-function PortalFrame({children,style,embedded=false}:{children:React.ReactNode;style?:React.CSSProperties;embedded?:boolean}) {
+function PortalFrame({children,style,embedded=false,className=""}:{children:React.ReactNode;style?:React.CSSProperties;embedded?:boolean;className?:string}) {
   const { lang, t, setLang } = useContext(PortalLanguage);
   // Embedded in the studio's phone preview, the page must not add a second <main> landmark.
   const Frame = embedded ? "div" : "main";
-  return <Frame className="guest-portal-main" lang={lang === "tcy" ? "tcy" : lang} style={style}>
+  return <Frame className={`guest-portal-main ${className}`} lang={lang === "tcy" ? "tcy" : lang} style={style}>
     <div className="guest-portal-brand"><span className="guest-portal-heart"><Heart size={17}/></span><span>{t.brand}</span>
       <label className="portal-language"><span className="sr-only">{t.language}</span>
         <select value={lang} onChange={(event)=>setLang(event.target.value as LanguageCode)} aria-label={t.language}>{LANGUAGES.map((item)=><option key={item.code} value={item.code}>{item.label.split(" · ")[0]}</option>)}</select>
@@ -126,6 +128,7 @@ function PersonRsvpForm({person}:{person:PortalGuest}){
 
   const saidYes=useRef(false);
   const [burst,setBurst]=useState(0);
+  const effect=useContext(PortalEffect);
   useEffect(()=>{
     setSubmissionKeys(Object.fromEntries(person.invitations.map((invitation)=>[invitation.id,crypto.randomUUID()])));
     setBatchSubmissionKey(crypto.randomUUID());
@@ -156,7 +159,7 @@ function PersonRsvpForm({person}:{person:PortalGuest}){
     })),
   });
   return <form ref={formRef} action={action} className="guest-portal-rsvp-batch" onSubmit={()=>{saidYes.current=changed.some((invitation)=>drafts[invitation.id]?.response==="yes");}}>
-    {burst>0&&<PetalBurst key={burst}/>}
+    {burst>0&&<CelebrationBurst key={burst} kind={effect}/>}
     {person.invitations.length>1&&<button type="button" className="rsvp-all" onClick={acceptAll}>{t.yesToAll(person.full_name)}</button>}
     <div className="guest-portal-functions">{person.invitations.map((invitation)=><FunctionCard key={invitation.id} invitation={invitation}><RsvpFields invitation={invitation} draft={drafts[invitation.id]??{response:"",note:""}} onChange={(next)=>setDrafts((current)=>({...current,[invitation.id]:next}))}/></FunctionCard>)}</div>
     <input type="hidden" name="responsesJson" value={responses}/>
@@ -308,6 +311,7 @@ function PreviewReplies({data}:{data:GuestPortalData}){
 function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;replay?:number;embedded?:boolean}) {
   const t=useT(); const locale=useLocale();
   const preview=data.preview;
+  const [opened,setOpened]=useState(0);
   const portalGuest=data.people.find((person)=>person.id===data.portal_guest_id);
   const proxyPeople=data.people.filter((person)=>person.is_proxy);
   const site=readSite(data.site);
@@ -327,6 +331,7 @@ function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;repl
   const sections=[
     data.invitation?{id:"invitation",label:t.navInvitation}:null,
     site.story.length?{id:"story",label:site.titles.story||t.navStory}:null,
+    data.media?.gallery.length?{id:"gallery",label:t.navGallery}:null,
     {id:"plan",label:t.navPlan},
     site.info_cards.length?{id:"info",label:site.titles.info||t.navInfo}:null,
     {id:"reply",label:t.navReply},
@@ -336,18 +341,23 @@ function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;repl
   const theme=THEMES.find((item)=>item.id===data.invitation?.theme);
   const themeStyle=theme?{["--portal-accent" as string]:data.invitation?.accent||theme.accent,["--portal-accent-text" as string]:readableAccent(theme.id,data.invitation?.accent??null),["--portal-theme-bg" as string]:theme.background,["--portal-theme-ink" as string]:theme.ink} as React.CSSProperties:undefined;
   const monogram=data.invitation?.show_monogram!==false&&data.couple_names.length?monogramFor(couple)??undefined:undefined;
-  return <PortalFrame style={themeStyle} embedded={embedded}>
+  return <PortalEffect.Provider value={site.effect}><PortalFrame style={themeStyle} embedded={embedded} className={`portal-template-${site.template}`}>
+    {opened>0&&<CelebrationBurst key={`open-${opened}`} kind={site.effect}/>}
+    {data.media?.music&&<MusicButton t={t} src={`${data.media.base}${data.media.music}`}/>}
     {preview&&<p className="portal-preview-banner" role="status">{t.previewBanner}{preview.expires_at?` · ${t.previewUntil(new Intl.DateTimeFormat(locale,{hour:"numeric",minute:"2-digit"}).format(new Date(preview.expires_at)))}`:""}</p>}
     {/* In the studio the opening plays only on "Replay opening"; guests and family previews see it once per visit. */}
-    {data.invitation&&!(embedded&&replay===0)&&<OpeningOverlay key={replay} t={t} couple={couple} enabled={site.opening_animation} site={site} monogram={monogram} always={embedded}/>}
+    {data.invitation&&!(embedded&&replay===0)&&<OpeningOverlay key={replay} t={t} couple={couple} enabled={site.opening_animation} site={site} monogram={monogram} always={embedded} onOpened={()=>setOpened((n)=>n+1)}/>}
     <SectionNav t={t} sections={sections}/>
     <section id="invitation" className="portal-hero" aria-label={t.navInvitation}>
+      {site.template==="mantapa"&&<MantapaThoranam/>}
+      {site.template==="kacheri"&&<KacheriVeena/>}
       <BlessingHeader site={site}/>
       <PortalInvitationCard data={data}/>
       <FamilyLines names={data.couple_names} site={site}/>
       <CountdownBanner t={t} target={target} liveTarget={liveTarget} site={site}/>
     </section>
     <StorySection t={t} site={site}/>
+    <GallerySection t={t} media={data.media}/>
     <PortalItinerary data={data} site={site}/>
     <InfoSection t={t} site={site}/>
     {preview?<div id="reply" className="portal-reply"><PreviewReplies data={data}/></div>:<div id="reply" className="portal-reply">
@@ -364,5 +374,5 @@ function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;repl
     <BlessingsSection t={t} site={site} blessings={data.blessings??[]} pending={data.my_pending_blessings??0} preview={Boolean(preview)}/>
     <ClosingSection t={t} site={site}/>
     <aside className="guest-portal-help"><p>{t.contactHosts}</p></aside>
-  </PortalFrame>;
+  </PortalFrame></PortalEffect.Provider>;
 }

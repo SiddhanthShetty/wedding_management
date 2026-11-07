@@ -5,8 +5,11 @@ import { cookies, headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseEnvironment } from "@/lib/supabase/env";
 import { digestGuestPortalAddress, digestGuestPortalValue } from "@/lib/guest-portal/crypto";
+import type { PortalMedia } from "@/lib/invitations/media";
 
 export const GUEST_PORTAL_COOKIE = "__Secure-guest_portal";
+/** Holds a family preview token so the preview page can load its music and photos. */
+export const PREVIEW_COOKIE = "__Secure-invite_preview";
 const genericUnavailable = "This invitation link is not available. Please contact your hosts for help.";
 
 export type PortalFunction = {
@@ -30,6 +33,8 @@ export type GuestPortalData = {
   household: { name: string; language?: string }; portal_guest_id: string; invitation?: PortalInvitationDesign | null; couple_names: string[]; people: PortalGuest[];
   /** Invitation website content; validated when saved and re-read leniently on display. */
   site?: unknown; blessings?: PortalBlessing[]; my_pending_blessings?: number;
+  /** Music and gallery photos; `base` + id is where this viewer loads each file. */
+  media?: PortalMedia;
   /** A preview for the couple or their family: replies and blessings are switched off. */
   preview?: { expires_at: string | null };
 };
@@ -77,9 +82,13 @@ export async function getGuestPortalData(): Promise<GuestPortalData | null> {
     const sessionDigest = await getGuestPortalSessionDigest();
     if (!sessionDigest || !(await consumePortalRateLimit("read"))) return null;
     const supabase = publicSupabase();
-    const { data, error } = await supabase.rpc("get_guest_portal_data", { p_session_digest: sessionDigest });
-    if (error || !data || typeof data !== "object") return null;
-    return data as GuestPortalData;
+    const [portal, media] = await Promise.all([
+      supabase.rpc("get_guest_portal_data", { p_session_digest: sessionDigest }),
+      supabase.rpc("list_guest_portal_media", { p_session_digest: sessionDigest }),
+    ]);
+    if (portal.error || !portal.data || typeof portal.data !== "object") return null;
+    const listing = !media.error && media.data && typeof media.data === "object" ? media.data as Omit<PortalMedia, "base"> : null;
+    return { ...(portal.data as GuestPortalData), media: listing ? { base: "/guest/media/", ...listing } : undefined };
   } catch { return null; }
 }
 
@@ -152,6 +161,41 @@ export async function getInvitationPreview(token: string): Promise<{ expires_at:
     const { data, error } = await publicSupabase().rpc("get_invitation_preview", { p_token_digest: digestGuestPortalValue("preview", token) });
     if (error || !data || typeof data !== "object") return null;
     return data as never;
+  } catch { return null; }
+}
+
+type MediaFile = { mime: string; bytes: Buffer };
+function decodeMedia(data: unknown): MediaFile | null {
+  if (!data || typeof data !== "object") return null;
+  const { mime, data: base64 } = data as { mime?: unknown; data?: unknown };
+  if (typeof mime !== "string" || typeof base64 !== "string" || !/^(image\/(jpeg|webp)|audio\/(mpeg|mp4|ogg))$/.test(mime)) return null;
+  return { mime, bytes: Buffer.from(base64, "base64") };
+}
+
+/** One music file or gallery photo, for a valid guest session and the design guests see. */
+export async function getGuestPortalMedia(mediaId: string): Promise<MediaFile | null> {
+  try {
+    const sessionDigest = await getGuestPortalSessionDigest();
+    if (!sessionDigest || !(await consumePortalRateLimit("read"))) return null;
+    const { data, error } = await publicSupabase().rpc("get_guest_portal_media", { p_session_digest: sessionDigest, p_media_id: mediaId });
+    return error ? null : decodeMedia(data);
+  } catch { return null; }
+}
+
+export async function listPreviewMedia(token: string): Promise<Omit<PortalMedia, "base"> | null> {
+  try {
+    const { data, error } = await publicSupabase().rpc("list_invitation_preview_media", { p_token_digest: digestGuestPortalValue("preview", token) });
+    return error || !data || typeof data !== "object" ? null : data as Omit<PortalMedia, "base">;
+  } catch { return null; }
+}
+
+/** One file of a family preview, using the preview token kept in an httpOnly cookie. */
+export async function getPreviewMedia(mediaId: string): Promise<MediaFile | null> {
+  try {
+    const token = (await cookies()).get(PREVIEW_COOKIE)?.value;
+    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token) || !(await consumePortalRateLimit("read"))) return null;
+    const { data, error } = await publicSupabase().rpc("get_invitation_preview_media", { p_token_digest: digestGuestPortalValue("preview", token), p_media_id: mediaId });
+    return error ? null : decodeMedia(data);
   } catch { return null; }
 }
 

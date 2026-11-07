@@ -66,3 +66,23 @@ test("document and upload endpoints refuse anonymous and cross-site requests", a
   expect([307, 401]).toContain(download.status());
   expect(download.headers()["location"] ?? "").not.toContain("supabase");
 });
+
+test("invitation media refuses anonymous, cross-site and session-less requests", async ({ page, request }) => {
+  const id = "a0000000-0000-4000-8000-000000000099";
+  const crossSite = await request.post("/api/invitations/media", { headers: { Origin: "https://attacker.example" }, multipart: { weddingId: id } });
+  expect(crossSite.status()).toBe(403);
+  await page.goto("/sign-in");
+  const anonymous = await page.evaluate(async (weddingId) => {
+    const form = new FormData();
+    form.set("weddingId", weddingId); form.set("designId", weddingId); form.set("kind", "gallery"); form.set("caption", "");
+    form.set("file", new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0])], "photo.jpg", { type: "image/jpeg" }));
+    const result = await fetch("/api/invitations/media", { method: "POST", body: form });
+    return { status: result.status, body: await result.json() };
+  }, id);
+  expect(anonymous, JSON.stringify(anonymous)).toMatchObject({ status: 401 });
+  for (const path of [`/guest/media/${id}`, `/guest/preview/media/${id}`, `/api/invitations/media/${id}/${id}`, "/guest/media/not-a-uuid"]) {
+    const response = await request.get(path, { maxRedirects: 0 });
+    expect([307, 404], path).toContain(response.status());
+    expect(response.headers()["content-type"] ?? "", path).not.toMatch(/image|audio/);
+  }
+});

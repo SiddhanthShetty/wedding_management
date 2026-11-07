@@ -1,6 +1,8 @@
 "use client";
-import { useActionState, useEffect, useState } from "react";
-import { AtSign, Hash, Heart, Phone, Radio, Send } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { AtSign, ChevronLeft, ChevronRight, Hash, Heart, Music, Pause, Phone, Radio, Send, X } from "lucide-react";
+import type { CelebrationEffect, OpeningStyle } from "@/lib/invitations/site";
+import type { PortalMedia } from "@/lib/invitations/media";
 import { submitBlessingAction, type BlessingState } from "@/app/actions/portal";
 import type { PortalStrings } from "@/lib/guest-portal/i18n";
 import type { PortalBlessing } from "@/lib/guest-portal/server";
@@ -8,8 +10,11 @@ import { countdownParts, isLiveWindow, type CountdownTarget, type InvitationSite
 
 const OPENED_KEY = "wedding-desk:portal-opened";
 
+/** Asks the music button (if any) to start; called from the guest's own tap, so browsers allow sound. */
+export const playPortalMusic = () => window.dispatchEvent(new Event("portal:play-music"));
+
 /** A one-time "open your invitation" moment per browser session. Skipped for reduced motion. */
-export function OpeningOverlay({ t, couple, enabled, site, monogram, always = false }: { t: PortalStrings; couple: string; enabled: boolean; site?: InvitationSite; monogram?: string; always?: boolean }) {
+export function OpeningOverlay({ t, couple, enabled, site, monogram, always = false, onOpened }: { t: PortalStrings; couple: string; enabled: boolean; site?: InvitationSite; monogram?: string; always?: boolean; onOpened?: () => void }) {
   const [state, setState] = useState<"hidden" | "closed" | "opening">("hidden");
   useEffect(() => {
     if (!enabled || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -18,19 +23,24 @@ export function OpeningOverlay({ t, couple, enabled, site, monogram, always = fa
     setState("closed");
   }, [enabled, always]);
   if (state === "hidden") return null;
+  const style: OpeningStyle = site?.opening_style ?? "envelope";
   const open = () => {
     setState("opening");
+    playPortalMusic();
     if (!always) try { window.sessionStorage.setItem(OPENED_KEY, "1"); } catch { /* fine */ }
-    window.setTimeout(() => setState("hidden"), 900);
+    window.setTimeout(() => { setState("hidden"); onOpened?.(); }, style === "envelope" ? 900 : 1200);
   };
-  return <div className={`portal-envelope ${state === "opening" ? "is-opening" : ""}`} role="dialog" aria-modal="true" aria-label={t.openInvitation}>
-    <div className="portal-envelope-flap" aria-hidden="true" />
-    <div className="portal-envelope-body">
-      <span className="portal-envelope-seal" aria-hidden="true">{monogram ? <span className="portal-envelope-monogram">{monogram}</span> : <Heart size={22} />}</span>
-      <p className="portal-envelope-title">{site?.reveal.title || t.revealTitle}</p>
-      <p className="portal-envelope-names">{couple}</p>
-      <button type="button" className="portal-envelope-open" onClick={open} autoFocus={!always}>{site?.reveal.hint || t.openInvitation}</button>
-    </div>
+  const seal = <span className="portal-envelope-seal" aria-hidden="true">{monogram ? <span className="portal-envelope-monogram">{monogram}</span> : <Heart size={22} />}</span>;
+  const heading = <>
+    <p className="portal-envelope-title">{site?.reveal.title || t.revealTitle}</p>
+    <p className="portal-envelope-names">{couple}</p>
+  </>;
+  const button = <button type="button" className="portal-envelope-open" onClick={open} autoFocus={!always}>{site?.reveal.hint || t.openInvitation}</button>;
+  const words = <>{heading}{button}</>;
+  return <div className={`portal-envelope style-${style} ${state === "opening" ? "is-opening" : ""}`} role="dialog" aria-modal="true" aria-label={t.openInvitation}>
+    {style === "envelope" && <><div className="portal-envelope-flap" aria-hidden="true" /><div className="portal-envelope-body">{seal}{words}</div></>}
+    {style === "letter" && <><div className="portal-letter-card">{seal}{heading}</div><div className="portal-letter-sleeve">{button}</div></>}
+    {style === "doors" && <><div className="portal-door is-left" aria-hidden="true" /><div className="portal-door is-right" aria-hidden="true" /><div className="portal-envelope-body portal-doors-body">{seal}{words}</div></>}
   </div>;
 }
 
@@ -112,18 +122,110 @@ export function BlessingsSection({ t, site, blessings, pending, preview = false 
   </section>;
 }
 
-/** A short shower of jasmine and marigold petals after a guest says yes. Purely decorative; skipped for reduced motion. */
-export function PetalBurst() {
-  const [show, setShow] = useState(true);
+/** A short shower of petals or confetti. Purely decorative; skipped for reduced motion. */
+export function CelebrationBurst({ kind = "petals" }: { kind?: CelebrationEffect }) {
+  const [show, setShow] = useState(kind !== "none");
   useEffect(() => {
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setShow(false); return; }
-    const timer = window.setTimeout(() => setShow(false), 2600);
+    if (kind === "none" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setShow(false); return; }
+    const timer = window.setTimeout(() => setShow(false), 2800);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [kind]);
   if (!show) return null;
-  return <div className="petal-burst" aria-hidden="true">
-    {Array.from({ length: 22 }, (_, i) => <span key={i} className={i % 3 === 0 ? "is-marigold" : ""} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 7) * 0.09}s`, ["--drift" as string]: `${((i * 53) % 80) - 40}px`, ["--spin" as string]: `${(i * 67) % 360}deg` }} />)}
+  const confetti = ["#e2b45a", "#b3261e", "#2f7d5b", "#e98b1d", "#7d1747"];
+  return <div className={`petal-burst is-${kind}`} aria-hidden="true">
+    {Array.from({ length: kind === "confetti" ? 34 : 22 }, (_, i) => <span key={i} className={kind === "petals" && i % 3 === 0 ? "is-marigold" : ""} style={{
+      left: `${(i * 37) % 100}%`, animationDelay: `${(i % 7) * 0.09}s`, ["--drift" as string]: `${((i * 53) % 80) - 40}px`, ["--spin" as string]: `${(i * 67) % 360}deg`,
+      ...(kind === "confetti" ? { background: confetti[i % confetti.length] } : {}),
+    }} />)}
   </div>;
+}
+/** @deprecated kept for older imports; use CelebrationBurst. */
+export const PetalBurst = () => <CelebrationBurst kind="petals" />;
+
+/** Plays the couple's music only after a tap (browsers block sound before that). */
+export function MusicButton({ t, src }: { t: PortalStrings; src: string }) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    const play = () => { const el = audio.current; if (!el) return; el.volume = 0.6; void el.play().then(() => setPlaying(true), () => setPlaying(false)); };
+    window.addEventListener("portal:play-music", play);
+    return () => window.removeEventListener("portal:play-music", play);
+  }, []);
+  const toggle = () => { const el = audio.current; if (!el) return; if (el.paused) { el.volume = 0.6; void el.play().then(() => setPlaying(true), () => setPlaying(false)); } else { el.pause(); setPlaying(false); } };
+  return <>
+    <audio ref={audio} src={src} loop preload="none" onPause={() => setPlaying(false)} onPlay={() => setPlaying(true)} />
+    <button type="button" className={`portal-music ${playing ? "is-playing" : ""}`} onClick={toggle} aria-pressed={playing}>
+      {playing ? <Pause size={16} aria-hidden="true" /> : <Music size={16} aria-hidden="true" />}<span>{playing ? t.pauseMusic : t.playMusic}</span>
+    </button>
+  </>;
+}
+
+/** The couple's photos in a grid; tapping one opens it full screen, with arrows and Escape. */
+export function GallerySection({ t, media }: { t: PortalStrings; media?: PortalMedia }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const photos = media?.gallery ?? [];
+  useEffect(() => {
+    if (open === null) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(null);
+      if (event.key === "ArrowRight") setOpen((index) => index === null ? null : (index + 1) % photos.length);
+      if (event.key === "ArrowLeft") setOpen((index) => index === null ? null : (index - 1 + photos.length) % photos.length);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, photos.length]);
+  if (!media || !photos.length) return null;
+  const current = open === null ? null : photos[open];
+  return <section id="gallery" className="guest-portal-person portal-gallery" aria-labelledby="gallery-title">
+    <h2 id="gallery-title">{t.galleryTitle}</h2>
+    <ul className="portal-gallery-grid">{photos.map((photo, index) => <li key={photo.id}>
+      <button type="button" onClick={() => setOpen(index)} aria-label={photo.caption || t.photoOf(index + 1, photos.length)}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- private, session-checked files */}
+        <img src={`${media.base}${photo.id}`} alt="" loading="lazy" decoding="async" />
+      </button>
+      {photo.caption && <p>{photo.caption}</p>}
+    </li>)}</ul>
+    {current && <div className="portal-lightbox" role="dialog" aria-modal="true" aria-label={current.caption || t.photoOf(open! + 1, photos.length)} onClick={(event) => { if (event.target === event.currentTarget) setOpen(null); }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- private, session-checked files */}
+      <img src={`${media.base}${current.id}`} alt={current.caption} />
+      {current.caption && <p>{current.caption}</p>}
+      <button type="button" className="portal-lightbox-close" onClick={() => setOpen(null)} aria-label={t.close} autoFocus><X size={20} /></button>
+      {photos.length > 1 && <>
+        <button type="button" className="portal-lightbox-prev" onClick={() => setOpen((open! - 1 + photos.length) % photos.length)} aria-label={t.previous}><ChevronLeft size={22} /></button>
+        <button type="button" className="portal-lightbox-next" onClick={() => setOpen((open! + 1) % photos.length)} aria-label={t.next}><ChevronRight size={22} /></button>
+      </>}
+    </div>}
+  </section>;
+}
+
+/** Kalyana Mantapa template: a mango-leaf thoranam with marigolds across the top of the page. */
+export function MantapaThoranam() {
+  const leaves = Array.from({ length: 13 }, (_, i) => i);
+  return <svg className="mantapa-thoranam" viewBox="0 0 390 70" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <path d="M0 6 Q195 34 390 6" fill="none" stroke="#7a5a1e" strokeWidth="2" />
+    {leaves.map((i) => {
+      const x = 15 + i * 30; const y = 6 + 28 * (1 - Math.pow((x - 195) / 195, 2)) * 0.95;
+      return <g key={i} transform={`translate(${x} ${y})`}>
+        <path d="M0 0 C7 10 6 26 0 36 C-6 26 -7 10 0 0 Z" fill={i % 2 ? "#3f7a3a" : "#5b9a45"} />
+        <path d="M0 2 L0 33" stroke="#2c5a28" strokeWidth=".8" />
+        {i % 2 === 0 && <circle cx="0" cy="-1" r="5" fill="#f2a516" stroke="#d9800b" strokeWidth="1" />}
+      </g>;
+    })}
+  </svg>;
+}
+
+/** Kacheri template: a veena drawn as a single line, under the programme heading. */
+export function KacheriVeena() {
+  return <svg className="kacheri-veena" viewBox="0 0 320 60" aria-hidden="true" focusable="false">
+    <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <ellipse cx="46" cy="34" rx="30" ry="20" />
+      <path d="M76 30 L262 26 M76 38 L262 34" />
+      <circle cx="232" cy="40" r="12" />
+      <path d="M262 24 C282 16 290 6 300 10 C296 20 282 34 262 36" />
+      {[100, 125, 150, 175, 200].map((x) => <path key={x} d={`M${x} 27.5 L${x} 36.5`} />)}
+      <path d="M40 30 L300 14" strokeWidth=".7" opacity=".7" /><path d="M40 36 L300 18" strokeWidth=".7" opacity=".7" />
+    </g>
+  </svg>;
 }
 
 /** The blessing line shown above the invitation. */

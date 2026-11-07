@@ -78,9 +78,32 @@ The studio follows the structure of modern invitation builders, with our own des
   Websites saved earlier are read with defaults for the new fields.
 - **Contrast fix.** Countdown numbers, the hashtag and the section-menu hover now use the readable accent colour (`--portal-accent-text`). Before this, they could be unreadable on the Kolam theme.
 
-**Next milestones (not built):**
-- M2: more opening styles, celebration effects, music, a photo gallery and two new templates.
-- M3: a multi-page PDF card and Save the Date as its own invitation.
+## Invitation studio (Milestone 2, 2026-11)
+
+- **Page templates.** Each works with every theme and language:
+  - *Classic*.
+  - *Kalyana Mantapa*: a mango-leaf and marigold thoranam across the top, banana-stem pillars beside the invitation, and sections arched like a mantapa.
+  - *Kacheri*: the page as a Carnatic concert programme, with double rules, Roman-numeral items, small-caps headings and a veena line drawing.
+
+  These are our own designs; no other product's artwork is used.
+- **Opening styles:**
+  - Envelope with your seal.
+  - Pull-out letter: the card rises out of a sleeve, and the button sits on the sleeve.
+  - Temple doors: carved doors with brass studs swing open.
+
+  All are skipped for people who prefer less motion.
+- **Celebration effect.** Petals, confetti or none. It plays after the opening and after a guest replies yes, and never for people who prefer less motion.
+- **Music.** One file per design (MP3, M4A or OGG, up to 1.5 MB). It starts only from the guest's own tap on "Open", with a play/pause button; it never starts on its own. The studio tells you to use only music you have the rights to share.
+- **Photo gallery.** Up to 8 photos, resized on the device to a JPEG of at most 450 KB, with optional captions. Guests see a grid and a full-screen view with arrow keys and Escape.
+- **Storage.**
+  - Music and photos are stored in `invitation_media`, encoded as text in the row like the couple photo, because guests can't use Storage.
+  - Guests get them only through their session, from the design they see (`/guest/media/<id>`).
+  - Family previews get them through an httpOnly preview cookie (`/guest/preview/media/<id>`).
+  - The studio loads them through a signed-in route.
+  - Files are checked by their first bytes on the server, whatever their name or claimed type.
+- **Known limit.** Each guest page now loads up to about 10 files. Guest reads are limited to 120 per minute per network address. Media responses are cached for an hour, but a large group on one venue Wi-Fi opening links at the same moment could still reach the limit.
+
+**Next milestone (not built):** M3, a multi-page PDF card and Save the Date as its own invitation.
 
 ### Pending decisions
 
