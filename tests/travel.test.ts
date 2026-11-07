@@ -10,7 +10,8 @@ afterEach(async () => { await db.close(); });
 const one = async <T>(sql: string, params: unknown[] = []) => (await db.query<T>(sql, params)).rows[0]!;
 
 async function guest(name: string, weddingId = WEDDING_A) {
-  return (await one<{ id: string }>("select public.save_guest($1,null,$2::jsonb,null) id", [weddingId, JSON.stringify({ household_id: null, full_name: name, email: "", phone: "+353 1 000 0000", family_side: "shared", meal_preference: "", allergies: "", assistance_needs: "Step-free access", notes: "" })])).id;
+  const householdId = (await one<{ id: string }>("select public.save_guest_household($1,null,$2::jsonb) id", [weddingId, JSON.stringify({ name: `TEST ${name} household`, family_side: "shared" })])).id;
+  return (await one<{ id: string }>("select public.save_guest($1,null,$2::jsonb,null) id", [weddingId, JSON.stringify({ household_id: householdId, full_name: name, email: "", phone: "+353 1 000 0000", family_side: "shared", meal_preference: "", allergies: "", assistance_needs: "Step-free access", notes: "" })])).id;
 }
 
 async function roomFixture(options: { standard?: number; extraBeds?: number; roomsHeld?: number; nights?: string[] } = {}) {
@@ -219,7 +220,7 @@ describe("transport database rules", () => {
     const shared = (await journey(van, "2027-06-19T10:00:00Z", "2027-06-19T11:00:00Z", "assigned", "departure")).rows[0]!.id;
     await db.query("update public.transport_journeys set shared_with_guests=true where id=$1", [shared]);
     await board(hidden, person.id); await board(shared, person.id);
-    await db.query("select public.create_guest_portal_link($1,$2,$3,$4::timestamptz)", [WEDDING_A, household.id, "d".repeat(64), new Date(Date.now() + 86_400_000).toISOString()]);
+    await db.query("select public.create_guest_portal_link($1,$2,'{}'::uuid[],$3,$4::timestamptz)", [WEDDING_A, person.id, "d".repeat(64), new Date(Date.now() + 86_400_000).toISOString()]);
     await assumeUser(db, null, "anon");
     await db.query("select public.create_guest_portal_session($1,$2)", ["d".repeat(64), "e".repeat(64)]);
     const data = await one<{ data: { people: Array<{ stays: Array<Record<string, unknown>>; journeys: Array<Record<string, unknown>> }> } }>("select public.get_guest_portal_data($1) data", ["e".repeat(64)]);

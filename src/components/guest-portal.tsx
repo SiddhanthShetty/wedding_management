@@ -38,7 +38,7 @@ function TokenExchange() {
 }
 
 function PortalFrame({children}:{children:React.ReactNode}) {
-  return <main className="guest-portal-main"><div className="guest-portal-brand"><span className="guest-portal-heart"><Heart size={17}/></span><span>Wedding invitation</span></div>{children}<p className="guest-portal-footer">A private invitation for you and your household</p></main>;
+  return <main className="guest-portal-main"><div className="guest-portal-brand"><span className="guest-portal-heart"><Heart size={17}/></span><span>Wedding invitation</span></div>{children}<p className="guest-portal-footer">A private invitation for you</p></main>;
 }
 
 function formatDate(value:string|null) {
@@ -83,7 +83,7 @@ function PersonRsvpForm({person}:{person:PortalGuest}){
   const formRef=useRef<HTMLFormElement>(null);
   const [submitAfterUpdate,setSubmitAfterUpdate]=useState(false);
   const acceptAll=()=>setDrafts((current)=>Object.fromEntries(person.invitations.map((invitation)=>[invitation.id,{note:current[invitation.id]?.note??"",response:"yes"}])));
-  // "Everyone is coming to everything" for the household: accept all, then save this person's form.
+  // Accept all invitations this link is authorized to manage.
   useEffect(()=>{
     const onAll=()=>{acceptAll();setSubmitAfterUpdate(true);};
     window.addEventListener("portal:accept-all",onAll);
@@ -160,12 +160,12 @@ function FunctionCard({invitation,children}:{invitation:PortalInvitation;childre
   </article>;
 }
 
-function HouseholdAcceptAll({count}:{count:number}){
+function AuthorizedGuestsAcceptAll({count}:{count:number}){
   const [confirming,setConfirming]=useState(false);
   return <section className="guest-portal-person household-accept">
-    <h2>Replying for everyone?</h2>
-    {!confirming?<button type="button" className="rsvp-all" onClick={()=>setConfirming(true)}>{count>1?"We're all coming to everything":"I'm coming to everything"}</button>:<>
-      <p>This saves “Yes, attending” for every invitation{count>1?` for all ${count} people`:""}. You can still change any answer afterwards.</p>
+    <h2>Reply for everyone you’re authorized to help?</h2>
+    {!confirming?<button type="button" className="rsvp-all" onClick={()=>setConfirming(true)}>Yes, everyone is coming to everything</button>:<>
+      <p>This saves “Yes, attending” for every invitation you can access, across {count} {count===1?"person":"people"}. You can change any answer afterwards.</p>
       <div className="guest-portal-link-actions"><Button type="button" onClick={()=>{window.dispatchEvent(new Event("portal:accept-all"));setConfirming(false);}}>Yes, save for everyone</Button><Button type="button" variant="secondary" onClick={()=>setConfirming(false)}>Cancel</Button></div>
     </>}
   </section>;
@@ -203,12 +203,13 @@ function PortalItinerary({data}:{data:GuestPortalData}){
 
 function PortalInvitationCard({data}:{data:GuestPortalData}){
   if(!data.invitation)return null;
+  const portalGuest=data.people.find((person)=>person.id===data.portal_guest_id);
   const language=isLanguage(data.household.language??"en")?data.household.language as LanguageCode:"en";
   const seen=new Map<string,PortalInvitation["function"]>();
   for(const person of data.people)for(const invitation of person.invitations)seen.set(invitation.function.id,invitation.function);
   const card=buildCardProps({
     theme:(THEMES.some((theme)=>theme.id===data.invitation!.theme)?data.invitation.theme:"mallige") as ThemeId,accent:data.invitation.accent,overrides:{[language]:data.invitation.texts},language,
-    couple:data.couple_names.length?data.couple_names.join(" & "):"Our family",greetingName:data.household.name,
+    couple:data.couple_names.length?data.couple_names.join(" & "):"Our family",greetingName:portalGuest?.full_name??data.household.name,
     functions:[...seen.values()].map((fn)=>({name:fn.name,function_date:fn.date,start_time:fn.start_time,venue_name:fn.location})),
   });
   return <section className="guest-portal-invitation" aria-label="Your invitation"><InvitationCard {...card}/></section>;
@@ -235,13 +236,15 @@ function TravelArrangements({person}:{person:PortalGuest}) {
 
 export function GuestPortal({data}:{data:GuestPortalData|null}) {
   if(!data)return <TokenExchange/>;
+  const portalGuest=data.people.find((person)=>person.id===data.portal_guest_id);
+  const proxyPeople=data.people.filter((person)=>person.is_proxy);
   return <PortalFrame>
     <PortalInvitationCard data={data}/>
     <PortalItinerary data={data}/>
-    <header className="guest-portal-welcome"><p className="guest-portal-eyebrow">A celebration with</p><h1>{data.couple_names.length?data.couple_names.join(" & "):"Our family"}</h1><p>Welcome, {data.household.name}. Please respond separately for each invited person and function.</p></header>
-    {data.people.length>0&&data.people.reduce((total,person)=>total+person.invitations.length,0)>1&&<HouseholdAcceptAll count={data.people.length}/>}
+    <header className="guest-portal-welcome"><p className="guest-portal-eyebrow">A celebration with</p><h1>{data.couple_names.length?data.couple_names.join(" & "):"Our family"}</h1><p>Welcome, {portalGuest?.full_name??"guest"}. {proxyPeople.length?`This link also lets you respond for ${proxyPeople.map((person)=>person.full_name).join(", ")}.`:"This private link shows only your invitations and responses."}</p></header>
+    {data.people.length>1&&data.people.reduce((total,person)=>total+person.invitations.length,0)>1&&<AuthorizedGuestsAcceptAll count={data.people.length}/>}
     {!data.people.length?<section className="guest-portal-state"><h2>Invitation details are not available</h2><p>{unavailableCopy}</p></section>:data.people.map(person=><section className="guest-portal-person" key={person.id}>
-      <div className="guest-portal-person-heading"><h2>{person.full_name}</h2><span>{person.invitations.length} {person.invitations.length===1?"invitation":"invitations"}</span></div>
+      <div className="guest-portal-person-heading"><h2>{person.full_name}</h2><span>{person.is_proxy?"Proxy access · ":"Your invitation · "}{person.invitations.length} {person.invitations.length===1?"invitation":"invitations"}</span></div>
       <PersonRsvpForm key={`${person.id}:${person.invitations.map((invitation)=>`${invitation.id}:${invitation.updated_at??"new"}`).join("|")}`} person={person}/>
       <TravelArrangements person={person}/>
       <GuestProfileForm person={person}/>

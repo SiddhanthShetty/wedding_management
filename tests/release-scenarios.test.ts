@@ -83,7 +83,7 @@ describe("release scenarios", () => {
     const household = await one<{ id: string }>("select public.save_guest_household($1,null,$2::jsonb) id", [WEDDING_A, JSON.stringify({ name: "TEST Portal" })]);
     const guest = await one<{ id: string }>("select public.save_guest($1,null,$2::jsonb,null) id", [WEDDING_A, JSON.stringify({ household_id: household.id, full_name: "TEST Portal Guest", email: "", phone: "", family_side: "shared", meal_preference: "", allergies: "", assistance_needs: "", notes: "" })]);
     await db.query("select public.set_guest_invitation($1,$2,$3,true,false)", [WEDDING_A, guest.id, FUNCTION_A]);
-    const link = await one<{ id: string }>("select public.create_guest_portal_link($1,$2,$3,$4::timestamptz) id", [WEDDING_A, household.id, "c".repeat(64), new Date(Date.now() + 86_400_000).toISOString()]);
+    const link = await one<{ id: string }>("select public.create_guest_portal_link($1,$2,'{}'::uuid[],$3,$4::timestamptz) id", [WEDDING_A, guest.id, "c".repeat(64), new Date(Date.now() + 86_400_000).toISOString()]);
     await assumeUser(db, null, "anon");
     await db.query("select public.create_guest_portal_session($1,$2)", ["c".repeat(64), "d".repeat(64)]);
     expect((await one<{ data: unknown }>("select public.get_guest_portal_data($1) data", ["d".repeat(64)])).data).not.toBeNull();

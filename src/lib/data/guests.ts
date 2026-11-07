@@ -15,7 +15,7 @@ export async function getGuestWorkspace(weddingId:string){
   const context=await authorizeWeddingOperation(weddingId,"guests","read");
   const supabase=await createSupabaseServerClient();
   const results=await Promise.all([
-    supabase.from("guest_households").select("id,name,contact_name,contact_email,contact_phone,address,notes,created_at,updated_at").eq("wedding_id",weddingId).order("name"),
+    supabase.from("guest_households").select("id,name,family_side,contact_name,contact_email,contact_phone,address,notes,created_at,updated_at").eq("wedding_id",weddingId).order("name"),
     supabase.from("guests").select("id,household_id,plus_one_for_guest_id,full_name,email,phone,family_side,follow_up_owner_user_id,meal_preference,allergies,assistance_needs,notes,created_at,updated_at").eq("wedding_id",weddingId).order("full_name"),
     supabase.rpc("get_guest_function_references",{p_wedding_id:weddingId}),
     supabase.from("guest_invitations").select("id,function_id,guest_id,invitation_kind,plus_one_for_guest_id,status,plus_one_allowed,created_at,updated_at,invited_by_user_id").eq("wedding_id",weddingId).order("created_at"),
@@ -32,7 +32,8 @@ export async function getGuestWorkspace(weddingId:string){
   required(profileResult.error,"Could not load guest workspace member names.");
   const profileNames=new Map((profileResult.data??[]).map(row=>[row.id,row.display_name||"Wedding member"]));
   const householdNames=new Map(households!.map(row=>[row.id,row.name]));
-  const guestsWithDetails=guests!.map(guest=>({...guest,household_name:guest.household_id?householdNames.get(guest.household_id)??"Household":"No household",plus_one_for_name:guest.plus_one_for_guest_id?guests!.find(row=>row.id===guest.plus_one_for_guest_id)?.full_name??null:null,follow_up_owner_name:guest.follow_up_owner_user_id?profileNames.get(guest.follow_up_owner_user_id)??"Wedding member":"Unassigned"}));
+  const householdFamilySides=new Map(households!.map(row=>[row.id,row.family_side]));
+  const guestsWithDetails=guests!.map(guest=>({...guest,family_side:guest.household_id?householdFamilySides.get(guest.household_id)??guest.family_side:guest.family_side,household_name:guest.household_id?householdNames.get(guest.household_id)??"Household":"No household",plus_one_for_name:guest.plus_one_for_guest_id?guests!.find(row=>row.id===guest.plus_one_for_guest_id)?.full_name??null:null,follow_up_owner_name:guest.follow_up_owner_user_id?profileNames.get(guest.follow_up_owner_user_id)??"Wedding member":"Unassigned"}));
   const invitationDTOs:Row[]=invitations!.map(invitation=>{const response=rsvps!.find(row=>row.invitation_id===invitation.id);return {...invitation,guest_name:guests!.find(row=>row.id===invitation.guest_id)?.full_name??"Guest",function_name:functions!.find(row=>row.id===invitation.function_id)?.name??"Function",rsvp:response?{...response,recorded_by_name:response.recorded_by_user_id?profileNames.get(response.recorded_by_user_id)??"Wedding member":"Guest portal"}:null,invited_by_name:profileNames.get(invitation.invited_by_user_id)??"Wedding member"};});
   const functionSummaries=functions!.filter(row=>!row.archived_at&&row.status!=="cancelled").map(fn=>{
     const rows=invitationDTOs.filter(row=>row.function_id===fn.id&&row.status==="invited");
@@ -41,9 +42,9 @@ export async function getGuestWorkspace(weddingId:string){
   const followUpOwners=members!.map(member=>({userId:member.user_id,name:profileNames.get(member.user_id)??"Wedding member"}));
   const guestNames=new Map(guests!.map(row=>[row.id,row.full_name]));
   const portalLinksResult=await supabase.rpc("list_guest_portal_links",{p_wedding_id:weddingId,p_household_id:null});
-  required(portalLinksResult.error,"Could not load household portal links.");
+  required(portalLinksResult.error,"Could not load individual portal links.");
   const portalLinks=(portalLinksResult.data??[]) as Row[];
-  return {weddingId,canEdit:canEdit(context),households:households!,guests:guestsWithDetails,functions:functions!,invitations:invitationDTOs,rsvpHistory:history!.map(row=>({...row,author_name:row.recorded_by_user_id?profileNames.get(row.recorded_by_user_id)??"Wedding member":"Guest portal"})),functionSummaries,batches:batches!.map(row=>({...row,author_name:profileNames.get(row.created_by_user_id)??"Wedding member",rows:importRows!.filter(item=>item.batch_id===row.id).map(item=>({...item,duplicate_guest_names:item.duplicate_guest_ids.map((id:string)=>guestNames.get(id)??"Guest")}))})),portalLinks,followUpOwners};
+  return {weddingId,canEdit:canEdit(context),familySideLabels:{couple_one:context.wedding.partner_one_display_name.trim()||"Couple one",couple_two:context.wedding.partner_two_display_name.trim()||"Couple two",shared:"Shared",unknown:"Unknown"},households:households!,guests:guestsWithDetails,functions:functions!,invitations:invitationDTOs,rsvpHistory:history!.map(row=>({...row,author_name:row.recorded_by_user_id?profileNames.get(row.recorded_by_user_id)??"Wedding member":"Guest portal"})),functionSummaries,batches:batches!.map(row=>({...row,author_name:profileNames.get(row.created_by_user_id)??"Wedding member",rows:importRows!.filter(item=>item.batch_id===row.id).map(item=>({...item,duplicate_guest_names:item.duplicate_guest_ids.map((id:string)=>guestNames.get(id)??"Guest")}))})),portalLinks,followUpOwners};
 }
 
 export async function saveGuestHousehold(weddingId:string,householdId:string|null,values:Record<string,unknown>){
@@ -73,19 +74,26 @@ export async function deleteGuestHousehold(weddingId:string,householdId:string,d
   return Number(data??0);
 }
 
-export async function createHouseholdPortalLink(weddingId:string,householdId:string){
+export async function createGuestPortalLink(weddingId:string,guestId:string,proxyGuestIds:string[]=[]){
   await authorizeWeddingOperation(weddingId,"guests","edit");
   const token=newGuestPortalToken();const tokenDigest=digestGuestPortalValue("link",token);const expiresAt=new Date(Date.now()+30*24*60*60*1000).toISOString();
   const supabase=await createSupabaseServerClient();
-  const {data,error}=await supabase.rpc("create_guest_portal_link",{p_wedding_id:weddingId,p_household_id:householdId,p_token_digest:tokenDigest,p_expires_at:expiresAt});
-  if(error||!data)throw new Error("Could not create a private household link. Confirm you have guest edit access and the household still exists.");
+  const {data,error}=await supabase.rpc("create_guest_portal_link",{p_wedding_id:weddingId,p_guest_id:guestId,p_proxy_guest_ids:proxyGuestIds,p_token_digest:tokenDigest,p_expires_at:expiresAt});
+  if(error||!data)throw new Error("Could not create this guest's private link. Confirm the guest is invited and any proxy selections are valid.");
   return {id:data as string,token,expiresAt};
 }
 
-export async function revokeHouseholdPortalLink(weddingId:string,linkId:string){
+export async function setGuestPortalProxies(weddingId:string,linkId:string,proxyGuestIds:string[]){
+  await authorizeWeddingOperation(weddingId,"guests","edit");
+  const supabase=await createSupabaseServerClient();
+  const {data,error}=await supabase.rpc("set_guest_portal_proxies",{p_wedding_id:weddingId,p_link_id:linkId,p_proxy_guest_ids:proxyGuestIds});
+  if(error||data===null)throw new Error("Could not update proxy access. Refresh and confirm every selected guest is invited and belongs to this household.");
+}
+
+export async function revokeGuestPortalLink(weddingId:string,linkId:string){
   await authorizeWeddingOperation(weddingId,"guests","edit");const supabase=await createSupabaseServerClient();
   const {data,error}=await supabase.rpc("revoke_guest_portal_link",{p_wedding_id:weddingId,p_link_id:linkId});
-  if(error||data!==true)throw new Error("Could not revoke this household link. Refresh and try again.");
+  if(error||data!==true)throw new Error("Could not revoke this individual link. Refresh and try again.");
 }
 export async function setGuestInvitation(weddingId:string,guestId:string,functionId:string,invited:boolean,plusOneAllowed:boolean){
   await authorizeWeddingOperation(weddingId,"guests","edit");const supabase=await createSupabaseServerClient();
@@ -147,7 +155,7 @@ export async function resolveGuestImportDuplicate(weddingId:string,rowId:string)
 export async function exportWeddingGuests(weddingId:string){
   const context=await authorizeWeddingOperation(weddingId,"guests","read");const supabase=await createSupabaseServerClient();
   const [households,guests,functions,invitations,rsvps]=await Promise.all([
-    supabase.from("guest_households").select("id,name").eq("wedding_id",weddingId),
+    supabase.from("guest_households").select("id,name,family_side").eq("wedding_id",weddingId),
     supabase.from("guests").select("id,household_id,full_name,email,phone,family_side,meal_preference,allergies,assistance_needs").eq("wedding_id",weddingId).order("full_name"),
     supabase.from("functions").select("id,name").eq("wedding_id",weddingId),
     supabase.from("guest_invitations").select("id,guest_id,function_id,status").eq("wedding_id",weddingId),
@@ -156,10 +164,10 @@ export async function exportWeddingGuests(weddingId:string){
   required(households.error||guests.error||functions.error||invitations.error||rsvps.error,"Could not export guest records.");
   const detailed=context.membership.role==="owner"||context.membership.role==="co_owner"||context.moduleAccess.guests==="edit";
   const headers=detailed?["Name","Household","Family side","Email","Phone","Meal preference","Allergies","Assistance needs","Function invitations"]:["Name","Household","Family side","Function invitations"];
-  const householdName=new Map((households.data??[]).map(row=>[row.id,row.name]));const functionName=new Map((functions.data??[]).map(row=>[row.id,row.name]));
+  const householdName=new Map((households.data??[]).map(row=>[row.id,row.name]));const householdFamilySide=new Map((households.data??[]).map(row=>[row.id,row.family_side]));const functionName=new Map((functions.data??[]).map(row=>[row.id,row.name]));
   const rows=(guests.data??[]).map(guest=>{
     const personInvites=(invitations.data??[]).filter(inv=>inv.guest_id===guest.id).map(inv=>{const rsvp=(rsvps.data??[]).find(response=>response.invitation_id===inv.id);return `${functionName.get(inv.function_id)??"Function"}: ${inv.status}${rsvp?` (${rsvp.response}; ${rsvp.response_source}; ${rsvp.responded_at})`:" (awaiting response)"}`;});
-    const row:Record<string,unknown>={"Name":guest.full_name,"Household":householdName.get(guest.household_id??"")??"","Family side":guest.family_side,"Email":guest.email,"Phone":guest.phone,"Meal preference":guest.meal_preference,"Allergies":guest.allergies,"Assistance needs":guest.assistance_needs,"Function invitations":personInvites.join(" | ")};
+    const row:Record<string,unknown>={"Name":guest.full_name,"Household":householdName.get(guest.household_id??"")??"","Family side":guest.household_id?householdFamilySide.get(guest.household_id)??guest.family_side:guest.family_side,"Email":guest.email,"Phone":guest.phone,"Meal preference":guest.meal_preference,"Allergies":guest.allergies,"Assistance needs":guest.assistance_needs,"Function invitations":personInvites.join(" | ")};
     return row;
   });
   return createCsv(headers,rows);

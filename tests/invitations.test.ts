@@ -88,7 +88,7 @@ describe("invitation designs in the database", () => {
     await db.query("select public.set_household_language($1,$2,'kn')", [WEDDING_A, household.rows[0]!.id]);
     await expectDenied(db.query("select public.set_household_language($1,$2,'fr')", [WEDDING_A, household.rows[0]!.id]));
     await db.query("update public.invitation_designs set texts=$2::jsonb where id=$1", [second, JSON.stringify({ kn: { greeting: "ನಮಸ್ಕಾರ {{name}}" }, en: { greeting: "Hello" } })]);
-    await db.query("select public.create_guest_portal_link($1,$2,$3,$4::timestamptz)", [WEDDING_A, household.rows[0]!.id, "f".repeat(64), new Date(Date.now() + 86_400_000).toISOString()]);
+    await db.query("select public.create_guest_portal_link($1,$2,'{}'::uuid[],$3,$4::timestamptz)", [WEDDING_A, guest.rows[0]!.id, "f".repeat(64), new Date(Date.now() + 86_400_000).toISOString()]);
     await assumeUser(db, null, "anon");
     await db.query("select public.create_guest_portal_session($1,$2)", ["f".repeat(64), "9".repeat(64)]);
     const portal = (await db.query<{ data: { household: { language: string }; invitation: { theme: string; texts: Record<string, string> } } }>("select public.get_guest_portal_data($1) data", ["9".repeat(64)])).rows[0]!.data;

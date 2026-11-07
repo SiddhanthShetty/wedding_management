@@ -1,7 +1,7 @@
 import "server-only";
 import { AuthorizationDeniedError, authorizeWeddingOperation } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createHouseholdPortalLink } from "@/lib/data/guests";
+import { createGuestPortalLink } from "@/lib/data/guests";
 import { isDuplicateSubmission } from "@/lib/data/travel";
 import { isLanguage, TEXT_KEYS, unknownInvitationPlaceholders, type LanguageCode, type TextOverrides, type ThemeId } from "@/lib/invitations/content";
 
@@ -101,31 +101,31 @@ export async function setHouseholdLanguage(weddingId: string, householdId: strin
  * Issues a fresh private link for one household (replacing any earlier link) and returns the token
  * once, so the planner's device can put it into the message. The token is never stored.
  */
-export async function prepareHouseholdInvitation(weddingId: string, householdId: string) {
+export async function prepareGuestInvitation(weddingId: string, guestId: string) {
   const workspace = await getInvitationWorkspace(weddingId);
   if (!workspace.canEdit) throw new AuthorizationDeniedError();
-  const members = workspace.guests.filter((guest) => guest.household_id === householdId).map((guest) => guest.id);
-  if (!workspace.invitations.some((row) => members.includes(row.guest_id))) throw new InvitationRuleError("Invite at least one person in this household to a function first.");
-  const link = await createHouseholdPortalLink(weddingId, householdId);
+  const guest = workspace.guests.find((row) => row.id === guestId);
+  if (!guest) throw new InvitationRuleError("Guest not found.");
+  if (!workspace.invitations.some((row) => row.guest_id === guestId)) throw new InvitationRuleError("Invite this guest to a function first.");
+  const link = await createGuestPortalLink(weddingId, guestId);
   return { token: link.token, expiresAt: link.expiresAt };
 }
 
-/** Records that the planner shared this household's invitation themselves. It does not claim delivery. */
-export async function recordInvitationShared(weddingId: string, input: { householdId: string; designId: string; channel: "whatsapp" | "email" | "other"; message: string }) {
+/** Records that the planner shared this individual's invitation themselves. It does not claim delivery. */
+export async function recordInvitationShared(weddingId: string, input: { guestId: string; designId: string; channel: "whatsapp" | "email" | "other"; message: string }) {
   const { context, supabase } = await editor(weddingId);
   const workspace = await getInvitationWorkspace(weddingId);
   const design = workspace.designs.find((row) => row.id === input.designId);
   if (!design) throw new InvitationRuleError("Choose a saved design.");
-  const invited = new Set(workspace.invitations.map((row) => row.guest_id));
-  const members = workspace.guests.filter((guest) => guest.household_id === input.householdId && invited.has(guest.id));
-  if (!members.length) throw new InvitationRuleError("Nobody in this household is invited to a function.");
+  const guest = workspace.guests.find((row) => row.id === input.guestId);
+  if (!guest || !workspace.invitations.some((row) => row.guest_id === input.guestId)) throw new InvitationRuleError("This guest is not invited to a function.");
   if (/#[A-Za-z0-9_-]{43}/.test(input.message)) throw new InvitationRuleError("Remove the private link before saving the message.");
   const sentAt = new Date().toISOString();
-  const rows = members.map((guest) => ({
+  const rows = [{
     wedding_id: weddingId, guest_id: guest.id, function_id: null, template_id: null, channel: input.channel, subject: "Wedding invitation",
     body_snapshot: input.message.slice(0, 6000), state: "sent", manual: true, sent_at: sentAt, notes: `Design “${design.name}” v${design.version}`,
     dedupe_key: `invite:${design.id}:${design.version}:${input.channel}:${guest.id}`, recorded_by_user_id: context.user.id,
-  }));
+  }];
   const { data, error } = await supabase.from("communication_records").upsert(rows, { onConflict: "wedding_id,dedupe_key", ignoreDuplicates: true }).select("id");
   if (isDuplicateSubmission(error)) return { recorded: 0 };
   check(error, "Could not record the invitation.");

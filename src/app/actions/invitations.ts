@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { z, ZodError } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
-import { cleanTextOverrides, InvitationConflictError, InvitationRuleError, prepareHouseholdInvitation, recordInvitationShared, saveDesign, setDefaultDesign, setHouseholdLanguage } from "@/lib/data/invitations";
+import { cleanTextOverrides, InvitationConflictError, InvitationRuleError, prepareGuestInvitation, recordInvitationShared, saveDesign, setDefaultDesign, setHouseholdLanguage } from "@/lib/data/invitations";
 import { messageWithoutLink } from "@/lib/invitations/content";
 
 export type InvitationActionState = { error?: string; message?: string; at?: number };
@@ -52,17 +52,17 @@ export async function setHouseholdLanguageAction(_state: InvitationActionState, 
 }
 
 /** Returns a one-time private link token for the planner's device. Not stored anywhere. */
-export async function prepareInvitationAction(weddingId: string, householdId: string): Promise<{ token?: string; expiresAt?: string; error?: string }> {
-  const parsed = z.object({ weddingId: id, householdId: id }).safeParse({ weddingId, householdId });
-  if (!parsed.success) return { error: "Invalid household." };
-  try { return await prepareHouseholdInvitation(parsed.data.weddingId, parsed.data.householdId); } catch (error) { return { error: failure(error).error }; }
+export async function prepareInvitationAction(weddingId: string, guestId: string): Promise<{ token?: string; expiresAt?: string; error?: string }> {
+  const parsed = z.object({ weddingId: id, guestId: id }).safeParse({ weddingId, guestId });
+  if (!parsed.success) return { error: "Invalid guest." };
+  try { return await prepareGuestInvitation(parsed.data.weddingId, parsed.data.guestId); } catch (error) { return { error: failure(error).error }; }
 }
 
-export async function recordInvitationSharedAction(input: { weddingId: string; householdId: string; designId: string; channel: string; message: string; link: string }): Promise<InvitationActionState> {
-  const parsed = z.object({ weddingId: id, householdId: id, designId: id, channel: z.enum(["whatsapp", "email", "other"]), message: z.string().min(1).max(8000), link: z.string().max(500) }).safeParse(input);
+export async function recordInvitationSharedAction(input: { weddingId: string; guestId: string; designId: string; channel: string; message: string; link: string }): Promise<InvitationActionState> {
+  const parsed = z.object({ weddingId: id, guestId: id, designId: id, channel: z.enum(["whatsapp", "email", "other"]), message: z.string().min(1).max(8000), link: z.string().max(500) }).safeParse(input);
   if (!parsed.success) return { error: "Could not record this invitation." };
   try {
-    const result = await recordInvitationShared(parsed.data.weddingId, { householdId: parsed.data.householdId, designId: parsed.data.designId, channel: parsed.data.channel, message: messageWithoutLink(parsed.data.message, parsed.data.link) });
+    const result = await recordInvitationShared(parsed.data.weddingId, { guestId: parsed.data.guestId, designId: parsed.data.designId, channel: parsed.data.channel, message: messageWithoutLink(parsed.data.message, parsed.data.link) });
     revalidatePath("/invitations"); revalidatePath("/messages");
     return { message: result.recorded ? "Recorded as sent manually. Delivery is not confirmed." : "Already recorded for this design and channel.", at: Date.now() };
   } catch (error) { return failure(error); }

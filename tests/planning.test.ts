@@ -485,16 +485,16 @@ describe("private guest household portal",()=>{
     const householdId=household.rows[0]!.id;
     const guest=await db.query<{id:string}>("select public.save_guest($1,null,$2::jsonb,null) id",[WEDDING_A,JSON.stringify({household_id:householdId,full_name:"Invited Person",meal_preference:"",allergies:"",assistance_needs:"",family_side:"shared",email:"",phone:"",notes:""})]);
     const guestId=guest.rows[0]!.id;
-    await db.query("select public.save_guest($1,null,$2::jsonb,null)",[WEDDING_A,JSON.stringify({household_id:householdId,full_name:"Not Invited Person",meal_preference:"",allergies:"",assistance_needs:"",family_side:"shared",email:"",phone:"",notes:""})]);
+    const secondGuest=await db.query<{id:string}>("select public.save_guest($1,null,$2::jsonb,null) id",[WEDDING_A,JSON.stringify({household_id:householdId,full_name:"Not Invited Person",meal_preference:"",allergies:"",assistance_needs:"",family_side:"shared",email:"",phone:"",notes:""})]);
     await db.query("select public.set_guest_invitation($1,$2,$3,true,false)",[WEDDING_A,guestId,FUNCTION_A]);
     const invitation=await db.query<{id:string}>("select id from public.guest_invitations where wedding_id=$1 and guest_id=$2 and function_id=$3",[WEDDING_A,guestId,FUNCTION_A]);
-    const link=await db.query<{id:string}>("select public.create_guest_portal_link($1,$2,$3,$4::timestamptz) id",[WEDDING_A,householdId,"a".repeat(64),new Date(Date.now()+86_400_000).toISOString()]);
+    const link=await db.query<{id:string}>("select public.create_guest_portal_link($1,$2,'{}'::uuid[],$3,$4::timestamptz) id",[WEDDING_A,guestId,"a".repeat(64),new Date(Date.now()+86_400_000).toISOString()]);
     await assumeUser(null,"anon");
     await db.query("select public.create_guest_portal_session($1,$2)",["a".repeat(64),"b".repeat(64)]);
-    return {householdId,guestId,invitationId:invitation.rows[0]!.id,linkId:link.rows[0]!.id};
+    return {householdId,guestId,proxyGuestId:secondGuest.rows[0]!.id,invitationId:invitation.rows[0]!.id,linkId:link.rows[0]!.id};
   }
 
-  it("limits household data to invited people and invitations even if another ID is supplied",async()=>{
+  it("limits an individual link to its owner and that person's invited functions",async()=>{
     const a=await portalFixture();
     await assumeUser("20000000-0000-4000-8000-000000000001");
     const householdB=await db.query<{id:string}>("select public.save_guest_household($1,null,$2::jsonb) id",[WEDDING_B,JSON.stringify({name:"Other Household"})]);
@@ -524,18 +524,37 @@ describe("private guest household portal",()=>{
     expect(exchange.rows[0]?.expires_at).toBeNull();
   });
 
-  it("replacing a household link revokes the prior token and read-only members cannot manage links",async()=>{
-    const {householdId,linkId}=await portalFixture();
+  it("replacing an individual link revokes its prior token and read-only members cannot manage links",async()=>{
+    const {guestId,householdId,linkId}=await portalFixture();
     await assumeUser(OWNER_A);
-    await db.query("select public.create_guest_portal_link($1,$2,$3,$4::timestamptz)",[WEDDING_A,householdId,"e".repeat(64),new Date(Date.now()+86_400_000).toISOString()]);
+    await db.query("select public.create_guest_portal_link($1,$2,'{}'::uuid[],$3,$4::timestamptz)",[WEDDING_A,guestId,"e".repeat(64),new Date(Date.now()+86_400_000).toISOString()]);
     const rows=await db.query<{links:Array<{active:boolean}>}>("select public.list_guest_portal_links($1,$2) links",[WEDDING_A,householdId]);
     expect(rows.rows[0]?.links.filter((link)=>link.active)).toHaveLength(1);
     await db.query("select public.set_member_module_access($1,$2,'guests','read')",[WEDDING_A,READ_ONLY]);
     await assumeUser(READ_ONLY);
-    await expectDenied(db.query("select public.create_guest_portal_link($1,$2,$3,$4::timestamptz)",[WEDDING_A,householdId,"f".repeat(64),new Date(Date.now()+86_400_000).toISOString()]));
+    await expectDenied(db.query("select public.create_guest_portal_link($1,$2,'{}'::uuid[],$3,$4::timestamptz)",[WEDDING_A,guestId,"f".repeat(64),new Date(Date.now()+86_400_000).toISOString()]));
     await assumeUser(null,"anon");
     expect((await db.query<{expires:unknown}>("select public.create_guest_portal_session($1,$2) expires",["a".repeat(64),"c".repeat(64)])).rows[0]?.expires).toBeNull();
     expect(linkId).toBeTruthy();
+  });
+
+  it("shows and accepts responses for another person only after explicit same-household proxy authorization",async()=>{
+    const {guestId,proxyGuestId}=await portalFixture();
+    await assumeUser(OWNER_A);
+    await db.query("select public.set_guest_invitation($1,$2,$3,true,false)",[WEDDING_A,proxyGuestId,FUNCTION_A]);
+    const proxyInvitation=await db.query<{id:string}>("select id from public.guest_invitations where wedding_id=$1 and guest_id=$2 and function_id=$3",[WEDDING_A,proxyGuestId,FUNCTION_A]);
+    const replacement=await db.query<{id:string}>("select public.create_guest_portal_link($1,$2,$3::uuid[],$4,$5::timestamptz) id",[WEDDING_A,guestId,[proxyGuestId],"e".repeat(64),new Date(Date.now()+86_400_000).toISOString()]);
+    await assumeUser(null,"anon");
+    await db.query("select public.create_guest_portal_session($1,$2)",["e".repeat(64),"f".repeat(64)]);
+    const data=await db.query<{data:{people:Array<{id:string}>}}>("select public.get_guest_portal_data($1) data",["f".repeat(64)]);
+    expect(data.rows[0]?.data.people.map((person)=>person.id)).toEqual([guestId,proxyGuestId]);
+    const response=await db.query<{result:{status:string}}>("select public.record_guest_portal_rsvp($1,$2,'yes','',null,$3) result",["f".repeat(64),proxyInvitation.rows[0]!.id,"c0000000-0000-4000-8000-000000000002"]);
+    expect(response.rows[0]?.result.status).toBe("saved");
+    await assumeUser(OWNER_A);
+    await db.query("select public.set_guest_portal_proxies($1,$2,'{}'::uuid[])",[WEDDING_A,replacement.rows[0]!.id]);
+    await assumeUser(null,"anon");
+    const revokedProxy=await db.query<{result:{status:string}}>("select public.record_guest_portal_rsvp($1,$2,'no','',null,$3) result",["f".repeat(64),proxyInvitation.rows[0]!.id,"c0000000-0000-4000-8000-000000000003"]);
+    expect(revokedProxy.rows[0]?.result.status).toBe("unavailable");
   });
 
   it("makes RSVP submissions idempotent and keeps workspace headcounts current",async()=>{

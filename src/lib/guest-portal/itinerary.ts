@@ -1,6 +1,6 @@
 /**
- * The guest's combined itinerary: functions, confirmed stays and shared rides for the whole
- * household, in time order, plus calendar files. Pure and client-safe.
+ * The guest's combined itinerary: functions, confirmed stays and shared rides for the link owner
+ * and explicitly authorized proxy guests, in time order, plus calendar files. Pure and client-safe.
  */
 import { resolveFunctionSchedule } from "@/lib/planning/schedule";
 
@@ -19,7 +19,7 @@ export type ItineraryEntry =
 
 const localDate = (instant: string, timezone: string) => new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(instant));
 
-/** One entry per function / stay / ride, listing which household members it applies to. Undated functions sort last. */
+/** One entry per function / stay / ride, listing which authorized guests it applies to. Undated functions sort last. */
 export function buildItinerary(people: PersonLike[]): ItineraryEntry[] {
   const entries = new Map<string, ItineraryEntry>();
   const add = (entry: ItineraryEntry, person: string) => {

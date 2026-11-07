@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z, ZodError } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
-import { createGuestPlusOne, createHouseholdPortalLink, deleteGuest, deleteGuestHousehold, exportWeddingGuests, getGuestWorkspace, importGuestRows, recordGuestRsvp, resolveGuestImportDuplicate, revokeHouseholdPortalLink, saveGuest, saveGuestHousehold, setGuestInvitation, setGuestInvitationsBulk, suggestGuestDuplicates, type GuestImportRecord } from "@/lib/data/guests";
+import { createGuestPlusOne, createGuestPortalLink, deleteGuest, deleteGuestHousehold, exportWeddingGuests, getGuestWorkspace, importGuestRows, recordGuestRsvp, resolveGuestImportDuplicate, revokeGuestPortalLink, saveGuest, saveGuestHousehold, setGuestInvitation, setGuestInvitationsBulk, setGuestPortalProxies, suggestGuestDuplicates, type GuestImportRecord } from "@/lib/data/guests";
 import { guestImportRows, guestInput, guestInvitationChangesInput, householdInput, invitationInput, isoTimestampInput, plusOneInput, rsvpInput } from "@/lib/planning/guest-inputs";
 import { recordPortalGuestProfile, recordPortalRsvps } from "@/lib/guest-portal/server";
 import { z as portalZ } from "zod";
@@ -41,25 +41,32 @@ export async function deleteGuestHouseholdAction(wedding:string,household:string
 export async function saveHouseholdAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
   const wedding=weddingId(form);const parsed=values(form,householdInput);const id=z.union([z.literal(""),z.uuid()]).safeParse(read(form,"householdId"));
   if(!wedding.success||!parsed.success||!id.success)return {error:parsed.success?"Invalid household details.":actionError(parsed.error)};
-  try{const savedId=await saveGuestHousehold(wedding.data,id.data||null,{name:parsed.data.name,contact_name:parsed.data.contactName,contact_email:parsed.data.contactEmail,contact_phone:parsed.data.contactPhone,address:parsed.data.address,notes:parsed.data.notes});await revalidate();return {message:id.data?"Household updated.":"Household created.",savedId};}catch(error){return {error:actionError(error)};}
+  try{const savedId=await saveGuestHousehold(wedding.data,id.data||null,{name:parsed.data.name,contact_name:parsed.data.contactName,contact_email:parsed.data.contactEmail,contact_phone:parsed.data.contactPhone,address:parsed.data.address,notes:parsed.data.notes,family_side:parsed.data.familySide});await revalidate();return {message:id.data?"Household updated.":"Household created.",savedId};}catch(error){return {error:actionError(error)};}
 }
 
 export async function saveGuestAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
   const wedding=weddingId(form);const parsed=values(form,guestInput);const id=z.union([z.literal(""),z.uuid()]).safeParse(read(form,"guestId"));const expected=z.union([z.literal(""),isoTimestampInput]).safeParse(read(form,"expectedUpdatedAt"));
   if(!wedding.success||!parsed.success||!id.success||!expected.success)return {error:parsed.success?"Invalid guest selection.":actionError(parsed.error)};
-  try{const savedId=await saveGuest(wedding.data,id.data||null,{household_id:parsed.data.householdId||null,full_name:parsed.data.fullName,email:parsed.data.email,phone:parsed.data.phone,family_side:parsed.data.familySide,follow_up_owner_user_id:parsed.data.followUpOwnerUserId||null,meal_preference:parsed.data.mealPreference,allergies:parsed.data.allergies,assistance_needs:parsed.data.assistanceNeeds,notes:parsed.data.notes},expected.data||null);await revalidate();return {message:id.data?"Guest updated.":"Guest created.",savedId};}catch(error){return {error:actionError(error)};}
+  if(!parsed.data.householdId)return {error:"Choose a household for this guest."};
+  try{const savedId=await saveGuest(wedding.data,id.data||null,{household_id:parsed.data.householdId,full_name:parsed.data.fullName,email:parsed.data.email,phone:parsed.data.phone,follow_up_owner_user_id:parsed.data.followUpOwnerUserId||null,meal_preference:parsed.data.mealPreference,allergies:parsed.data.allergies,assistance_needs:parsed.data.assistanceNeeds,notes:parsed.data.notes},expected.data||null);await revalidate();return {message:id.data?"Guest updated.":"Guest created.",savedId};}catch(error){return {error:actionError(error)};}
 }
 
-export async function createHouseholdPortalLinkAction(wedding:string,household:string):Promise<GuestActionState>{
-  const weddingIdResult=z.uuid().safeParse(wedding);const householdId=z.uuid().safeParse(household);
-  if(!weddingIdResult.success||!householdId.success)return {error:"Invalid household selection."};
-  try{const link=await createHouseholdPortalLink(weddingIdResult.data,householdId.data);await revalidate();return {message:"Private household link created. Any previous link has been revoked.",data:link};}catch(error){return {error:actionError(error)};}
+export async function createGuestPortalLinkAction(wedding:string,guest:string,proxyGuests:unknown=[]):Promise<GuestActionState>{
+  const weddingIdResult=z.uuid().safeParse(wedding);const guestId=z.uuid().safeParse(guest);const proxies=z.array(z.uuid()).max(20).safeParse(proxyGuests);
+  if(!weddingIdResult.success||!guestId.success||!proxies.success||new Set(proxies.data).size!==proxies.data.length)return {error:"Invalid guest or proxy selection."};
+  try{const link=await createGuestPortalLink(weddingIdResult.data,guestId.data,proxies.data);await revalidate();return {message:"Individual private link created. Any previous link for this guest has been revoked.",data:link};}catch(error){return {error:actionError(error)};}
 }
 
-export async function revokeHouseholdPortalLinkAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
+export async function setGuestPortalProxiesAction(wedding:string,link:string,proxyGuests:unknown):Promise<GuestActionState>{
+  const weddingIdResult=z.uuid().safeParse(wedding);const linkId=z.uuid().safeParse(link);const proxies=z.array(z.uuid()).max(20).safeParse(proxyGuests);
+  if(!weddingIdResult.success||!linkId.success||!proxies.success||new Set(proxies.data).size!==proxies.data.length)return {error:"Invalid guest or proxy selection."};
+  try{await setGuestPortalProxies(weddingIdResult.data,linkId.data,proxies.data);await revalidate();return {message:"Proxy access updated."};}catch(error){return {error:actionError(error)};}
+}
+
+export async function revokeGuestPortalLinkAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
   const wedding=weddingId(form);const linkId=z.uuid().safeParse(read(form,"linkId"));
-  if(!wedding.success||!linkId.success)return {error:"Invalid household link."};
-  try{await revokeHouseholdPortalLink(wedding.data,linkId.data);await revalidate();return {message:"Household link revoked."};}catch(error){return {error:actionError(error)};}
+  if(!wedding.success||!linkId.success)return {error:"Invalid guest link."};
+  try{await revokeGuestPortalLink(wedding.data,linkId.data);await revalidate();return {message:"Individual link revoked."};}catch(error){return {error:actionError(error)};}
 }
 
 export async function setGuestInvitationAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{

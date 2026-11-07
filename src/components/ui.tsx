@@ -54,8 +54,8 @@ export function TextAreaField({ label, className = "", ...props }: TextareaHTMLA
   return <div className={`field ${className}`}><label className="field-label" htmlFor={id}>{label}</label><textarea className="field-control" id={id} {...props} /></div>;
 }
 
-export function DataTable({ headers, children, label }: { headers: string[]; children: ReactNode; label: string }) {
-  return <div className="table-scroll"><table className="data-table"><caption className="sr-only">{label}</caption><thead><tr>{headers.map((header) => <th scope="col" key={header}>{header}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
+export function DataTable({ headers, children, label, className = "", columnWidths }: { headers: string[]; children: ReactNode; label: string; className?: string; columnWidths?: string[] }) {
+  return <div className={`table-scroll ${className}`.trim()}><table className="data-table"><caption className="sr-only">{label}</caption>{columnWidths?.length===headers.length&&<colgroup>{columnWidths.map((width,index)=><col key={index} style={{width}}/>)}</colgroup>}<thead><tr>{headers.map((header) => <th scope="col" key={header}>{header}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
 }
 
 export function NotificationRegion({ message, kind = "success", onDismiss }: { message: string; kind?: "success" | "error" | "info"; onDismiss: () => void }) {

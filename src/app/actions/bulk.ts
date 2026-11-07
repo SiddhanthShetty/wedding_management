@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { z, ZodError } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
-import { allocateHousehold, completeTasks, createMissingHouseholdLinks, inviteHousehold } from "@/lib/data/bulk";
+import { allocateHousehold, completeTasks, createMissingGuestLinks, inviteHousehold } from "@/lib/data/bulk";
 import { TravelRuleError } from "@/lib/data/travel";
 
 export type BulkActionState = { error?: string; message?: string; at?: number };
@@ -14,7 +14,7 @@ function failure(error: unknown, area: string): BulkActionState {
   if (error instanceof ZodError) return { error: error.issues[0]?.message ?? "Check the selection." };
   if (error instanceof TravelRuleError) return { error: error.message };
   if (error instanceof AuthorizationDeniedError) return { error: `You need ${area} edit access for this.` };
-  if (error instanceof Error && /^(Could not save all invitation changes|Could not create a private household link)/.test(error.message)) return { error: error.message };
+  if (error instanceof Error && /^(Could not save all invitation changes|Could not create this guest's private link|Assign a household to every invited guest)/.test(error.message)) return { error: error.message };
   return { error: "Nothing was changed. Refresh and try again." };
 }
 
@@ -55,10 +55,10 @@ export async function completeTasksAction(_state: BulkActionState, form: FormDat
   } catch (error) { return failure(error, "planning"); }
 }
 
-/** Returns one-time tokens to the planner's device; nothing is stored. */
-export async function createMissingLinksAction(weddingId: string): Promise<{ links?: Array<{ householdId: string; name: string; token: string }>; error?: string }> {
+/** Returns one-time individual tokens to the planner's device; nothing is stored. */
+export async function createMissingLinksAction(weddingId: string): Promise<{ links?: Array<{ guestId: string; name: string; householdId: string | null; language: string; email: string; phone: string; token: string }>; error?: string }> {
   try {
-    const links = await createMissingHouseholdLinks(id.parse(weddingId));
+    const links = await createMissingGuestLinks(id.parse(weddingId));
     revalidatePath("/guests"); revalidatePath("/invitations");
     return { links };
   } catch (error) { return { error: failure(error, "guest-list").error }; }

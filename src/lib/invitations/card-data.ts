@@ -3,7 +3,7 @@ import { fillText, formatFunctionDate, resolveTexts, type LanguageCode, type Tex
 
 export type CardFunctionInput = { name: string; function_date: string | null; start_time: string | null; venue_name: string | null };
 
-/** Everything the card needs for one household, in that household's language. */
+/** Everything the card needs for one invited person, in their household's chosen language. */
 export function buildCardProps(input: {
   theme: ThemeId; accent: string | null; overrides: TextOverrides; language: LanguageCode; couple: string; greetingName: string; functions: CardFunctionInput[];
 }): InvitationCardProps {

@@ -1,7 +1,7 @@
 import "server-only";
 import { authorizeWeddingOperation } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createHouseholdPortalLink, setGuestInvitationsBulk } from "@/lib/data/guests";
+import { createGuestPortalLink, setGuestInvitationsBulk } from "@/lib/data/guests";
 import { createStay, TravelRuleError } from "@/lib/data/travel";
 import { householdInvitationChanges, planHouseholdRooms } from "@/lib/planning/bulk-rules";
 import type { AllocationStatus, PaymentResponsibility } from "@/lib/planning/travel-rules";
@@ -66,28 +66,29 @@ export async function completeTasks(weddingId: string, tasks: Array<{ id: string
   return { done, conflicts };
 }
 
-/**
- * Creates private links for invited households that have no active link. Tokens are returned once,
- * for the planner to share, and never stored.
- */
-export async function createMissingHouseholdLinks(weddingId: string) {
+/** Creates private links for invited individuals that have no active one. Tokens are returned once. */
+export async function createMissingGuestLinks(weddingId: string) {
   await authorizeWeddingOperation(weddingId, "guests", "edit");
   const supabase = await createSupabaseServerClient();
   const [households, guests, invitations, links] = await Promise.all([
-    supabase.from("guest_households").select("id,name").eq("wedding_id", weddingId).order("name"),
-    supabase.from("guests").select("id,household_id").eq("wedding_id", weddingId),
+    supabase.from("guest_households").select("id,name,preferred_language").eq("wedding_id", weddingId),
+    supabase.from("guests").select("id,household_id,full_name,email,phone").eq("wedding_id", weddingId).order("full_name"),
     supabase.from("guest_invitations").select("guest_id").eq("wedding_id", weddingId).eq("status", "invited"),
     supabase.rpc("list_guest_portal_links", { p_wedding_id: weddingId, p_household_id: null }),
   ]);
-  if (households.error || guests.error || invitations.error || links.error) throw new Error("Could not load households.");
+  if (households.error || guests.error || invitations.error || links.error) throw new Error("Could not load individual guests.");
   const invited = new Set((invitations.data ?? []).map((row) => row.guest_id));
-  const invitedHouseholds = new Set((guests.data ?? []).filter((guest) => invited.has(guest.id)).map((guest) => guest.household_id));
-  const active = new Set(((links.data ?? []) as Array<{ household_id: string; revoked_at: string | null; expires_at: string }>).filter((link) => !link.revoked_at && new Date(link.expires_at) > new Date()).map((link) => link.household_id));
-  const missing = (households.data ?? []).filter((household) => invitedHouseholds.has(household.id) && !active.has(household.id));
-  const created: Array<{ householdId: string; name: string; token: string }> = [];
-  for (const household of missing.slice(0, 200)) {
-    const link = await createHouseholdPortalLink(weddingId, household.id);
-    created.push({ householdId: household.id, name: household.name, token: link.token });
+  const active = new Set(((links.data ?? []) as Array<{ guest_id: string | null; revoked_at: string | null; expires_at: string; active: boolean }>).filter((link) => link.guest_id && link.active && !link.revoked_at && new Date(link.expires_at) > new Date()).map((link) => link.guest_id));
+  const missing = (guests.data ?? []).filter((guest) => invited.has(guest.id) && !active.has(guest.id));
+  if (missing.some((guest) => !guest.household_id)) {
+    throw new Error("Assign a household to every invited guest before creating private links. No links were created.");
+  }
+  const householdById = new Map((households.data ?? []).map((household) => [household.id, household]));
+  const created: Array<{ guestId: string; name: string; householdId: string | null; language: string; email: string; phone: string; token: string }> = [];
+  for (const guest of missing.slice(0, 200)) {
+    const link = await createGuestPortalLink(weddingId, guest.id);
+    const household = guest.household_id ? householdById.get(guest.household_id) : undefined;
+    created.push({ guestId: guest.id, name: guest.full_name, householdId: guest.household_id, language: household?.preferred_language ?? "en", email: guest.email, phone: guest.phone, token: link.token });
   }
   return created;
 }
