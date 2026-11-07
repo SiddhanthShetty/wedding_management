@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
-import { assumeUser, createTestDatabase, expectDenied, FUNCTION_A, OWNER_A, OWNER_A_PARTNER, WEDDING_A } from "./support/database";
+import { assumeUser, createTestDatabase, testHousehold, expectDenied, FUNCTION_A, OWNER_A, OWNER_A_PARTNER, WEDDING_A } from "./support/database";
 
 /**
  * Regression tests for defects found in the QA/security review of the stays & transport,
@@ -12,7 +12,7 @@ afterEach(async () => { await db.close(); });
 const one = async <T>(sql: string, params: unknown[] = []) => (await db.query<T>(sql, params)).rows[0]!;
 
 async function guest(name: string) {
-  return (await one<{ id: string }>("select public.save_guest($1,null,$2::jsonb,null) id", [WEDDING_A, JSON.stringify({ household_id: null, full_name: name, email: "", phone: "", family_side: "shared", meal_preference: "", allergies: "", assistance_needs: "", notes: "" })])).id;
+  return (await one<{ id: string }>("select public.save_guest($1,null,$2::jsonb,null) id", [WEDDING_A, JSON.stringify({ household_id: await testHousehold(db, WEDDING_A, `${name} household`), full_name: name, email: "", phone: "", family_side: "shared", meal_preference: "", allergies: "", assistance_needs: "", notes: "" })])).id;
 }
 
 describe("QA-H1: manual message records cannot be turned into provider-confirmed deliveries", () => {

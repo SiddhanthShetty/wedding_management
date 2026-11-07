@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
-import { assumeUser, createTestDatabase, FUNCTION_A, FUNCTION_A_CEREMONY, OWNER_A, WEDDING_A } from "./support/database";
+import { assumeUser, createTestDatabase, testHousehold, FUNCTION_A, FUNCTION_A_CEREMONY, OWNER_A, WEDDING_A } from "./support/database";
 import { addDaysIso, expiringSupplierItems, paymentsDueSoon, taskCounts, upcomingFunctions } from "../src/lib/planning/dashboard";
 import { isTaskOverdue } from "../src/lib/planning/task-rules";
 import { calculateFinanceTotals, fromMinorUnits, toMinorUnits } from "../src/lib/planning/money";
@@ -97,7 +97,8 @@ describe("dashboard numbers reconcile with source records", () => {
 
   it("matches travel gaps, open issues and overdue tasks to direct SQL counts", async () => {
     const guestIds: string[] = [];
-    for (const name of ["TEST A", "TEST B", "TEST C", "TEST D"]) guestIds.push((await rows<{ id: string }>("select public.save_guest($1,null,$2::jsonb,null) id", [WEDDING_A, JSON.stringify({ household_id: null, full_name: name, email: "", phone: "", family_side: "shared", meal_preference: "", allergies: "", assistance_needs: "", notes: "" })]))[0]!.id);
+    const householdId = await testHousehold(db, WEDDING_A, "TEST Dashboard family");
+    for (const name of ["TEST A", "TEST B", "TEST C", "TEST D"]) guestIds.push((await rows<{ id: string }>("select public.save_guest($1,null,$2::jsonb,null) id", [WEDDING_A, JSON.stringify({ household_id: householdId, full_name: name, email: "", phone: "", family_side: "shared", meal_preference: "", allergies: "", assistance_needs: "", notes: "" })]))[0]!.id);
     const [a, b, c] = guestIds;
     await db.query("insert into public.guest_travel_profiles(wedding_id,guest_id,accommodation_need,arrival_transport_need) values($1,$2,'required','required'),($1,$3,'required','not_required'),($1,$4,'not_required','unknown')", [WEDDING_A, a, b, c]);
     const property = (await rows<{ id: string }>("insert into public.accommodation_properties(wedding_id,name,created_by_user_id) values($1,'TEST Inn',$2) returning id", [WEDDING_A, OWNER_A]))[0]!.id;

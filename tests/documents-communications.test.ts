@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
-import { assumeUser, createTestDatabase, expectDenied, FUNCTION_A, FUNCTION_B, OWNER_A, OWNER_A_PARTNER, OWNER_B, READ_ONLY, SCOPED, WEDDING_A, WEDDING_B } from "./support/database";
+import { assumeUser, createTestDatabase, testHousehold, expectDenied, FUNCTION_A, FUNCTION_B, OWNER_A, OWNER_A_PARTNER, OWNER_B, READ_ONLY, SCOPED, WEDDING_A, WEDDING_B } from "./support/database";
 import { detectFileType, sanitizeFilename } from "../src/lib/documents/file-type";
 import { canTransition, dedupeKey, renderTemplate, selectRecipients, unknownPlaceholders } from "../src/lib/planning/communications";
 
@@ -149,7 +149,7 @@ describe("communication records", () => {
   it("keeps manual records honest about delivery and enforces state rules and dedupe", async () => {
     db = await createTestDatabase();
     await assumeUser(db, OWNER_A);
-    const guest = await db.query<{ id: string }>("select public.save_guest($1,null,$2::jsonb,null) id", [WEDDING_A, JSON.stringify({ household_id: null, full_name: "TEST Recipient", email: "recipient@example.test", phone: "", family_side: "shared", meal_preference: "", allergies: "", assistance_needs: "", notes: "" })]);
+    const guest = await db.query<{ id: string }>("select public.save_guest($1,null,$2::jsonb,null) id", [WEDDING_A, JSON.stringify({ household_id: await testHousehold(db, WEDDING_A, "TEST Recipient family"), full_name: "TEST Recipient", email: "recipient@example.test", phone: "", family_side: "shared", meal_preference: "", allergies: "", assistance_needs: "", notes: "" })]);
     const template = await db.query<{ id: string }>("insert into public.message_templates(wedding_id,kind,name,body,created_by_user_id,updated_by_user_id) values($1,'reminder','TEST reminder','Hi {{first_name}}',$2,$2) returning id", [WEDDING_A, OWNER_A]);
     const insert = (state: string, extra = "", key = "msg:test:1") => db.query<{ id: string }>(`insert into public.communication_records(wedding_id,guest_id,function_id,template_id,channel,body_snapshot,state,dedupe_key,recorded_by_user_id${extra ? "," + extra.split("=")[0] : ""}) values($1,$2,$3,$4,'email','Hi TEST',$5,$6,$7${extra ? ",$8" : ""}) returning id`, extra ? [WEDDING_A, guest.rows[0]!.id, FUNCTION_A, template.rows[0]!.id, state, key, OWNER_A, extra.split("=")[1]] : [WEDDING_A, guest.rows[0]!.id, FUNCTION_A, template.rows[0]!.id, state, key, OWNER_A]);
     await expectDenied(insert("provider_confirmed"));

@@ -58,3 +58,9 @@ export async function expectDenied(operation: Promise<unknown>, message?: RegExp
   if (message) await expect(operation).rejects.toThrow(message);
   else await expect(operation).rejects.toThrow();
 }
+
+/** Creates a household (every guest must belong to one) and returns its id. Call as a guest-editing member. */
+export async function testHousehold(db: PGlite, weddingId: string, name = "TEST household") {
+  const result = await db.query<{ id: string }>("select public.save_guest_household($1,null,$2::jsonb) id", [weddingId, JSON.stringify({ name })]);
+  return result.rows[0]!.id;
+}
