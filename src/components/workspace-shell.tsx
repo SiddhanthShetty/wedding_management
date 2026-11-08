@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Heart, LogOut, Menu, Settings, X } from "lucide-react";
+import { ChevronDown, Heart, LogOut, Menu, Settings, Sparkles, X } from "lucide-react";
 import { signOutAction } from "@/app/actions/auth";
+import { LOOK_COOKIE, softStyleVars, type Look } from "@/lib/soft-look";
 import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
 import type { WorkspaceBranding } from "@/lib/data/branding";
 import { AREAS, areaForPath, currentSectionLabel, isActiveLink, visibleNavGroups } from "@/lib/navigation";
@@ -18,7 +19,7 @@ const ROLE_LABELS: Record<MemberRole, string> = { owner: "Owner", co_owner: "Co-
 const initialsOf = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => Array.from(part)[0]!.toLocaleUpperCase()).join("") || "?";
 
 /** The avatar in the top bar: who is signed in, Settings (owners) and Sign out (everyone). */
-function AccountMenu({ displayName, roleLabel, weddingName, isOwner, pathname }: { displayName: string; roleLabel: string; weddingName: string; isOwner: boolean; pathname: string }) {
+function AccountMenu({ displayName, roleLabel, weddingName, isOwner, pathname, look, onLook }: { displayName: string; roleLabel: string; weddingName: string; isOwner: boolean; pathname: string; look: Look; onLook: (look: Look) => void }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -41,13 +42,15 @@ function AccountMenu({ displayName, roleLabel, weddingName, isOwner, pathname }:
       </div>
       <ul>
         {isOwner && <li><Link href="/settings" className="account-menu-item" aria-current={pathname === "/settings" ? "page" : undefined}><Settings size={16} aria-hidden="true" /><span>Settings<small>Wedding details and members</small></span></Link></li>}
+        <li><label className="account-menu-item account-menu-switch"><Sparkles size={16} aria-hidden="true" /><span>Soft look<small>Softer cards and buttons on this device</small></span>
+          <input type="checkbox" role="switch" checked={look === "soft"} onChange={(event) => onLook(event.target.checked ? "soft" : "classic")} /></label></li>
         <li><form action={signOutAction}><button type="submit" className="account-menu-item"><LogOut size={16} aria-hidden="true" /><span>Sign out</span></button></form></li>
       </ul>
     </div>}
   </div>;
 }
 
-export function WorkspaceShell({ children, weddingName, displayName, role, moduleAccess, branding = null }: { children: React.ReactNode; weddingName: string; displayName: string; role: MemberRole; moduleAccess: Partial<Record<WeddingModule, AccessLevel>>; branding?: WorkspaceBranding | null }) {
+export function WorkspaceShell({ children, weddingName, displayName, role, moduleAccess, branding = null, look: initialLook = "classic" }: { children: React.ReactNode; weddingName: string; displayName: string; role: MemberRole; moduleAccess: Partial<Record<WeddingModule, AccessLevel>>; branding?: WorkspaceBranding | null; look?: Look }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -80,11 +83,17 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
   const isOwner = role === "owner" || role === "co_owner";
   const groups = visibleNavGroups(role, moduleAccess);
 
-  const brandStyle = branding ? { ["--brand-accent" as string]: branding.accent, ["--brand-accent-text" as string]: branding.accentText, ["--brand-bg" as string]: branding.background } as React.CSSProperties : undefined;
+  const [look, setLook] = useState<Look>(initialLook);
+  const changeLook = (next: Look) => {
+    setLook(next);
+    // A display preference only; kept for a year on this device.
+    document.cookie = `${LOOK_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax${window.location.protocol === "https:" ? "; secure" : ""}`;
+  };
+  const brandStyle = { ...(branding ? { ["--brand-accent" as string]: branding.accent, ["--brand-accent-text" as string]: branding.accentText, ["--brand-bg" as string]: branding.background } : {}), ...softStyleVars(branding?.accent) } as React.CSSProperties;
   // Phone tab bar: the main destinations this member can open, plus "More" for the full menu.
   const tabFor = (href: string) => groups.flatMap((group) => group.links).find((link) => link.href === href);
   const phoneTabs = ["/overview", "/guests", "/schedule"].map(tabFor).filter((link): link is NonNullable<typeof link> => Boolean(link));
-  return <div className="app-shell" style={brandStyle}>
+  return <div className="app-shell" data-look={look} style={brandStyle}>
     <button className={`mobile-backdrop ${open ? "is-open" : ""}`} aria-label="Close navigation" onClick={() => setOpen(false)} tabIndex={open ? 0 : -1} />
     <aside ref={sidebarRef} className={`sidebar ${open ? "is-open" : ""}`} aria-label="Workspace navigation" role={open ? "dialog" : undefined} aria-modal={open ? "true" : undefined}>
       <Link href="/overview" className="brand" aria-label="Wedding Desk home">
@@ -114,7 +123,7 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
     <div className="main-column">
       <header className="topbar" inert={open}>
         <div className="topbar-left"><button ref={menuButtonRef} className="icon-button mobile-menu-button" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X size={18} /> : <Menu size={18} />}</button><span className="topbar-crumb">{weddingName}</span><span className="topbar-divider" aria-hidden="true">/</span><span className="topbar-section">{section}</span></div>
-        <div className="topbar-right">{isDemoPage && <span className="topbar-date">Demo sample records</span>}<AccountMenu displayName={displayName} roleLabel={ROLE_LABELS[role] ?? "Member"} weddingName={weddingName} isOwner={isOwner} pathname={pathname} /></div>
+        <div className="topbar-right">{isDemoPage && <span className="topbar-date">Demo sample records</span>}<AccountMenu displayName={displayName} roleLabel={ROLE_LABELS[role] ?? "Member"} weddingName={weddingName} isOwner={isOwner} pathname={pathname} look={look} onLook={changeLook} /></div>
       </header>
       {isDemoPage && <div className="demo-banner"><span className="demo-pill">SAMPLE DATA</span><span>Sample records, dates and figures are synthetic and are not saved to your wedding.</span></div>}
       <nav className="phone-tabs" aria-label="Quick navigation" inert={open}>

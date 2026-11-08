@@ -984,7 +984,7 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 @media (max-width: 760px) {
   .stack-on-phone .data-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .stack-on-phone .data-table, .stack-on-phone .data-table tbody, .stack-on-phone .data-table tr, .stack-on-phone .data-table td { display: block; width: 100%; }
-  .stack-on-phone .data-table tr { margin-bottom: 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 6px 4px; }
+  .stack-on-phone .data-table tr { margin-bottom: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--white); padding: 6px 4px; }
   .stack-on-phone .data-table td { border: 0; padding: 4px 10px; font-size: 13px; }
   .stack-on-phone .data-table td:first-child .table-primary { font-size: 15px; }
 }
@@ -992,3 +992,48 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 .starter-list { display: grid; gap: 2px; border: 0; margin: 0; padding: 0; }
 .starter-list .row-meta { display: inline; }
 .field-grid > .field { align-content: start; }
+
+/* Soft look (workspace only, on screen only). Raised and pressed surfaces come from shadows, but
+   inputs and secondary buttons keep a real border and text stays dark, so everything stays readable. */
+.account-menu-switch { cursor: pointer; }
+.account-menu-switch input { width: 18px; height: 18px; margin-left: auto; accent-color: var(--brand-accent-text, var(--sage)); }
+@media screen {
+  .app-shell[data-look="soft"] {
+    --line: var(--soft-line); --muted: var(--soft-muted); --white: var(--soft-surface);
+    --soft-raised: 6px 6px 14px var(--soft-shadow), -6px -6px 14px #fff;
+    --soft-raised-small: 3px 3px 7px var(--soft-shadow), -3px -3px 7px #fff;
+    --soft-pressed: inset 2px 2px 5px var(--soft-shadow), inset -2px -2px 5px #fff;
+    --shadow: var(--soft-raised);
+    background: var(--soft-bg);
+  }
+  /* The phone preview shows the guest page, which keeps its own look. */
+  .app-shell[data-look="soft"] .phone-frame { --line: #e9e8e2; --muted: #777b70; --white: #fff; }
+  [data-look="soft"] .sidebar { border-right: 0; background: var(--soft-bg); box-shadow: 4px 0 14px var(--soft-shadow); }
+  [data-look="soft"] .topbar { background: transparent; }
+  [data-look="soft"] :is(.card, .studio-savebar, .choice-card, .theme-option, .studio-group, .workspace-switcher, .tz-notice, .studio-mode-switch) { border-color: transparent; background: var(--soft-surface); box-shadow: var(--soft-raised); }
+  [data-look="soft"] .card { border-radius: 18px; }
+  [data-look="soft"] .tz-notice { background: #fff4d8; }
+  [data-look="soft"] .overview-hero { box-shadow: var(--soft-raised); }
+  [data-look="soft"] :is(.choice-card, .theme-option).is-selected { border-color: var(--brand-accent-text, var(--sage)); box-shadow: var(--soft-pressed); }
+  [data-look="soft"] :is(.brand-mark, .avatar) { box-shadow: var(--soft-raised-small); }
+  [data-look="soft"] .account-menu { border-color: var(--soft-line); background: var(--soft-surface); }
+  [data-look="soft"] :is(.account-menu-item:hover, .account-menu-item:focus-visible, .account-menu-item[aria-current="page"]) { background: var(--soft-inset); }
+  [data-look="soft"] .nav-link { color: #4f544b; }
+  [data-look="soft"] .nav-link:hover { background: var(--soft-surface); }
+  [data-look="soft"] .nav-link[aria-current="page"] { background: var(--soft-inset); color: var(--brand-accent-text, #3c5943); box-shadow: inset 3px 0 0 var(--brand-accent, var(--sage)), var(--soft-pressed); }
+  [data-look="soft"] :is(.nav-label, .nav-group-toggle) { color: var(--soft-muted); }
+  [data-look="soft"] :is(.tab-list, .area-tabs) { border-bottom-color: transparent; }
+  [data-look="soft"] :is(.tab[aria-selected="true"], .area-tab[aria-current="page"]) { border-radius: 10px; background: var(--soft-inset); box-shadow: var(--soft-pressed); }
+  [data-look="soft"] :is(.field-control, .filter-select, .input-wrap) { border-color: var(--soft-border); background: var(--soft-inset); color: var(--ink); box-shadow: inset 1px 1px 3px var(--soft-shadow); }
+  [data-look="soft"] .field-label { color: #3f443b; }
+  [data-look="soft"] .button-secondary:not(.phone-frame *) { border-color: var(--soft-border); background: var(--soft-surface); color: var(--ink); box-shadow: var(--soft-raised-small); }
+  [data-look="soft"] .button-secondary:not(.phone-frame *):hover { background: var(--soft-bg); }
+  [data-look="soft"] .button-primary:not(.phone-frame *) { box-shadow: 3px 3px 8px var(--soft-shadow); }
+  [data-look="soft"] .button-quiet:not(.phone-frame *) { color: #4f544b; }
+  [data-look="soft"] .chip { border-color: var(--soft-border); background: var(--soft-surface); color: var(--ink); }
+  [data-look="soft"] .chip.is-active { box-shadow: var(--soft-pressed); }
+  /* Tables stay flat so long lists are easy to scan. */
+  [data-look="soft"] .data-table th { color: var(--soft-muted); }
+  [data-look="soft"] .data-table td { border-bottom-color: var(--soft-line); color: #3f443b; }
+  [data-look="soft"] :is(.function-row, .task-row) { border-top-color: var(--soft-line); }
+}

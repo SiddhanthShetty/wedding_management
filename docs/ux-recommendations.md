@@ -95,3 +95,12 @@ A review of every page as a first-time user produced 45 suggestions, scheduled t
   - Type field with suggestions; the form shows key fields, with map link, guest count, budget, person in charge and notes under "More details".
   - Plain schedule lines; the list becomes cards on phones (the `stack-on-phone` table style, reusable on other pages).
 - Short forms with "More details" and hidden empty sections elsewhere come with each page's own phase, so those pages aren't reworked twice.
+
+## Soft look (2026-11-08)
+
+An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.
+
+- **Why a hybrid:** full neumorphism makes card and input edges about 1.3:1 against their background and fails the 3:1 minimum, so forms are hard to read.
+- **Raised or pressed:** cards, sidebar, choice cards, active menu item and tabs. Primary buttons stay solid; inputs and secondary buttons keep a real border; tables stay flat.
+- **Colours** come from `softPalette()` in `src/lib/soft-look.ts`, tinted by the invitation theme. Tests check helper text at 4.5:1 or better and control edges at 3:1 or better for every theme and extreme custom accents.
+- **Not affected:** the guest page (including the studio's phone preview), invitation cards, PDFs and printouts (the styles apply on screen only).
