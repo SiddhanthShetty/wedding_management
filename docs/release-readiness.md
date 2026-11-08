@@ -2,7 +2,11 @@
 
 **Date:** 2026-11-06 · **Scope:** the whole app after the stays & transport, schedules, documents & messages, and dashboard milestones · **Environment:** local macOS checkout. No deployment, remote database change or production data was touched.
 
-## Verdict: **NO-GO**
+## Verdict: **GO for deployment, with accepted risks** (updated 2026-11-08)
+
+The owner chose to deploy without a staging project. Signed-in behaviour, Storage and the restore drill are not yet proven on real infrastructure, so run the post-deploy checks in [deploy-vercel.md](deploy-vercel.md) before inviting more guests.
+
+### Earlier verdict (2026-11-06): NO-GO
 
 The code and database rules are well covered by automated tests, but the app has **never run end to end against a real Supabase database with the current migrations**. File storage has never touched real Supabase Storage. Backups have not been set up or restored. The blockers below must be cleared before real wedding data goes in.
 
@@ -11,9 +15,9 @@ The code and database rules are well covered by automated tests, but the app has
 | # | Blocker | Why it blocks | How to clear |
 | --- | --- | --- | --- |
 | 1 | **Partly cleared (2026-11-06):** all 14 migrations are applied to `wedding_management` (`reikygaktingpoworigo`, labelled production). A schema and data dump was taken first. RLS on every new table, the private `wedding-documents` bucket (8 MB, allowed types) and its 3 storage policies were verified. The app has **not** yet been exercised signed in against it. | Behaviour through PostgREST/Auth/Storage is still unverified. | Run the signed-in browser and upload checks against this project (blocker 2), or against a separate staging project. |
-| 2 | **In progress (2026-11-08):** signed-in browser tests are written (`tests/signed-in.spec.ts`: every section on desktop, every section at phone width, document upload/download/archive, studio preview and family preview link). They run only with `E2E_TARGET=staging`, and **have not run yet**. | Signed-in forms, uploads, signed URLs and RLS through PostgREST are still unverified on a real project. | Create the staging project and a TEST account, then run the suite ([staging.md](staging.md)). |
+| 2 | **Accepted risk (owner decision, 2026-11-08):** no staging project. Signed-in flows are checked on the live site after deploying: a read-only automated pass (`E2E_TARGET=readonly`: every section on desktop and phone, saves nothing) and a manual checklist ([deploy-vercel.md](deploy-vercel.md)). The writing journeys stay staging-only. | The first real upload, save and reply happen on production. | Run the post-deploy checks, using TEST records, before sending more invitations. |
 | 3 | **Partly cleared (2026-11-08):** chosen approach is the free backup script, not a paid plan. `npm run backup` saves roles, schema, data and Storage documents outside the repository with checksums. First backup taken 2026-11-08 (532 KB). Supabase itself keeps no backups on this plan. | A restore has never been rehearsed, and backups only exist when someone runs the script. | Run the restore drill into staging ([backup-restore.md](backup-restore.md)), then run the script before every release and weekly. |
-| 4 | **Storage bucket untested on real Supabase.** The backup script reached the live bucket (empty so far). The upload journey is in the signed-in suite. | Uploads or downloads may fail, or be wrongly permitted, if the real Storage setup differs. | Run the signed-in suite on staging; also try a scoped member and a member of another wedding there. |
+| 4 | **Accepted risk (owner decision, 2026-11-08):** Storage is checked by hand on production (upload, view, download, archive a TEST PDF) in the post-deploy checklist. | Upload or download could fail on first real use. | The manual checklist in [deploy-vercel.md](deploy-vercel.md). |
 | 5 | **Cleared (2026-11-08):** ESLint 9 with `eslint-config-next` (core web vitals and TypeScript) in `tools/lint/`, its own folder because typescript-eslint needs TypeScript 6 while the app uses TypeScript 7. `npm run lint` passes with 0 errors after fixing 52 findings. 27 warnings (setState in effects) were reviewed and are deliberate. | – | Run `npm run lint:install` once per checkout. |
 | 6 | **Code ready (2026-11-08):** on Vercel, rate limits use Vercel's own `x-vercel-forwarded-for`, which clients cannot set. Elsewhere it falls back to `x-real-ip` / `x-forwarded-for` (tested). | Only confirmed once deployed. | Deploy on Vercel ([deploy-vercel.md](deploy-vercel.md)) and check headers with the `curl` commands there. |
 
@@ -217,3 +221,10 @@ Still unverified: keyboard tab behaviour and signed-in mobile forms in a real br
 - **Still to do before real guest data:**
   1. create staging and run the signed-in suite and the restore drill;
   2. deploy to Vercel and check the headers.
+
+## Deployment decision (2026-11-08)
+
+- The owner chose to deploy to Vercel and skip the staging project. The risks are recorded against blockers 2 and 4 above. The restore drill (blocker 3) is not possible without a second project; backups are still taken with `npm run backup`.
+- **Guest-link secret:** production must use the same `GUEST_PORTAL_HMAC_SECRET` as `.env.local`. The live database already holds 20 guest links (from the 2026-11-08 backup), and a different secret would break them all.
+- `vercel.json` pins the Dublin region (dub1) to sit next to the database (eu-west-1).
+- **Signed-in tests:** new `E2E_TARGET=readonly` mode for the live site, which only opens pages.

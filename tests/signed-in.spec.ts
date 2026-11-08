@@ -1,8 +1,11 @@
 /**
- * Signed-in journeys against the STAGING Supabase project. They create and remove TEST data, so
- * they never run unless you opt in for staging explicitly:
+ * Signed-in journeys. Two targets:
  *
- *   E2E_TARGET=staging E2E_EMAIL=… E2E_PASSWORD=… PLAYWRIGHT_BASE_URL=http://localhost:3000 \
+ *   E2E_TARGET=staging   all journeys, including ones that create and archive TEST data.
+ *   E2E_TARGET=readonly  only journeys that read (every section, desktop and phone width); safe
+ *                        against the live site with your own account, because nothing is saved.
+ *
+ *   E2E_TARGET=readonly E2E_EMAIL=… E2E_PASSWORD=… PLAYWRIGHT_BASE_URL=https://your-address \
  *     npx playwright test tests/signed-in.spec.ts
  *
  * The app at PLAYWRIGHT_BASE_URL must be running against staging (see docs/staging.md). The test
@@ -10,8 +13,10 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 
-const enabled = process.env.E2E_TARGET === "staging" && Boolean(process.env.E2E_EMAIL && process.env.E2E_PASSWORD);
-test.skip(!enabled, "Signed-in journeys run only with E2E_TARGET=staging and a staging test account.");
+const target = process.env.E2E_TARGET;
+const enabled = (target === "staging" || target === "readonly") && Boolean(process.env.E2E_EMAIL && process.env.E2E_PASSWORD);
+const writes = target === "staging";
+test.skip(!enabled, "Signed-in journeys run only with E2E_TARGET=staging or E2E_TARGET=readonly and an account.");
 test.describe.configure({ mode: "serial" });
 
 const ROUTES = ["/overview", "/today", "/guests", "/invitations", "/functions", "/tasks", "/decisions", "/venues-vendors", "/budget", "/logistics", "/schedule", "/travel", "/documents", "/messages", "/settings"];
@@ -46,6 +51,7 @@ test("every section fits a phone screen without sideways scrolling", async ({ pa
 });
 
 test("uploads, downloads and archives a document in private storage", async ({ page }) => {
+  test.skip(!writes, "Creates TEST data: staging only.");
   await signIn(page);
   await page.goto("/documents");
   const belongsTo = page.getByLabel("Belongs to");
@@ -69,6 +75,7 @@ test("uploads, downloads and archives a document in private storage", async ({ p
 });
 
 test("invitation studio previews the design and makes a family preview link that works", async ({ page, context }) => {
+  test.skip(!writes, "Creates a preview link: staging only.");
   await signIn(page);
   await page.goto("/invitations");
   await expect(page.locator(".phone-frame")).toBeVisible();
