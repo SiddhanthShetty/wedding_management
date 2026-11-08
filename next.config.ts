@@ -34,6 +34,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Development only: the Next.js route badge covered the sidebar in every corner. Build and
+  // runtime errors are still shown when they happen.
+  devIndicators: false,
   async headers() {
     // Referrer-Policy is set per area: the guest portal sends none at all (see the Supabase proxy).
     return [{ source: "/(.*)", headers: securityHeaders }];

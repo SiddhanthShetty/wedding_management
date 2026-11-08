@@ -950,3 +950,24 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 .music-row audio { max-width: 100%; }
 .guest-portal-person > h2 { margin: 0 0 14px; font-family: var(--font-display-stack); font-size: 22px; font-weight: 500; }
 .portal-std { text-align: center; } .portal-std .guest-portal-link-actions { justify-content: center; } .portal-std-date { margin: 4px 0 8px; font-family: var(--font-display-stack); font-size: 30px; font-weight: 600; color: var(--portal-accent-text, var(--ink)); }
+
+/* Account menu (top right) and the sidebar's signed-in card */
+.account { position: relative; }
+.avatar-button { border: 0; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+.avatar-button:hover, .avatar-button[aria-expanded="true"] { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-accent, var(--sage)) 30%, transparent); }
+.avatar-button:focus-visible { outline: 3px solid #708b73; outline-offset: 2px; }
+.account-menu { position: absolute; right: 0; top: calc(100% + 10px); z-index: 40; width: min(300px, calc(100vw - 24px)); border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 8px; box-shadow: 0 16px 40px rgba(30, 30, 20, .14); }
+.account-menu-head { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); padding: 8px 8px 12px; margin-bottom: 6px; }
+.account-menu-who { display: grid; min-width: 0; gap: 2px; }
+.account-menu ul { margin: 0; padding: 0; list-style: none; }
+.account-menu-item { display: flex; width: 100%; min-height: 44px; align-items: center; gap: 12px; border: 0; border-radius: 10px; background: none; padding: 8px 10px; color: var(--ink); font: inherit; font-size: 14px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; }
+.account-menu-item small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+.account-menu-item:hover, .account-menu-item:focus-visible, .account-menu-item[aria-current="page"] { background: var(--brand-bg, #f6f5ef); outline: none; }
+.account-menu form { margin: 0; }
+.profile-row { min-width: 0; padding: 12px 8px 4px; }
+.profile-text { display: grid; min-width: 0; gap: 3px; }
+.profile-name { display: block; overflow: hidden; font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.profile-role { display: block; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+/* Long couple names: two lines, not a cut-off single line. */
+.brand { align-items: center; min-width: 0; }
+.brand-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; white-space: normal; line-height: 1.15; font-size: 18px; }

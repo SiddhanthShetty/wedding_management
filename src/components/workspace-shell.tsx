@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Heart, Menu, Settings, X } from "lucide-react";
+import { ChevronDown, Heart, LogOut, Menu, Settings, X } from "lucide-react";
+import { signOutAction } from "@/app/actions/auth";
 import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
 import type { WorkspaceBranding } from "@/lib/data/branding";
 import { AREAS, areaForPath, currentSectionLabel, isActiveLink, visibleNavGroups } from "@/lib/navigation";
@@ -11,6 +12,39 @@ import { AREAS, areaForPath, currentSectionLabel, isActiveLink, visibleNavGroups
 const COLLAPSED_KEY = "wedding-desk:nav-collapsed";
 function readCollapsed(): string[] {
   try { const value = JSON.parse(window.localStorage.getItem(COLLAPSED_KEY) ?? "[]"); return Array.isArray(value) ? value.filter((item) => typeof item === "string") : []; } catch { return []; }
+}
+
+const ROLE_LABELS: Record<MemberRole, string> = { owner: "Owner", co_owner: "Co-owner", scoped_collaborator: "Family helper", read_only_collaborator: "View only" };
+const initialsOf = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => Array.from(part)[0]!.toLocaleUpperCase()).join("") || "?";
+
+/** The avatar in the top bar: who is signed in, Settings (owners) and Sign out (everyone). */
+function AccountMenu({ displayName, roleLabel, weddingName, isOwner, pathname }: { displayName: string; roleLabel: string; weddingName: string; isOwner: boolean; pathname: string }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { setOpen(false); }, [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => { if (!wrapRef.current?.contains(event.target as Node)) setOpen(false); };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { setOpen(false); buttonRef.current?.focus(); } };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    wrapRef.current?.querySelector<HTMLElement>(".account-menu a, .account-menu button")?.focus();
+    return () => { document.removeEventListener("pointerdown", onPointer); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  return <div className="account" ref={wrapRef}>
+    <button ref={buttonRef} type="button" className="avatar avatar-button" aria-label={`Account: ${displayName}`} aria-expanded={open} aria-controls="account-menu" onClick={() => setOpen((value) => !value)}>{initialsOf(displayName)}</button>
+    {open && <div id="account-menu" className="account-menu">
+      <div className="account-menu-head">
+        <span className="avatar" aria-hidden="true">{initialsOf(displayName)}</span>
+        <span className="account-menu-who"><span className="profile-name">{displayName}</span><span className="profile-role">{roleLabel} · {weddingName}</span></span>
+      </div>
+      <ul>
+        {isOwner && <li><Link href="/settings" className="account-menu-item" aria-current={pathname === "/settings" ? "page" : undefined}><Settings size={16} aria-hidden="true" /><span>Settings<small>Wedding details and members</small></span></Link></li>}
+        <li><form action={signOutAction}><button type="submit" className="account-menu-item"><LogOut size={16} aria-hidden="true" /><span>Sign out</span></button></form></li>
+      </ul>
+    </div>}
+  </div>;
 }
 
 export function WorkspaceShell({ children, weddingName, displayName, role, moduleAccess, branding = null }: { children: React.ReactNode; weddingName: string; displayName: string; role: MemberRole; moduleAccess: Partial<Record<WeddingModule, AccessLevel>>; branding?: WorkspaceBranding | null }) {
@@ -74,14 +108,13 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
         })}
       </nav>
       <div className="sidebar-bottom">
-        {isOwner && <Link className="nav-link" href="/settings" aria-current={pathname === "/settings" ? "page" : undefined}><Settings size={17} strokeWidth={1.8} aria-hidden="true" /><span>Settings</span></Link>}
-        <div className="profile-row"><span className="avatar" aria-hidden="true">{displayName.slice(0, 2).toUpperCase()}</span><span><span className="profile-name">{displayName}</span><span className="profile-role">{role === "owner" ? "Owner" : role === "co_owner" ? "Co-owner" : role === "read_only_collaborator" ? "View only" : "Family helper"}</span></span></div>
+        <div className="profile-row"><span className="avatar" aria-hidden="true">{initialsOf(displayName)}</span><span className="profile-text"><span className="profile-name">{displayName}</span><span className="profile-role">{ROLE_LABELS[role] ?? "Member"}</span></span></div>
       </div>
     </aside>
     <div className="main-column">
       <header className="topbar" inert={open}>
         <div className="topbar-left"><button ref={menuButtonRef} className="icon-button mobile-menu-button" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X size={18} /> : <Menu size={18} />}</button><span className="topbar-crumb">{weddingName}</span><span className="topbar-divider" aria-hidden="true">/</span><span className="topbar-section">{section}</span></div>
-        <div className="topbar-right"><span className="topbar-date">{isDemoPage ? "Demo sample records" : "Wedding data"}</span><span className="avatar" aria-label={displayName}>{displayName.slice(0, 2).toUpperCase()}</span></div>
+        <div className="topbar-right">{isDemoPage && <span className="topbar-date">Demo sample records</span>}<AccountMenu displayName={displayName} roleLabel={ROLE_LABELS[role] ?? "Member"} weddingName={weddingName} isOwner={isOwner} pathname={pathname} /></div>
       </header>
       {isDemoPage && <div className="demo-banner"><span className="demo-pill">SAMPLE DATA</span><span>Sample records, dates and figures are synthetic and are not saved to your wedding.</span></div>}
       <nav className="phone-tabs" aria-label="Quick navigation" inert={open}>
