@@ -22,7 +22,7 @@ type Assignee = { userId: string; role: string; name: string };
 function formatDueDate(value: string | null) {
   if (!value) return "No due date";
   const [year, month, day] = value.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-IE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
@@ -205,12 +205,12 @@ function TaskDetails({ weddingId, task, canEdit }: { weddingId: string; task: We
       {canEdit && <ChecklistForm weddingId={weddingId} taskId={task.id} />}
     </section>
     <section><h4>Comments</h4>{task.comments.length
-      ? <ul className="task-comments">{task.comments.map((comment) => <li key={comment.id}><span>{comment.body}</span><span className="table-secondary">{comment.author_name} · {new Intl.DateTimeFormat("en-IE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(comment.created_at))}</span></li>)}</ul>
+      ? <ul className="task-comments">{task.comments.map((comment) => <li key={comment.id}><span>{comment.body}</span><span className="table-secondary">{comment.author_name} · {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(comment.created_at))}</span></li>)}</ul>
       : <p className="field-help">No comments yet.</p>}
       {canEdit && <CommentForm weddingId={weddingId} taskId={task.id} />}
     </section>
     <section><h4>Activity history</h4>{task.activity.length
-      ? <ul className="task-activity">{task.activity.map((event) => <li key={event.id}><span>{activityLabel(event.event_type)}</span><span className="table-secondary">{event.actor_name} · {new Intl.DateTimeFormat("en-IE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.created_at))}</span></li>)}</ul>
+      ? <ul className="task-activity">{task.activity.map((event) => <li key={event.id}><span>{activityLabel(event.event_type)}</span><span className="table-secondary">{event.actor_name} · {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.created_at))}</span></li>)}</ul>
       : <p className="field-help">No activity has been recorded.</p>}</section>
   </div>;
 }

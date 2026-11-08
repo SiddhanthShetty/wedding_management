@@ -72,3 +72,26 @@ Based on a review of the app after the five milestones. Ordered by impact for a 
 ## Suggested next milestone
 
 Grouped navigation + wedding switcher + Day-of view. These help every user most and need no schema changes, apart from an optional RSVP deadline column.
+
+## Phased simplification plan (2026-11-08; wedding in December 2027)
+
+A review of every page as a first-time user produced 45 suggestions, scheduled to match the planning calendar:
+- **Phase 1:** foundations, now.
+- **Phase 2:** venues, vendors and budget, Jan–Apr 2027.
+- **Phase 3:** guest list and Save the Date, May–Jul 2027.
+- **Phase 4:** invitations, replies, catering and travel, Aug–Oct 2027.
+- **Phase 5:** wedding month, Nov 2027.
+
+### Phase 1, done (2026-11-08)
+- **India-first defaults.**
+  - New weddings use India (IST) and rupees whatever the device says (couples often plan from abroad), with "Wedding not in India?" to change.
+  - Dates are formatted for India (`en-IN`). Pickers list common time zones and currencies first (`src/lib/locale.ts`).
+- **Time zone check on Overview.** A notice appears when the wedding's time zone differs from the device's, or when the budget is in rupees but the wedding time zone is outside India. The second check catches a wedding set to the planner's own time zone (as happened with Europe/Dublin).
+- **Simpler first setup.** Your name, your partner's name, wedding date with "The date isn't final yet", and city. The workspace name is generated from the first names. Settings shows names, date, city, time zone, currency and budget, with workspace name and notes under "More details".
+- **Plain words.** Jargon is replaced in visible text (proxy, matrix, batches, allocations, snapshot, guarantee, forecast adjustments, reimbursements) and page introductions are shortened. Code names are unchanged.
+- **Footer line removed.**
+- **Functions.**
+  - "Start with the usual functions" adds Haldi, Mehendi and Sangeet on the day before, Muhurtham and Reception on the wedding day (engagement and Grihapravesha optional), all marked "not confirmed yet" and skipping names that already exist.
+  - Type field with suggestions; the form shows key fields, with map link, guest count, budget, person in charge and notes under "More details".
+  - Plain schedule lines; the list becomes cards on phones (the `stack-on-phone` table style, reusable on other pages).
+- Short forms with "More details" and hidden empty sections elsewhere come with each page's own phase, so those pages aren't reworked twice.

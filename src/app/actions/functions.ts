@@ -8,6 +8,8 @@ import {
   updateWeddingFunction,
 } from "@/lib/data/functions";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
+import { listWeddingFunctions } from "@/lib/data/functions";
+import { STARTER_FUNCTIONS, starterFunctionInputs } from "@/lib/planning/starter-functions";
 
 export type FunctionFormState = { error?: string; message?: string; savedId?: string };
 
@@ -69,6 +71,26 @@ export async function archiveFunctionAction(_previous: FunctionFormState, formDa
     await archiveWeddingFunction(weddingId.data, functionId.data);
     revalidatePath("/functions");
     return { message: "Function archived." };
+  } catch (error) {
+    return { error: getActionError(error) };
+  }
+}
+
+/** Adds the picked usual functions in one go, skipping any whose name already exists. */
+export async function addStarterFunctionsAction(_previous: FunctionFormState, formData: FormData): Promise<FunctionFormState> {
+  const weddingId = z.uuid().safeParse(formData.get("weddingId"));
+  if (!weddingId.success) return { error: "Invalid wedding workspace." };
+  const keys = STARTER_FUNCTIONS.map((item) => item.key).filter((key) => formData.get(`starter-${key}`) === "on");
+  if (!keys.length) return { error: "Tick at least one function." };
+  const weddingDate = z.union([z.literal(""), z.iso.date()]).safeParse(formData.get("weddingDay") ?? "");
+  if (!weddingDate.success) return { error: "Choose a valid wedding day." };
+  try {
+    const existing = new Set((await listWeddingFunctions(weddingId.data)).filter((item) => !item.archived_at).map((item) => item.name.trim().toLowerCase()));
+    const toAdd = starterFunctionInputs(keys, weddingDate.data || null).filter((item) => !existing.has(item.name.toLowerCase()));
+    for (const item of toAdd) await createWeddingFunction(weddingId.data, item);
+    revalidatePath("/functions"); revalidatePath("/overview");
+    const skipped = keys.length - toAdd.length;
+    return { message: `${toAdd.length} function${toAdd.length === 1 ? "" : "s"} added${skipped ? ` (${skipped} already existed)` : ""}. Edit any of them to change the details.`, savedId: `starter-${Date.now()}` };
   } catch (error) {
     return { error: getActionError(error) };
   }

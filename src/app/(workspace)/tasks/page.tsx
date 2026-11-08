@@ -26,7 +26,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     || workspace.membership.role === "co_owner"
     || workspace.moduleAccess.planning === "edit";
   return <>
-    <PageHeading eyebrow="Keep things moving" title="Tasks" description="Assign owners, track dependencies and keep task history in one place." />
+    <PageHeading eyebrow="Keep things moving" title="Tasks" description="Everything to do, who's doing it and by when." />
     <TaskManager
       weddingId={workspace.wedding.id}
       currentUserId={workspace.user.id}

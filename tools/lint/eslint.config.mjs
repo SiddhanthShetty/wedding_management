@@ -12,7 +12,7 @@ export default defineConfig([
     // The app sets state in effects only to read browser-only values after mount (saved preferences,
     // window.location, the clock, crypto.randomUUID submission keys, reduced-motion) or to reset a form
     // after a save. Doing that during render would make server and browser output differ, so this is
-    // a warning to review case by case, not an error. Reviewed 2026-11-08: all 27 uses follow this.
+    // a warning to review case by case, not an error. Reviewed 2026-11-08: all 30 uses follow this (incl. reading the device time zone and closing the account menu on navigation).
     rules: { "react-hooks/set-state-in-effect": "warn" },
   },
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "playwright-report/**", "test-results/**", "supabase/**", "tools/**", "node_modules/**"]),

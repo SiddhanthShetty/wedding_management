@@ -64,7 +64,7 @@ export function MessagesManager({ data, initialFunctionId, initialKind }: { data
     const guest = guestById.get(guestId)!;
     const values: Partial<Record<Placeholder, string | null>> = {
       guest_name: guest.full_name, first_name: guest.full_name.split(" ")[0] ?? guest.full_name, household_name: guest.household_id ? households.get(guest.household_id)?.name ?? null : null,
-      function_name: fn?.name ?? null, function_date: fn?.function_date ? new Intl.DateTimeFormat("en-IE", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${fn.function_date}T12:00:00Z`)) : null,
+      function_name: fn?.name ?? null, function_date: fn?.function_date ? new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${fn.function_date}T12:00:00Z`)) : null,
       function_time: fn?.start_time?.slice(0, 5) ?? null, venue: fn?.venue_name ?? null, couple_names: data.coupleNames || null,
     };
     return renderTemplate(text, values);
@@ -79,7 +79,7 @@ export function MessagesManager({ data, initialFunctionId, initialKind }: { data
   };
   const tz = data.wedding.timezone;
   return <div className="section-stack">
-    <PageHeading eyebrow="Guest communication" title="Messages" description="Prepare invitations, reminders and updates. Nothing is sent from this app: copy or export messages, send them yourself, then record what you sent." />
+    <PageHeading eyebrow="Guest communication" title="Messages" description="Prepare reminders and updates to send from your own WhatsApp or email. Nothing is sent automatically." />
     <p className="demo-note" role="note"><Info size={15} aria-hidden="true" /> <span><Term term="manualSent">Marked sent manually</Term> does not confirm delivery.</span></p>
     {data.canEdit && missingReminder && data.templates.length > 0 && <Card title="No reminder template yet"><ActionForm action={addStarterReminderAction} submitLabel="Add a ready-made RSVP reminder"><input type="hidden" name="weddingId" value={data.wedding.id} /></ActionForm></Card>}
     {data.canEdit && <details className="travel-edit"><summary>Create a new template</summary><TemplateForm data={data} /></details>}

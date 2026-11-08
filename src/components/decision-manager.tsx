@@ -150,12 +150,12 @@ function DecisionCommentForm({ weddingId, decisionId }: { weddingId: string; dec
 
 function localDateLabel(date: string) {
   const [year, month, day] = date.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-IE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
 function timestampLabel(value: string) {
-  return new Intl.DateTimeFormat("en-IE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function decisionActivityLabel(event: string) {

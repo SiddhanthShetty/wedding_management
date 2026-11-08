@@ -78,7 +78,7 @@ export function DocumentManager({ data, initialEntity, recordId = null }: { data
     && (!query || `${doc.title} ${doc.category} ${doc.entity_label}`.toLowerCase().includes(query.toLowerCase()))), [data.documents, entityFilter, showArchived, query, recordId, initialEntity]);
   const paged = useShowMore(documents);
   return <div className="section-stack">
-    <PageHeading eyebrow="Private files" title="Documents" description="Contracts, quotes, invoices, receipts, floor plans and references, attached to the record they belong to. Files are stored privately and opened through links that expire after 60 seconds." />
+    <PageHeading eyebrow="Private files" title="Documents" description="Contracts, quotes, receipts and plans, kept private and attached to what they belong to." />
     <p className="travel-warning" role="note"><ShieldAlert size={15} aria-hidden="true" /> Uploaded files are <strong>not malware-scanned</strong>. Only open files from people you trust. File types are checked from their contents, and only PDFs and images open in the browser; everything else downloads.</p>
     {recordId && (() => { const record = data.options.find((option) => option.type === initialEntity && option.id === recordId); return record ? <p className="demo-note" role="note">Showing files for <strong>{record.label}</strong>. <a className="text-link" href="/documents">Show all documents</a></p> : null; })()}
     <Card title="Upload a document"><UploadForm data={data} initialTarget={recordId && data.options.some((option) => option.type === initialEntity && option.id === recordId && option.canEdit) ? `${initialEntity}:${recordId}` : ""} /></Card>

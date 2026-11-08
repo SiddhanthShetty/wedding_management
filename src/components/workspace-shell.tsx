@@ -123,7 +123,7 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
       </nav>
       <main id="main-content" className="main-content" inert={open}>{area && <nav className="area-tabs" aria-label={area === "guests" ? "Guests sections" : "Wedding week sections"}>
         {AREAS[area].filter(() => groups.some((group) => group.links.some((link) => link.area === area))).map((tab) => <Link key={tab.href} href={tab.href} className="area-tab" aria-current={pathname === tab.href || pathname.startsWith(`${tab.href}/`) ? "page" : undefined}>{tab.label}</Link>)}
-      </nav>}{children}<p className="footer-note">{isDemoPage ? "Private wedding planning workspace · Demo shell" : "Private wedding planning workspace · Changes are saved to this wedding"}</p></main>
+      </nav>}{children}{isDemoPage && <p className="footer-note">Demo shell</p>}</main>
     </div>
   </div>;
 }

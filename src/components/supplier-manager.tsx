@@ -26,7 +26,7 @@ const statusLabel: Record<WeddingSupplier["status"], string> = {
 function dateLabel(value: string | null) {
   if (!value) return "Unknown";
   const [year, month, day] = value.slice(0, 10).split("-").map(Number);
-  return new Intl.DateTimeFormat("en-IE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
@@ -68,7 +68,7 @@ export function SupplierManager({
   }
 
   return <>
-    <PageHeading eyebrow="Supplier research" title="Venues & Vendors" description="Keep venue and supplier research, quote versions, visit notes and each partner’s preference together." action={canEdit ? <Button onClick={() => { setEditorSupplier(undefined); setEditorOpen(true); }}><Plus size={15} aria-hidden="true" /> Add supplier</Button> : undefined} />
+    <PageHeading eyebrow="Supplier research" title="Venues & Vendors" description="Venues and vendors you're considering or have booked, with their quotes and notes." action={canEdit ? <Button onClick={() => { setEditorSupplier(undefined); setEditorOpen(true); }}><Plus size={15} aria-hidden="true" /> Add supplier</Button> : undefined} />
     <div className="section-stack">
       <Card title="Supplier directory" subtitle={`${suppliers.length} supplier${suppliers.length === 1 ? "" : "s"} · “Booked” is a shortlist status, not a confirmed booking.`}>
         <div className="supplier-toolbar">

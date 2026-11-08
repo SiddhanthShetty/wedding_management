@@ -72,7 +72,7 @@ export async function saveTemplate(weddingId: string, templateId: string | null,
 }
 
 function formatFunctionDate(value: string | null) {
-  return value ? new Intl.DateTimeFormat("en-IE", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`)) : null;
+  return value ? new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`)) : null;
 }
 
 /**

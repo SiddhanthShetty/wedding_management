@@ -2,7 +2,9 @@
 
 import { useActionState, useCallback, useEffect, useState } from "react";
 import { Archive, CalendarPlus, Pencil } from "lucide-react";
-import { archiveFunctionAction, createFunctionAction, updateFunctionAction } from "@/app/actions/functions";
+import { addStarterFunctionsAction, archiveFunctionAction, createFunctionAction, updateFunctionAction } from "@/app/actions/functions";
+import { FUNCTION_TYPES, shiftDate, STARTER_FUNCTIONS } from "@/lib/planning/starter-functions";
+import { timeZoneOptions } from "@/lib/locale";
 import { Button, Card, DataTable, EmptyState, NotificationRegion, StageBadge, StatusLabel } from "@/components/ui";
 import { Dialog } from "@/components/dialog";
 import type { FunctionTaskArrangement, WeddingFunction } from "@/lib/data/functions";
@@ -29,13 +31,7 @@ const blankDraft: Draft = {
   coordinatorName: "", dressCode: "", notes: "",
 };
 
-const templates: Array<Pick<Draft, "name" | "functionType">> = [
-  { name: "Haldi", functionType: "Haldi" },
-  { name: "Mehendi", functionType: "Mehendi" },
-  { name: "Sangeet", functionType: "Sangeet" },
-  { name: "Wedding", functionType: "Wedding" },
-  { name: "Reception", functionType: "Reception" },
-];
+const zoneLabel = (zone: string) => timeZoneOptions(zone).find((option) => option.id === zone)?.label ?? zone;
 
 function toDraft(item?: WeddingFunction): Draft {
   if (!item) return blankDraft;
@@ -58,25 +54,25 @@ function toDraft(item?: WeddingFunction): Draft {
 
 function localDateLabel(date: string) {
   const [year, month, day] = date.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-IE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
 function localTimeLabel(value: string) {
   const [hour, minute] = value.split(":").map(Number);
-  return new Intl.DateTimeFormat("en-IE", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })
+  return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })
     .format(new Date(Date.UTC(2000, 0, 1, hour, minute)));
 }
 
-function scheduleLabel(date: string | null, start: string | null, end: string | null, timezone: string) {
-  if (!date) return "Date and time to be decided";
-  if (!start && !end) return localDateLabel(date) + " · Time to be decided · " + timezone;
-  if (start && !end) return localDateLabel(date) + " · " + localTimeLabel(start) + " · end time TBD · " + timezone;
-  if (!start && end) return localDateLabel(date) + " · start time TBD · " + timezone;
-  if (!start || !end) return localDateLabel(date) + " · Time to be decided · " + timezone;
-  const crossesMidnight = end.slice(0, 5) < start.slice(0, 5);
-  return localDateLabel(date) + " · " + localTimeLabel(start) + "–" + localTimeLabel(end)
-    + (crossesMidnight ? " (ends next day)" : "") + " · " + timezone;
+function scheduleLabel(date: string | null, start: string | null, end: string | null, _timezone: string) {
+  // The time zone is shown once above the list, so it isn't repeated on every line.
+  if (!date) return "Date not set yet";
+  const day = localDateLabel(date);
+  if (!start && !end) return day + " · time not set yet";
+  if (start && !end) return day + " · " + localTimeLabel(start);
+  if (!start && end) return day + " · until " + localTimeLabel(end);
+  const crossesMidnight = end!.slice(0, 5) < start!.slice(0, 5);
+  return day + " · " + localTimeLabel(start!) + "–" + localTimeLabel(end!) + (crossesMidnight ? " (ends next day)" : "");
 }
 
 export function FunctionManager({
@@ -86,10 +82,12 @@ export function FunctionManager({
   functions,
   arrangements,
   canEdit,
+  weddingDate = null,
 }: {
   weddingId: string;
   timezone: string;
   currency: string;
+  weddingDate?: string | null;
   functions: WeddingFunction[];
   arrangements: FunctionTaskArrangement[];
   canEdit: boolean;
@@ -108,18 +106,19 @@ export function FunctionManager({
   const onArchived = useCallback((name: string) => setNotice(name + " archived."), []);
 
   return <>
-    <Card title="Wedding functions" subtitle={activeFunctions.length + " active · Planning timezone: " + timezone} action={canEdit
+    {canEdit && !activeFunctions.length && <StarterFunctions weddingId={weddingId} weddingDate={weddingDate} onAdded={setNotice} />}
+    <Card title="Wedding functions" subtitle={`${activeFunctions.length} ${activeFunctions.length === 1 ? "function" : "functions"} · times in ${zoneLabel(timezone)} time`} action={canEdit
       ? <Button onClick={() => { setEditing(undefined); setEditorOpen(true); }}><CalendarPlus size={15} aria-hidden="true" /> Add function</Button>
       : undefined}>
       {!activeFunctions.length
-        ? <EmptyState title="No functions yet" description={canEdit ? "Add a function or start with an editable ceremony template." : "A planning editor can add the first function."} />
-        : <DataTable label="Wedding functions" headers={["Function", "Date and time", "Location", "Plan", "Status", ...(canEdit ? ["Actions"] : [])]}>
+        ? <EmptyState title="No functions yet" description={canEdit ? "Tick the usual functions above, or add your own." : "A planning editor can add the first function."} />
+        : <DataTable className="stack-on-phone" label="Wedding functions" headers={["Function", "Date and time", "Location", "Plan", "Status", ...(canEdit ? ["Actions"] : [])]}>
           {activeFunctions.map((item) => <tr key={item.id}>
             <td><span className="table-primary">{item.name}</span><span className="table-secondary">{item.function_type} · <a className="text-link" href={`/documents?entity=function&id=${item.id}`}>Files</a></span></td>
             <td>{scheduleLabel(item.function_date, item.start_time, item.end_time, timezone)}</td>
-            <td>{item.venue_name || "Location to be decided"}</td>
-            <td>{item.expected_attendance == null ? "Attendance TBD" : item.expected_attendance.toLocaleString("en-IE") + " expected"}
-              {item.budget_allocation != null && <span className="table-secondary">{new Intl.NumberFormat("en-IE", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(item.budget_allocation))} allocation</span>}
+            <td>{item.venue_name || "Place not set yet"}</td>
+            <td>{item.expected_attendance == null ? "Guest count not set" : item.expected_attendance.toLocaleString("en-IN") + " guests expected"}
+              {item.budget_allocation != null && <span className="table-secondary">{new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(item.budget_allocation))} budget</span>}
             </td>
             <td><StageBadge kind="function" status={item.status} /></td>
             {canEdit && <td><div className="function-actions">
@@ -128,7 +127,8 @@ export function FunctionManager({
             </div></td>}
           </tr>)}
         </DataTable>}
-      {!canEdit && <p className="field-help">You have read-only access to planning functions.</p>}
+      {!canEdit && <p className="field-help">You can view functions. Ask an owner for edit access to change them.</p>}
+      {canEdit && activeFunctions.length > 0 && <details className="more-details"><summary>Add more of the usual functions</summary><StarterFunctions weddingId={weddingId} weddingDate={weddingDate} onAdded={setNotice} existing={activeFunctions.map((item) => item.name.toLowerCase())} plain /></details>}
     </Card>
     {archivedFunctions.length > 0 && <Card title="Archived functions" subtitle="Archived records remain in the wedding history.">
       <details>
@@ -137,7 +137,7 @@ export function FunctionManager({
           {archivedFunctions.map((item) => <tr key={item.id}>
             <td><span className="table-primary">{item.name}</span><span className="table-secondary">{item.function_type}</span></td>
             <td>{scheduleLabel(item.function_date, item.start_time, item.end_time, timezone)}</td>
-            <td>{item.venue_name || "Location not set"}</td>
+            <td>{item.venue_name || "Place not set"}</td>
             <td><StatusLabel>Archived</StatusLabel></td>
           </tr>)}
         </DataTable>
@@ -186,53 +186,50 @@ function FunctionEditor({
 
   return <Dialog open={open} className="function-editor-dialog" titleId="function-editor-title" descriptionId="function-editor-description" onClose={onClose}>
     <h2 id="function-editor-title" className="dialog-title">{item ? "Edit function" : "Add a function"}</h2>
-    <p id="function-editor-description" className="dialog-copy">Schedule entries use {timezone}. An end time earlier than the start time means the function ends the following day.</p>
+    <p id="function-editor-description" className="dialog-copy">Times are in {zoneLabel(timezone)} time. An end time earlier than the start time means it ends the next day.</p>
     <form action={formAction} className="function-editor-form">
       <input type="hidden" name="weddingId" value={weddingId} />
       {item && <input type="hidden" name="functionId" value={item.id} />}
-      <div className="field">
-        <label className="field-label" htmlFor="function-template">Editable template</label>
-        <select id="function-template" className="field-control" value="" onChange={(event) => {
-          const selected = templates.find((template) => template.functionType === event.target.value);
-          if (selected) setDraft((previous) => ({ ...previous, name: selected.name, functionType: selected.functionType }));
-        }}>
-          <option value="">Choose a template or keep a custom function</option>
-          {templates.map((template) => <option key={template.functionType} value={template.functionType}>{template.name}</option>)}
-        </select>
-        <span className="field-help">The name and type remain editable after choosing a template.</span>
-      </div>
       <div className="field-grid">
-        {field("name", "Function name", "text", { required: true, maxLength: 160 })}
-        {field("functionType", "Function type", "text", { required: true, maxLength: 80 })}
+        {field("name", "Name", "text", { required: true, maxLength: 160 })}
+        <div className="field">
+          <label className="field-label" htmlFor="function-functionType">Type<span aria-hidden="true"> *</span></label>
+          <input id="function-functionType" className="field-control" name="functionType" list="function-type-options" required maxLength={80} value={draft.functionType === "custom" ? "" : draft.functionType} placeholder="Choose or type" onChange={(event) => set("functionType", event.target.value)} />
+          <datalist id="function-type-options">{FUNCTION_TYPES.map((type) => <option key={type} value={type} />)}</datalist>
+        </div>
         {field("functionDate", "Date", "date")}
         <div className="field">
           <label className="field-label" htmlFor="function-status">Status</label>
           <select id="function-status" className="field-control" name="status" value={draft.status} onChange={(event) => set("status", event.target.value)}>
-            <option value="tentative">Tentative</option>
+            <option value="tentative">Not confirmed yet</option>
             <option value="confirmed">Confirmed</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
         {field("startTime", "Start time", "time")}
         {field("endTime", "End time", "time")}
-        {field("venueName", "Location or venue", "text", { maxLength: 240 })}
-        {field("guestMapUrl", "Guest map link (https)", "url", { maxLength: 2048 })}
-        {field("expectedAttendance", "Expected attendance", "number", { min: "0" })}
-        {field("budgetAllocation", "Budget allocation (" + currency + ")", "number", { min: "0", step: "0.01" })}
-        {field("coordinatorName", "Coordinator", "text", { maxLength: 160 })}
+        {field("venueName", "Venue or place", "text", { maxLength: 240 })}
         {field("dressCode", "Dress code", "text", { maxLength: 240 })}
-        <div className="field field-full">
-          <label className="field-label" htmlFor="function-notes">Notes</label>
-          <textarea id="function-notes" className="field-control" name="notes" value={draft.notes} maxLength={10000} onChange={(event) => set("notes", event.target.value)} />
-        </div>
       </div>
+      <details className="more-details"><summary>More details</summary>
+        <div className="field-grid">
+          {field("guestMapUrl", "Map link for guests (https)", "url", { maxLength: 2048 })}
+          {field("expectedAttendance", "Expected guests", "number", { min: "0" })}
+          {field("budgetAllocation", "Budget for this function (" + currency + ")", "number", { min: "0", step: "0.01" })}
+          {field("coordinatorName", "Person in charge", "text", { maxLength: 160 })}
+          <div className="field field-full">
+            <label className="field-label" htmlFor="function-notes">Notes</label>
+            <textarea id="function-notes" className="field-control" name="notes" value={draft.notes} maxLength={10000} onChange={(event) => set("notes", event.target.value)} />
+          </div>
+        </div>
+      </details>
       {changedDate && <section className="impact-panel" aria-labelledby="function-impact-title">
         <h3 id="function-impact-title">Review schedule changes</h3>
         <p><strong>Current:</strong> {scheduleLabel(item?.function_date ?? null, item?.start_time ?? null, item?.end_time ?? null, timezone)}</p>
         <p><strong>Proposed:</strong> {scheduleLabel(draft.functionDate || null, draft.startTime || null, draft.endTime || null, timezone)}</p>
         <ul>
           <li>Task deadlines are not shifted automatically. Review the linked tasks below.</li>
-          <li>Booking and invitation records are not changed or removed. Those modules are not connected to functions in this milestone.</li>
+          <li>Bookings and guest invitations are not changed.</li>
         </ul>
         {linkedTasks.length > 0
           ? <ul className="impact-arrangements" aria-label="Tasks linked to this function">{linkedTasks.map((task) => <li key={task.id}>{task.title}{task.due_date ? " · due " + localDateLabel(task.due_date) : " · no due date"}{task.status === "completed" ? " · completed" : ""}</li>)}</ul>
@@ -241,7 +238,7 @@ function FunctionEditor({
       {state.error && <p className="auth-alert" role="alert">{state.error}</p>}
       <div className="dialog-actions">
         <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button type="submit" disabled={pending}>{pending ? "Saving…" : item ? "Save function" : "Create function"}</Button>
+        <Button type="submit" disabled={pending}>{pending ? "Saving…" : item ? "Save function" : "Add function"}</Button>
       </div>
     </form>
   </Dialog>;
@@ -271,4 +268,26 @@ function ArchiveFunctionButton({ weddingId, item, linkedTasks, onArchived }: { w
       </form>
     </Dialog>
   </>;
+}
+
+/** One tap to add the usual functions, dated around the wedding day when it is known. */
+function StarterFunctions({ weddingId, weddingDate, onAdded, existing = [], plain = false }: { weddingId: string; weddingDate: string | null; onAdded: (message: string) => void; existing?: string[]; plain?: boolean }) {
+  const [state, formAction, pending] = useActionState(addStarterFunctionsAction, {});
+  const [day, setDay] = useState(weddingDate ?? "");
+  useEffect(() => { if (state.savedId && state.message) onAdded(state.message); }, [state.savedId, state.message, onAdded]);
+  const options = STARTER_FUNCTIONS.filter((item) => !existing.includes(item.name.toLowerCase()));
+  if (!options.length) return <p className="field-help">All the usual functions are already added.</p>;
+  const when = (offset: number | null, time: string) => !day || offset === null ? "date to be decided" : `${localDateLabel(shiftDate(day, offset))}${time ? ` · ${localTimeLabel(time)}` : ""}`;
+  const body = <form action={formAction} className="starter-functions">
+    <input type="hidden" name="weddingId" value={weddingId} />
+    <div className="field"><label className="field-label" htmlFor="starter-day">Wedding day</label>
+      <input id="starter-day" className="field-control" type="date" name="weddingDay" value={day} onChange={(event) => setDay(event.target.value)} />
+      <span className="field-help">Pre-wedding functions are placed the day before. Change any date or time afterwards.</span></div>
+    <fieldset className="starter-list"><legend className="sr-only">Functions to add</legend>
+      {options.map((item) => <label key={item.key} className="checkbox-row"><input type="checkbox" name={`starter-${item.key}`} defaultChecked={item.picked} /><span><strong>{item.name}</strong> <span className="row-meta">{when(item.dayOffset, item.startTime)}</span></span></label>)}
+    </fieldset>
+    {state.error && <p className="auth-alert" role="alert">{state.error}</p>}
+    <Button type="submit" disabled={pending}>{pending ? "Adding…" : "Add ticked functions"}</Button>
+  </form>;
+  return plain ? body : <Card title="Start with the usual functions" subtitle="Tick the ones you're having. They're added as “not confirmed yet”, ready to edit.">{body}</Card>;
 }

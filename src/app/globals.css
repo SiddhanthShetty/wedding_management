@@ -974,3 +974,20 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 .portal-external { display: grid; justify-items: center; gap: 6px; margin: 4px 0 8px; text-align: center; } .portal-external .portal-live-button { background: var(--portal-accent-text, var(--ink)); font-size: 16px; text-decoration: none; }
 .artwork-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; } .artwork-row img { width: 120px; border: 1px solid var(--line); border-radius: 8px; }
 .studio-mode-switch { display: flex; align-items: flex-start; gap: 12px; max-width: 760px; border: 1px dashed var(--line); border-radius: 12px; background: #fff; padding: 12px 14px; cursor: pointer; } .studio-mode-switch input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--brand-accent-text, var(--sage)); } .studio-mode-switch strong { display: block; font-size: 14px; }
+.checkbox-row { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; cursor: pointer; }
+.checkbox-row input { width: 18px; height: 18px; accent-color: var(--brand-accent-text, var(--sage)); }
+.more-details { border-top: 1px solid var(--line); padding-top: 10px; }
+.more-details > summary { min-height: 44px; display: flex; align-items: center; color: var(--brand-accent-text, var(--sage)); font-weight: 650; cursor: pointer; }
+.more-details[open] > summary { margin-bottom: 8px; }
+.tz-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; border: 1px solid #e3c67a; border-radius: 14px; background: #fff8e6; padding: 14px 16px; } .tz-notice p { flex: 1 1 320px; margin: 0; } .tz-notice-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Tables that become cards on phones (first cell is the title) */
+@media (max-width: 760px) {
+  .stack-on-phone .data-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .stack-on-phone .data-table, .stack-on-phone .data-table tbody, .stack-on-phone .data-table tr, .stack-on-phone .data-table td { display: block; width: 100%; }
+  .stack-on-phone .data-table tr { margin-bottom: 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 6px 4px; }
+  .stack-on-phone .data-table td { border: 0; padding: 4px 10px; font-size: 13px; }
+  .stack-on-phone .data-table td:first-child .table-primary { font-size: 15px; }
+}
+.starter-functions { display: grid; gap: 12px; max-width: 560px; }
+.starter-list { display: grid; gap: 2px; border: 0; margin: 0; padding: 0; }
+.starter-list .row-meta { display: inline; }

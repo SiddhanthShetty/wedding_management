@@ -15,7 +15,7 @@ export default async function Page() {
     getWeddingSetup(workspace.wedding.id),
   ]);
   return <div className="section-stack">
-    <PageHeading eyebrow="Workspace" title="Settings" description="Wedding details and authorised workspace members." />
+    <PageHeading eyebrow="Workspace" title="Settings" description="Your wedding details and who can help plan." />
     <Card title="Wedding setup" subtitle="Names, date, timezone, locations, budget and planning notes.">
       <WeddingSetupForm mode="edit" wedding={wedding} />
     </Card>

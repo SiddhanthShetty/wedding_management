@@ -6,22 +6,27 @@ import { ZodError } from "zod";
 import { requireAuthenticatedUser } from "@/lib/auth/access";
 import { updateWeddingSetup } from "@/lib/data/weddings";
 import { weddingSetupSchema } from "@/lib/planning/inputs";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, workspaceNameFor } from "@/lib/locale";
 
 export type SetupFormState = { error?: string; message?: string };
 
 function readSetupForm(formData: FormData) {
+  const text = (key: string) => { const value = formData.get(key); return typeof value === "string" ? value : ""; };
+  // The short first-run form sends only names, date and city; the rest gets sensible defaults.
+  const name = text("name").trim() || workspaceNameFor(text("partnerOneDisplayName"), text("partnerTwoDisplayName"));
+  const weddingDateStatus = formData.has("weddingDateStatus") ? formData.get("weddingDateStatus") : formData.get("dateNotFinal") === "on" || !text("weddingDate") ? "tentative" : "confirmed";
   return {
     weddingId: String(formData.get("weddingId") ?? "") || undefined,
-    name: formData.get("name"),
+    name,
     partnerOneDisplayName: formData.get("partnerOneDisplayName"),
     partnerTwoDisplayName: formData.get("partnerTwoDisplayName"),
     weddingDate: formData.get("weddingDate"),
-    weddingDateStatus: formData.get("weddingDateStatus"),
-    timezone: formData.get("timezone"),
-    currency: formData.get("currency"),
-    mainLocations: formData.get("mainLocations"),
-    overallBudget: formData.get("overallBudget"),
-    planningNotes: formData.get("planningNotes"),
+    weddingDateStatus,
+    timezone: text("timezone") || DEFAULT_TIMEZONE,
+    currency: text("currency") || DEFAULT_CURRENCY,
+    mainLocations: text("mainLocations"),
+    overallBudget: text("overallBudget"),
+    planningNotes: text("planningNotes"),
   };
 }
 

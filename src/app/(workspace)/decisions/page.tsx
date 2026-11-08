@@ -11,7 +11,7 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
     || workspace.membership.role === "co_owner"
     || workspace.moduleAccess.planning === "edit";
   return <>
-    <PageHeading eyebrow="Choose together" title="Decisions" description="Compare options, record each partner’s preference, and preserve the final choice and reason." />
+    <PageHeading eyebrow="Choose together" title="Decisions" description="Compare options, see what each of you prefers, and note what you chose." />
     <DecisionManager
       weddingId={workspace.wedding.id}
       currentUserId={workspace.user.id}

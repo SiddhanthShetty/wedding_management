@@ -1,40 +1,61 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createWeddingAction, updateWeddingSetupAction } from "@/app/actions/weddings";
 import { Button, Field, SelectField, TextAreaField } from "@/components/ui";
 import type { WeddingSetup } from "@/lib/data/weddings";
+import { currencyOptions, DEFAULT_CURRENCY, DEFAULT_TIMEZONE, timeZoneOptions, workspaceNameFor } from "@/lib/locale";
 
 type Props = { mode: "create" } | { mode: "edit"; wedding: WeddingSetup };
 
+/**
+ * First run asks only for your names, the date and the city; time zone and currency default to
+ * this device's time zone and rupees. Settings shows everything, with rarely changed fields folded away.
+ */
 export function WeddingSetupForm(props: Props) {
   const action = props.mode === "create" ? createWeddingAction : updateWeddingSetupAction;
   const [state, formAction, pending] = useActionState(action, {});
   const wedding = props.mode === "edit" ? props.wedding : undefined;
-  const fullFieldClass = props.mode === "edit" ? "field-full" : "";
+  const creating = props.mode === "create";
+  const full = creating ? "" : "field-full";
+  const [one, setOne] = useState(wedding?.partner_one_display_name ?? "");
+  const [two, setTwo] = useState(wedding?.partner_two_display_name ?? "");
+  // The wedding's own time zone, not this device's: couples often plan an Indian wedding from abroad.
+  const zone = wedding?.timezone ?? DEFAULT_TIMEZONE;
+  const currency = wedding?.currency ?? DEFAULT_CURRENCY;
 
-  return <form action={formAction} className={props.mode === "create" ? "auth-form" : "field-grid"} aria-describedby="wedding-details-hint">
+  const timezoneField = <SelectField key={zone} label="Time zone of the wedding" name="timezone" defaultValue={zone} hint="Function times, countdowns and the day-of page use this time zone.">
+    {timeZoneOptions(zone).map((option) => <option key={option.id} value={option.id}>{option.label === option.id ? option.id : `${option.label} · ${option.id}`}</option>)}
+  </SelectField>;
+  const currencyField = <SelectField label="Currency" name="currency" defaultValue={currency}>
+    {currencyOptions(currency).map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}
+  </SelectField>;
+
+  return <form action={formAction} className={creating ? "auth-form" : "field-grid"}>
     {wedding && <input type="hidden" name="weddingId" value={wedding.id} />}
-    <p className={"field-help " + fullFieldClass} id="wedding-details-hint">
-      Wedding dates, times, and schedules use this IANA timezone. Currency is the reporting currency for budget figures.
-    </p>
-    <Field label="Workspace name" name="name" required maxLength={160} defaultValue={wedding?.name ?? ""} />
-    <Field label="Partner one display name" name="partnerOneDisplayName" maxLength={120} defaultValue={wedding?.partner_one_display_name ?? ""} />
-    <Field label="Partner two display name" name="partnerTwoDisplayName" maxLength={120} defaultValue={wedding?.partner_two_display_name ?? ""} />
-    <Field label="Target or confirmed date" name="weddingDate" type="date" defaultValue={wedding?.wedding_date ?? ""} />
-    <SelectField label="Date status" name="weddingDateStatus" defaultValue={wedding?.wedding_date_status ?? "tentative"}>
-      <option value="tentative">Target date</option>
-      <option value="confirmed">Confirmed date</option>
-    </SelectField>
-    <Field label="Planning timezone" name="timezone" required maxLength={80} defaultValue={wedding?.timezone ?? "Europe/Dublin"} hint="Use an IANA timezone such as Europe/Dublin." />
-    <Field label="Default currency" name="currency" required minLength={3} maxLength={3} pattern="[A-Za-z]{3}" defaultValue={wedding?.currency ?? "EUR"} hint="Three-letter code, for example EUR." />
-    <TextAreaField label="Main locations (one per line)" name="mainLocations" maxLength={5000} defaultValue={wedding?.main_locations.join("\n") ?? ""} className={fullFieldClass} />
-    <Field label="Overall budget" name="overallBudget" type="number" min="0" max="999999999999.99" step="0.01" defaultValue={wedding?.overall_budget == null ? "" : String(wedding.overall_budget)} hint={wedding?.currency ?? "EUR"} />
-    <TextAreaField label="Planning notes" name="planningNotes" maxLength={10000} defaultValue={wedding?.planning_notes ?? ""} className={fullFieldClass} />
-    {state.error && <p className={"auth-alert " + fullFieldClass} role="alert">{state.error}</p>}
-    {state.message && <p className={"auth-success " + fullFieldClass} role="status">{state.message}</p>}
-    <div className={"form-actions " + fullFieldClass}>
-      <Button type="submit" disabled={pending}>{pending ? "Saving…" : props.mode === "create" ? "Create wedding workspace" : "Save wedding details"}</Button>
+    <Field label="Your name" name="partnerOneDisplayName" maxLength={120} value={one} onChange={(event) => setOne(event.target.value)} autoComplete="given-name" />
+    <Field label="Your partner's name" name="partnerTwoDisplayName" maxLength={120} value={two} onChange={(event) => setTwo(event.target.value)} />
+    <Field label="Wedding date" name="weddingDate" type="date" defaultValue={wedding?.wedding_date ?? ""} hint="Leave blank if you haven't picked one yet." />
+    <label className="checkbox-row"><input type="checkbox" name="dateNotFinal" defaultChecked={wedding ? wedding.wedding_date_status === "tentative" : false} /> <span>The date isn’t final yet</span></label>
+    <TextAreaField label={creating ? "City" : "City or places"} name="mainLocations" rows={creating ? 1 : 2} maxLength={5000} defaultValue={wedding?.main_locations.join("\n") ?? ""} placeholder="Mangaluru" hint={creating ? undefined : "One per line, for example the wedding town and the reception town."} className={full} />
+    {creating
+      ? <details className="more-details"><summary>Wedding not in India?</summary>
+          <p className="field-help">Times use India (IST) and money is in rupees (₹) unless you change them here or later in Settings.</p>
+          {timezoneField}{currencyField}
+        </details>
+      : <>{timezoneField}{currencyField}
+        <Field label="Overall budget" name="overallBudget" type="number" min="0" max="999999999999.99" step="0.01" defaultValue={wedding?.overall_budget == null ? "" : String(wedding.overall_budget)} hint={`In ${currency}. Optional.`} />
+        <details className="more-details field-full"><summary>More details</summary>
+          <div className="field-grid">
+            <Field label="Workspace name" name="name" maxLength={160} defaultValue={wedding?.name ?? ""} placeholder={workspaceNameFor(one, two)} hint="Shown at the top of every page. Leave blank to use your names." />
+            <TextAreaField label="Planning notes" name="planningNotes" maxLength={10000} defaultValue={wedding?.planning_notes ?? ""} className="field-full" />
+          </div>
+        </details></>}
+    {creating && <input type="hidden" name="name" value={workspaceNameFor(one, two)} />}
+    {state.error && <p className={"auth-alert " + full} role="alert">{state.error}</p>}
+    {state.message && <p className={"auth-success " + full} role="status">{state.message}</p>}
+    <div className={"form-actions " + full}>
+      <Button type="submit" disabled={pending}>{pending ? "Saving…" : creating ? "Create our wedding" : "Save wedding details"}</Button>
     </div>
   </form>;
 }

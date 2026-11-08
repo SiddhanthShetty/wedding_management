@@ -1,5 +1,5 @@
-const DEFAULT_LOCALE = "en-IE";
-const DEFAULT_TIME_ZONE = "Europe/Dublin";
+const DEFAULT_LOCALE = "en-IN";
+const DEFAULT_TIME_ZONE = "Asia/Kolkata";
 
 export function formatDate(value: string | Date, timeZone = DEFAULT_TIME_ZONE): string {
   return new Intl.DateTimeFormat(DEFAULT_LOCALE, {

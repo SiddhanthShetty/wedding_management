@@ -67,14 +67,14 @@ export function TravelManager({ data, initialTab, initialFilter, tabFromUrl = fa
   return <div className="travel-page" data-print={printing ?? undefined}>
     <PageHeading eyebrow="Wedding week" title="Who's staying where & getting around"
       description="Rooms and rides for your guests. Planned arrangements stay separate from confirmed ones, and guests only see confirmed stays and rides you choose to share." />
-    <div className="metric-inline travel-gaps" aria-label="Guests needing allocations">
+    <div className="metric-inline travel-gaps" aria-label="Guests still to place">
       <a className="metric-chip" href="/travel?tab=needs&filter=rooms-missing"><strong>{counts.roomsNotAssigned}</strong> need a room · not assigned</a>
       <a className="metric-chip" href="/travel?tab=needs&filter=arrivals-missing"><strong>{counts.arrivalsNotAssigned}</strong> need arrival transport · not assigned</a>
       <a className="metric-chip" href="/travel?tab=needs&filter=departures-missing"><strong>{counts.departuresNotAssigned}</strong> need departure transport · not assigned</a>
       <a className="metric-chip" href="/travel?tab=needs&filter=room-unknown"><strong>{counts.roomNeedUnknown}</strong> room need unknown</a>
     </div>
     <TabList tabs={TABS} selected={tab} onSelect={selectTab} label="Stays and transport sections" idPrefix="travel" />
-    {!data.canEdit && <p className="readonly-note" role="note">You have read-only access to logistics. Ask an owner for logistics edit access to change allocations.</p>}
+    {!data.canEdit && <p className="readonly-note" role="note">You have read-only access to logistics. Ask an owner for logistics edit access to change rooms and rides.</p>}
     <section role="tabpanel" id={`travel-panel-${tab}`} aria-labelledby={`travel-tab-${tab}`} tabIndex={0} className="section-stack">
       {tab === "needs" && <NeedsPanel data={data} initialFilter={initialFilter} />}
       {tab === "accommodation" && <AccommodationPanel data={data} guestName={guestName} />}
@@ -264,7 +264,7 @@ function AllocateStay({ data, roomLabel }: { data: Data; roomLabel: (roomId: str
       });
     } catch (error) { return [error instanceof Error ? error.message : "Check the dates."]; }
   }, [data, guestId, roomId, checkIn, checkOut, extraBed, status]);
-  return <Card title="Allocate a room" subtitle="The database rejects allocations outside held nights, above occupancy, or that double-book a guest. Warnings below preview those checks.">
+  return <Card title="Allocate a room" subtitle="A room can't be given outside the booked nights, to more people than it fits, or twice to the same guest. The warnings below show this before you save.">
     <ActionForm action={createStayAction} submitLabel="Allocate room" className="field-grid">
       <input type="hidden" name="weddingId" value={data.wedding.id} />
       <Select label="Guest" name="guest_id" required value={guestId} hint="Dates fill in from the guest's recorded arrival and departure when known." onChange={(event) => { setGuestId(event.target.value); const next = stayDefaults(event.target.value); setCheckIn(next.checkIn); setCheckOut(next.checkOut); }}><option value="">Choose a guest</option>{data.guests.map((guest) => <option key={guest.guest_id} value={guest.guest_id}>{guest.full_name}{guest.household_name ? ` (${guest.household_name})` : ""}</option>)}</Select>

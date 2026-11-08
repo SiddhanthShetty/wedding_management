@@ -53,14 +53,14 @@ export function Field({ label, hint, error, className = "", ...props }: InputHTM
   return <div className={`field ${className}`}><label className="field-label" htmlFor={id}>{label}{props.required && <span aria-hidden="true"> *</span>}</label><input className="field-control" id={id} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined} {...props} />{hint && <span className="field-help" id={`${id}-hint`}>{hint}</span>}{error && <span className="field-error" id={`${id}-error`}>{error}</span>}</div>;
 }
 
-export function SelectField({ label, children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { label: string; children: ReactNode }) {
+export function SelectField({ label, hint, children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { label: string; hint?: string; children: ReactNode }) {
   const id = props.id ?? props.name;
-  return <div className="field"><label className="field-label" htmlFor={id}>{label}</label><select className="field-control" id={id} {...props}>{children}</select></div>;
+  return <div className="field"><label className="field-label" htmlFor={id}>{label}</label><select className="field-control" id={id} aria-describedby={hint ? `${id}-hint` : undefined} {...props}>{children}</select>{hint && <span className="field-help" id={`${id}-hint`}>{hint}</span>}</div>;
 }
 
-export function TextAreaField({ label, className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string }) {
+export function TextAreaField({ label, hint, className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; hint?: string }) {
   const id = props.id ?? props.name;
-  return <div className={`field ${className}`}><label className="field-label" htmlFor={id}>{label}</label><textarea className="field-control" id={id} {...props} /></div>;
+  return <div className={`field ${className}`}><label className="field-label" htmlFor={id}>{label}</label><textarea className="field-control" id={id} aria-describedby={hint ? `${id}-hint` : undefined} {...props} />{hint && <span className="field-help" id={`${id}-hint`}>{hint}</span>}</div>;
 }
 
 export function DataTable({ headers, children, label, className = "", columnWidths }: { headers: string[]; children: ReactNode; label: string; className?: string; columnWidths?: string[] }) {

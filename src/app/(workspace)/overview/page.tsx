@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TimeZoneNotice } from "@/components/time-zone-notice";
 import { Suspense, type ReactNode } from "react";
 import { AlertTriangle, ArrowUpRight, BedDouble, CalendarDays, CheckSquare2, Download, Scale, UsersRound, UtensilsCrossed, Wallet } from "lucide-react";
 import { Card, EmptyState, PageHeading } from "@/components/ui";
@@ -106,6 +107,7 @@ export default async function OverviewPage() {
   const header = await getDashboardHeader(id);
   const tz = header.wedding.timezone;
   return <div className="dashboard">
+    <TimeZoneNotice weddingZone={header.wedding.timezone} currency={header.wedding.currency} canChange={header.isOwner} />
     <OverviewHero header={header} weddingId={id} />
     <PageHeading eyebrow={`Welcome, ${header.displayName}`} title="What's happening"
       description={`Everything that needs attention, from your wedding's own records. Updated ${formatDateTime(header.generatedAt, tz)} (${tz}).`}
