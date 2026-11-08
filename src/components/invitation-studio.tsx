@@ -9,15 +9,16 @@ import { resizePhoto } from "@/lib/invitations/photo";
 import { PORTAL_STRINGS } from "@/lib/guest-portal/i18n";
 import { Checkbox, Select, TextArea, TextInput } from "@/components/form-fields";
 import { TabList } from "@/components/tab-list";
-import { BlessingsModeration, EssentialsFields, WebsiteContentFields } from "@/components/invitation-website-editor";
+import { BlessingsModeration, EssentialsFields, SaveTheDateFields, WebsiteContentFields } from "@/components/invitation-website-editor";
 import { PortalPreview } from "@/components/guest-portal";
 import { Card, EmptyState, PageHeading } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
-import { buildCardProps } from "@/lib/invitations/card-data";
+import { buildCardProps, saveTheDateOf } from "@/lib/invitations/card-data";
 import { buildPreviewData, previewFunction } from "@/lib/invitations/preview";
 import { EFFECTS, OPENING_STYLES, readSite, TEMPLATES, type InvitationSite } from "@/lib/invitations/site";
 import { GalleryEditor, MusicUploader, studioMedia } from "@/components/invitation-media-editor";
-import { DEFAULT_TEXTS, LANGUAGES, isLanguage, mailtoUrl, resolveTexts, shareMessage, TEXT_KEYS, TEXT_LABELS, THEMES, themeById, whatsappUrl, type LanguageCode, type TextOverrides, type ThemeId } from "@/lib/invitations/content";
+import { PdfMaker, pdfContent } from "@/components/invitation-pdf";
+import { defaultTexts, LANGUAGES, isLanguage, mailtoUrl, resolveTexts, shareMessage, TEXT_KEYS, TEXT_LABELS, THEMES, themeById, whatsappUrl, type LanguageCode, type TextOverrides, type ThemeId } from "@/lib/invitations/content";
 import { cardFileName, svgElementToPng } from "@/lib/invitations/export-card";
 import type { InvitationWorkspace } from "@/lib/data/invitations";
 import { createMissingLinksAction } from "@/app/actions/bulk";
@@ -138,6 +139,17 @@ function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }:
   updateSite: <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => void; onPhoto: (photo: string | null) => void; readOnly: boolean;
 }) {
   return <>
+    <Card title="What are you sending?" subtitle="You can change this any time. To send a Save the Date first and the invitation later, make two designs and switch which one guests see.">
+      <fieldset className="choice-cards" disabled={readOnly}>
+        <legend className="sr-only">What are you sending?</legend>
+        {([["invitation", "Full invitation", "Every function with its date, time and place, your story, photos and replies."], ["save_the_date", "Save the Date", "Sent months ahead: your names, the wedding date and place, with a countdown. No replies; the invitation follows later."]] as const).map(([id, name, description]) => <label key={id} className={`choice-card ${draft.site.kind === id ? "is-selected" : ""}`}>
+          <input type="radio" name="kind-choice" value={id} checked={draft.site.kind === id} onChange={() => { updateSite("kind", id); if (id === "save_the_date" && !draft.site.save_the_date.date && data.weddingDate) updateSite("save_the_date", { ...draft.site.save_the_date, date: data.weddingDate }); }} />
+          <strong>{name}</strong><span className="row-meta">{description}</span>
+        </label>)}
+      </fieldset>
+      {draft.site.kind === "save_the_date" && !draft.site.save_the_date.date && <p className="travel-warning">Choose the wedding date in Content before saving.</p>}
+      {draft.site.kind === "save_the_date" && design?.is_default && data.sent.length > 0 && <p className="travel-warning">Guests see this design. As a Save the Date it has no reply section, so guests who already have links will not be able to reply until you show a full invitation again.</p>}
+    </Card>
     <Card title="Page template" subtitle="How the guest page is laid out. Every template works with every theme and language.">
       <fieldset className="choice-cards" disabled={readOnly}>
         <legend className="sr-only">Page template</legend>
@@ -204,6 +216,7 @@ function ContentStep({ data, designId, draft, set, updateSite, lang, setLang, re
   const edited = Object.values(draft.texts[lang] ?? {}).filter((value) => value?.trim()).length;
   return <Card title="Invitation details" subtitle="Open a section to edit it. The preview updates as you type.">
     <div className="studio-groups">
+      {draft.site.kind === "save_the_date" && <SaveTheDateFields site={draft.site} update={updateSite} readOnly={readOnly} />}
       <EssentialsFields site={draft.site} update={updateSite} partners={data.couplePartners} readOnly={readOnly} />
       <details className="studio-group">
         <summary><span className="studio-group-title">Card wording</span><span className="studio-group-summary">{languageInfo.label}{edited ? ` · ${edited} line${edited === 1 ? "" : "s"} edited` : " · built-in wording"}</span></summary>
@@ -212,7 +225,7 @@ function ContentStep({ data, designId, draft, set, updateSite, lang, setLang, re
           {languageInfo.draft && <p className="travel-warning">The built-in {languageInfo.label} wording is a draft. Please have a native speaker check it{lang === "tcy" ? ", especially Tulu" : ""}. Edit any line below.</p>}
           <p className="field-help">Use {"{{name}}"} for the invited person, {"{{couple}}"} for your names and {"{{link}}"} for that person's private link. Leave a line blank to use the default shown.</p>
           {TEXT_KEYS.map((key) => <TextArea key={`${lang}-${key}`} label={TEXT_LABELS[key]} rows={key === "share" || key === "body" ? 3 : 1} maxLength={600} lang={lang}
-            value={draft.texts[lang]?.[key] ?? ""} placeholder={DEFAULT_TEXTS[lang][key]} onChange={(event) => setText(key, event.target.value)} />)}
+            value={draft.texts[lang]?.[key] ?? ""} placeholder={defaultTexts(lang, draft.site.kind)[key]} onChange={(event) => setText(key, event.target.value)} />)}
         </fieldset>
       </details>
       <details className="studio-group">
@@ -229,7 +242,7 @@ function ExtrasStep({ data, draft, photo, lang }: { data: Data; draft: Draft; ph
   const [format, setFormat] = useState<CardFormat>("print");
   const [error, setError] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  const card = buildCardProps({ theme: draft.theme, accent: draft.useAccent ? draft.accent : null, overrides: draft.texts, language: lang, couple: data.coupleNames, greetingName: PORTAL_STRINGS[lang].previewGuest, functions: data.functions.slice(0, 4), photoUrl: photo, showMonogram: draft.showMonogram });
+  const card = buildCardProps({ theme: draft.theme, accent: draft.useAccent ? draft.accent : null, overrides: draft.texts, language: lang, couple: data.coupleNames, greetingName: PORTAL_STRINGS[lang].previewGuest, functions: data.functions.slice(0, 4), photoUrl: photo, showMonogram: draft.showMonogram, saveTheDate: saveTheDateOf(draft.site) });
   const download = async () => {
     setError("");
     try {
@@ -246,6 +259,10 @@ function ExtrasStep({ data, draft, photo, lang }: { data: Data; draft: Draft; ph
       {format === "print" && <p className="field-help">This sample QR code does not open anything. Each guest's card gets a QR code for their own private link.</p>}
       <div className="doc-actions"><button type="button" className="button button-secondary" onClick={download}><Download size={15} aria-hidden="true" /> Download sample</button></div>
       {error && <p className="field-error" role="alert">{error}</p>}
+    </Card>
+    <Card title="PDF card" subtitle={draft.site.kind === "save_the_date" ? "A cover, your Save the Date and a closing page, to forward on WhatsApp or print (A5)." : "A cover, your invitation with both families, a page for each function and a page with the guest's QR code, to forward on WhatsApp or print (A5)."}>
+      <p className="field-help">This sample uses a sample guest, every function and a QR code that opens nothing. Each guest's own PDF, with their name and QR code, is made in Share after you create their link.</p>
+      <PdfMaker content={pdfContent({ card, language: lang, site: draft.site, partners: data.couplePartners, functions: data.functions, qr: qrPath("https://example.invalid/guest#sample-qr-code") })} fileName="invitation-sample.pdf" label="Make sample PDF" />
     </Card>
     <Card title="Video invitation">
       <p className="field-help"><Clapperboard size={15} aria-hidden="true" /> An 8-second video with falling petals, made on this device for each guest. Open a guest in Share, create their link, then choose “Make a video invitation”.</p>
@@ -337,8 +354,8 @@ function PhonePreview({ data, draft, photo, lang, setLang, guests, designId }: {
 function WhatsAppMock({ data, draft, photo, lang, guestName, fnRows }: { data: Data; draft: Draft; photo: string | null; lang: LanguageCode; guestName: string; fnRows: Data["functions"] }) {
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
-  const card = buildCardProps({ theme: draft.theme, accent: draft.useAccent ? draft.accent : null, overrides: draft.texts, language: lang, couple: data.coupleNames, greetingName: guestName, functions: fnRows, photoUrl: photo, showMonogram: draft.showMonogram });
-  const message = shareMessage(resolveTexts(lang, draft.texts), { name: guestName, couple: data.coupleNames, link: `${origin}/guest#…` });
+  const card = buildCardProps({ theme: draft.theme, accent: draft.useAccent ? draft.accent : null, overrides: draft.texts, language: lang, couple: data.coupleNames, greetingName: guestName, functions: fnRows, photoUrl: photo, showMonogram: draft.showMonogram, saveTheDate: saveTheDateOf(draft.site) });
+  const message = shareMessage(resolveTexts(lang, draft.texts, true, draft.site.kind), { name: guestName, couple: data.coupleNames, link: `${origin}/guest#…` });
   return <div className="wa-mock" lang={lang}>
     <div className="wa-header"><span className="wa-avatar" aria-hidden="true">{guestName.slice(0, 1)}</span><span>{guestName}</span></div>
     <div className="wa-chat">
@@ -435,10 +452,11 @@ function guestFunctions(data: Data, guest: Guest) {
   const invited = new Set(data.invitations.filter((row) => row.guest_id === guest.id).map((row) => row.function_id));
   return data.functions.filter((fn) => invited.has(fn.id));
 }
-type CardDesign = Pick<Design, "theme" | "accent" | "texts"> & { photo_data?: string | null; show_monogram?: boolean };
+type CardDesign = Pick<Design, "theme" | "accent" | "texts"> & { photo_data?: string | null; show_monogram?: boolean; site?: unknown };
 function guestCard(data: Data, design: CardDesign, guest: Guest, language: LanguageCode) {
-  return buildCardProps({ theme: design.theme, accent: design.accent, overrides: design.texts, language, couple: data.coupleNames, greetingName: guest.full_name, functions: guestFunctions(data, guest), photoUrl: design.photo_data ?? null, showMonogram: design.show_monogram !== false });
+  return buildCardProps({ theme: design.theme, accent: design.accent, overrides: design.texts, language, couple: data.coupleNames, greetingName: guest.full_name, functions: guestFunctions(data, guest), photoUrl: design.photo_data ?? null, showMonogram: design.show_monogram !== false, saveTheDate: saveTheDateOf(readSite(design.site)) });
 }
+const kindOf = (design: { site?: unknown }) => readSite(design.site).kind;
 
 type SendFilter = "all" | "unsent" | "unopened" | "opened";
 function timeAgo(value: string) {
@@ -509,7 +527,7 @@ function BulkLinks({ data, design }: { data: Data; design: Design }) {
       <p className="travel-warning" role="status">{links.length} link(s) created. They are shown only now; share each link with that person before leaving this page.</p>
       <ul className="doc-list">{links.map((row) => {
         const url = `${window.location.origin}/guest#${row.token}`;
-        const message = shareMessage(resolveTexts(isLanguage(row.language) ? row.language : "en", design.texts), { name: row.name, couple: data.coupleNames, link: url });
+        const message = shareMessage(resolveTexts(isLanguage(row.language) ? row.language : "en", design.texts, true, kindOf(design)), { name: row.name, couple: data.coupleNames, link: url });
         const contact = { phone: row.phone, email: row.email };
         return <li key={row.guestId} className="reference-row"><span className="row-title">{row.name}</span><span className="doc-actions">
           <a className="button button-quiet" href={whatsappUrl(contact.phone, message).url} target="_blank" rel="noopener noreferrer"><MessageCircle size={14} aria-hidden="true" /> WhatsApp</a>
@@ -533,7 +551,7 @@ function SharePanel({ data, design, guest, household, contact, onClose, onRecord
   const card = guestCard(data, design, guest, language);
   const [format, setFormat] = useState<CardFormat>("portrait");
   const qr = useMemo(() => format === "print" && link ? qrPath(link) : null, [format, link]);
-  const texts = resolveTexts(language, design.texts);
+  const texts = resolveTexts(language, design.texts, true, kindOf(design));
   const prepare = async () => {
     setBusy(true); setStatus({});
     const result = await prepareInvitationAction(data.wedding.id, guest.id);
@@ -589,6 +607,9 @@ function SharePanel({ data, design, guest, household, contact, onClose, onRecord
         </div>
         {!whatsapp.hasNumber && <p className="field-help">No international phone number (starting with +) is saved, so WhatsApp will ask you to pick the contact.</p>}
         <p className="field-help">WhatsApp and email links carry the text only. Attach the card image yourself, or use “Share card & message” on a phone.</p>
+        <details className="video-maker"><summary>PDF card for {guest.full_name}</summary>
+          <PdfMaker content={pdfContent({ card, language, site: readSite(design.site), partners: data.couplePartners, functions: guestFunctions(data, guest), qr: qrPath(link) })} fileName={cardFileName(guest.full_name).replace(/\.png$/, ".pdf")} message={message} />
+        </details>
         <VideoMaker card={card} theme={design.theme} accent={design.accent} language={language} guestName={guest.full_name} message={message} />
         <div className="doc-actions" role="group" aria-label="Record how you sent it">
           <span className="field-label">I sent it via</span>

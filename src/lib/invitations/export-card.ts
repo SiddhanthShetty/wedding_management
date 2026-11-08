@@ -41,6 +41,11 @@ async function embeddedFontCss(families: Set<string>): Promise<string> {
  * so Kannada, Tulu and Hindi look the same on every phone. Nothing is uploaded.
  */
 export async function svgElementToPng(svg: SVGSVGElement): Promise<Blob> {
+  return svgElementToImage(svg, "image/png");
+}
+
+/** Like svgElementToPng, as PNG or JPEG (JPEG pages keep the PDF card small enough for WhatsApp). */
+export async function svgElementToImage(svg: SVGSVGElement, type: "image/png" | "image/jpeg", quality = 0.88): Promise<Blob> {
   // Every format declares its pixel size in its viewBox (e.g. 1080×1920 for Story, 1748×2480 for print).
   const box = svg.viewBox.baseVal;
   const width = Math.round(box?.width || 1080); const height = Math.round(box?.height || 1350);
@@ -75,8 +80,9 @@ export async function svgElementToPng(svg: SVGSVGElement): Promise<Blob> {
     canvas.width = width; canvas.height = height;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("This browser cannot create images.");
+    if (type === "image/jpeg") { context.fillStyle = "#ffffff"; context.fillRect(0, 0, width, height); }
     context.drawImage(image, 0, 0, width, height);
-    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("The card could not be saved as an image.")), "image/png"));
+    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("The card could not be saved as an image.")), type, quality));
   } finally {
     URL.revokeObjectURL(url);
   }

@@ -9,14 +9,16 @@ export type InvitationCardProps = {
   photoUrl?: string | null;
   /** Initials shown in a small seal when there is no photo, e.g. "P · A". */
   monogram?: string | null;
+  /** Save the Date: the formatted date and the place; replaces the function list. */
+  saveTheDate?: { date: string; city: string } | null;
 };
 
 export const CARD_WIDTH = 1080;
 export const CARD_HEIGHT = 1350;
 // CSS variables from next/font. They must be set through `style` (SVG presentation attributes do
 // not resolve var()); the PNG export swaps them for the resolved family names and embeds the fonts.
-const SERIF = "var(--font-display-stack, Georgia, serif)";
-const SANS = "var(--font-sans-stack, system-ui, sans-serif)";
+export const SERIF = "var(--font-display-stack, Georgia, serif)";
+export const SANS = "var(--font-sans-stack, system-ui, sans-serif)";
 
 /** Splits text into lines of roughly `max` characters on word boundaries (good enough for all four scripts). */
 export function wrapText(text: string, max: number, maxLines = 4): string[] {
@@ -72,7 +74,7 @@ export function fitLines(text: string, options: { maxWidth: number; size: number
   return { lines: kept, size: options.minSize };
 }
 
-function Lines({ lines, x, y, size, gap = 1.3, fill, family = SERIF, weight = 400, style }: { lines: string[]; x: number; y: number; size: number; gap?: number; fill: string; family?: string; weight?: number; style?: string }) {
+export function Lines({ lines, x, y, size, gap = 1.3, fill, family = SERIF, weight = 400, style }: { lines: string[]; x: number; y: number; size: number; gap?: number; fill: string; family?: string; weight?: number; style?: string }) {
   return <text x={x} y={y} textAnchor="middle" fontSize={size} fontWeight={weight} fontStyle={style} fill={fill} style={{ fontFamily: family }}>
     {lines.map((line, index) => <tspan key={index} x={x} dy={index === 0 ? 0 : size * gap}>{line}</tspan>)}
   </text>;
@@ -88,7 +90,7 @@ function Garland({ x1, x2, y, sag, fill }: { x1: number; x2: number; y: number; 
   return <g>{buds}<path d={`M${x1} ${y} Q${(x1 + x2) / 2} ${y + 2 * sag} ${x2} ${y}`} stroke="#9bb07a" strokeWidth={2} fill="none" /></g>;
 }
 
-function Motifs({ theme, accent, soft }: { theme: ThemeId; accent: string; soft: string }) {
+export function Motifs({ theme, accent, soft }: { theme: ThemeId; accent: string; soft: string }) {
   switch (theme) {
     case "mallige":
       return <g>
@@ -178,10 +180,7 @@ export function InvitationCardBody(props: InvitationCardProps) {
   const shown = props.functions.slice(0, props.functions.length > room ? Math.max(0, room - 1) : room);
   const hidden = props.functions.length - shown.length;
   const rsvp = fitLines(props.rsvp, { maxWidth: 960, size: 25, minSize: 20, maxLines: 2 });
-  return <>
-    <rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={theme.background} />
-    <Motifs theme={theme.id} accent={accent} soft={theme.soft} />
-    {props.photoUrl ? <g>
+  const portrait = props.photoUrl ? <g>
       <defs><clipPath id={clipId}><circle cx={540} cy={photoCenter} r={photoRadius} /></clipPath></defs>
       <image href={props.photoUrl} x={540 - photoRadius} y={photoCenter - photoRadius} width={photoRadius * 2} height={photoRadius * 2} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clipId})`} />
       <circle cx={540} cy={photoCenter} r={photoRadius} fill="none" stroke={accent} strokeWidth={6} />
@@ -190,7 +189,37 @@ export function InvitationCardBody(props: InvitationCardProps) {
       <circle cx={540} cy={sealCenter} r={sealRadius} fill="none" stroke={accent} strokeWidth={3} />
       <circle cx={540} cy={sealCenter} r={sealRadius - 8} fill="none" stroke={accent} strokeWidth={1} />
       <Lines lines={[props.monogram]} x={540} y={sealCenter + 13} size={36} fill={accentText} family={SERIF} weight={600} />
-    </g> : null}
+    </g> : null;
+  if (props.saveTheDate) {
+    // Save the Date: a big label, the names, the date and the place. No function list or reply line.
+    const label = fitLines(props.heading.toLocaleUpperCase(), { maxWidth: 880, size: 64, minSize: 40, maxLines: 1 });
+    const stdCouple = fitLines(props.couple, { maxWidth: 920, size: 86, minSize: 52, maxLines: 2 });
+    const stdBody = fitLines(props.body, { maxWidth: 900, size: 34, minSize: 26, maxLines: 2 });
+    const date = fitLines(props.saveTheDate.date, { maxWidth: 900, size: 52, minSize: 34, maxLines: 2 });
+    let sy = props.photoUrl ? photoCenter + photoRadius + 80 : props.monogram ? sealCenter + sealRadius + 90 : top + 40;
+    const greetingAt = sy; sy += 92;
+    const labelAt = sy; sy += label.size + 50;
+    const coupleAt = sy; sy += (stdCouple.lines.length - 1) * stdCouple.size * 1.1 + 64;
+    const bodyAt = sy; sy += stdBody.lines.length * stdBody.size * 1.3 + 44;
+    const dateAt = sy; sy += (date.lines.length - 1) * date.size * 1.2 + 62;
+    return <>
+      <rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={theme.background} />
+      <Motifs theme={theme.id} accent={accent} soft={theme.soft} />
+      {portrait}
+      <Lines lines={greeting.lines} x={540} y={greetingAt} size={greeting.size} fill={theme.ink} family={SERIF} style="italic" />
+      <text x={540} y={labelAt} textAnchor="middle" fontSize={label.size} fontWeight={700} letterSpacing={label.size * 0.12} fill={accentText} style={{ fontFamily: SANS }}>{label.lines[0]}</text>
+      <Lines lines={stdCouple.lines} x={540} y={coupleAt} size={stdCouple.size} gap={1.1} fill={theme.ink} family={SERIF} weight={600} />
+      <Lines lines={stdBody.lines} x={540} y={bodyAt} size={stdBody.size} fill={theme.ink} family={SERIF} style="italic" />
+      <rect x={390} y={dateAt - date.size - 22} width={300} height={2} fill={accent} />
+      <Lines lines={date.lines} x={540} y={dateAt} size={date.size} gap={1.2} fill={theme.ink} family={SERIF} weight={600} />
+      {props.saveTheDate.city && <text x={540} y={sy} textAnchor="middle" fontSize={30} fontWeight={600} letterSpacing={6} fill={accentText} style={{ fontFamily: SANS }}>{props.saveTheDate.city.toLocaleUpperCase()}</text>}
+      <Lines lines={[props.closing]} x={540} y={1240} size={30} fill={accentText} family={SERIF} style="italic" />
+    </>;
+  }
+  return <>
+    <rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={theme.background} />
+    <Motifs theme={theme.id} accent={accent} soft={theme.soft} />
+    {portrait}
     <Lines lines={greeting.lines} x={540} y={greetingY} size={greeting.size} fill={theme.ink} family={SERIF} style="italic" />
     <Lines lines={heading.lines} x={540} y={headingY} size={heading.size} fill={accentText} family={SANS} weight={600} />
     <Lines lines={couple.lines} x={540} y={coupleY} size={couple.size} gap={1.12} fill={theme.ink} family={SERIF} weight={600} />
@@ -213,7 +242,7 @@ export function InvitationCardBody(props: InvitationCardProps) {
  * portal, and converted to PNG on the planner's device for sharing.
  */
 export function InvitationCard(props: InvitationCardProps) {
-  return <svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`} width="100%" role="img" aria-label={props.title ?? `${props.couple}: wedding invitation`} lang={props.lang} className="invitation-card">
+  return <svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`} width="100%" role="img" aria-label={props.title ?? `${props.couple}: ${props.saveTheDate ? "save the date" : "wedding invitation"}`} lang={props.lang} className="invitation-card">
     <InvitationCardBody {...props} />
   </svg>;
 }

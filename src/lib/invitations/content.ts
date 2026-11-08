@@ -69,12 +69,30 @@ export const DEFAULT_TEXTS: Record<LanguageCode, InvitationTexts> = {
   },
 };
 
+/** Save the Date wording: replaces the invitation lines that do not apply (drafts outside English). */
+export const SAVE_THE_DATE_TEXTS: Record<LanguageCode, Partial<InvitationTexts>> = {
+  en: { heading: "Save the date", body: "are getting married", closing: "Formal invitation to follow", button: "See the date",
+    share: "Namaskara {{name}}! Please save the date: {{couple}} are getting married. See the date here: {{link}}" },
+  hi: { heading: "तारीख़ याद रखें", body: "विवाह के बंधन में बंध रहे हैं", closing: "औपचारिक निमंत्रण शीघ्र", button: "तारीख़ देखें",
+    share: "नमस्ते {{name}}! कृपया तारीख़ याद रखें: {{couple}} विवाह कर रहे हैं। तारीख़ यहाँ देखें: {{link}}" },
+  kn: { heading: "ದಿನಾಂಕ ನೆನಪಿರಲಿ", body: "ವಿವಾಹ ಬಂಧನಕ್ಕೆ ಒಳಗಾಗುತ್ತಿದ್ದಾರೆ", closing: "ಔಪಚಾರಿಕ ಆಹ್ವಾನ ಶೀಘ್ರದಲ್ಲೇ", button: "ದಿನಾಂಕ ನೋಡಿ",
+    share: "ನಮಸ್ಕಾರ {{name}}! ದಯವಿಟ್ಟು ದಿನಾಂಕ ನೆನಪಿಡಿ: {{couple}} ಅವರ ವಿವಾಹ. ದಿನಾಂಕ ಇಲ್ಲಿ ನೋಡಿ: {{link}}" },
+  tcy: { heading: "ದಿನ ನೆನಪು ಮಲ್ಪುಲೆ", body: "ಮದಿಮೆ ಆಪುಂಡು", closing: "ಲೆಪ್ಪು ಬೊಕ್ಕ ಬರ್ಪುಂಡು", button: "ದಿನ ತೂಲೆ",
+    share: "ನಮಸ್ಕಾರ {{name}}! ದಿನ ನೆನಪು ಮಲ್ಪುಲೆ: {{couple}}ನ ಮದಿಮೆ. ದಿನ ಮುಲ್ಪ ತೂಲೆ: {{link}}" },
+};
+
+/** The built-in wording for a language and kind of design. */
+export function defaultTexts(language: LanguageCode, kind: "invitation" | "save_the_date" = "invitation"): InvitationTexts {
+  return kind === "save_the_date" ? { ...DEFAULT_TEXTS[language], ...SAVE_THE_DATE_TEXTS[language] } : DEFAULT_TEXTS[language];
+}
+
 export type TextOverrides = Partial<Record<LanguageCode, Partial<InvitationTexts>>>;
 
 /** Built-in wording for a language with the couple's edits on top. Blank edits fall back to the default. */
-export function resolveTexts(language: LanguageCode, overrides: TextOverrides | Partial<InvitationTexts> | null | undefined, perLanguage = true): InvitationTexts {
+export function resolveTexts(language: LanguageCode, overrides: TextOverrides | Partial<InvitationTexts> | null | undefined, perLanguage = true, kind: "invitation" | "save_the_date" = "invitation"): InvitationTexts {
   const custom = (perLanguage ? (overrides as TextOverrides | null)?.[language] : overrides as Partial<InvitationTexts>) ?? {};
-  return Object.fromEntries(TEXT_KEYS.map((key) => [key, custom[key]?.trim() ? custom[key]!.trim() : DEFAULT_TEXTS[language][key]])) as InvitationTexts;
+  const defaults = defaultTexts(language, kind);
+  return Object.fromEntries(TEXT_KEYS.map((key) => [key, custom[key]?.trim() ? custom[key]!.trim() : defaults[key]])) as InvitationTexts;
 }
 
 export const PLACEHOLDERS = ["name", "couple", "link"] as const;
@@ -154,3 +172,22 @@ export function readableAccent(themeId: ThemeId, customAccent: string | null | u
 }
 
 export const themeById = (id: string) => THEMES.find((theme) => theme.id === id) ?? THEMES[0]!;
+
+/** Darkens a colour step by step (towards black) until it reaches 4.5:1 on `background`. */
+export function darkenToContrast(hex: string, background = "#ffffff", target = 4.5): string {
+  const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  for (let step = 0; step <= 20; step += 1) {
+    const factor = 1 - step * 0.05;
+    const color = `#${rgb.map((v) => Math.round(v * factor).toString(16).padStart(2, "0")).join("")}`;
+    if (contrastRatio(color, background) >= target) return color;
+  }
+  return "#000000";
+}
+
+/**
+ * Accent-coloured text on the guest page itself (white cards on a light page), as opposed to text
+ * on the card's own theme background. Dark themes' gold is readable on maroon, not on white.
+ */
+export function pageAccentText(themeId: ThemeId, customAccent: string | null | undefined): string {
+  return darkenToContrast(readableAccent(themeId, customAccent), "#ffffff");
+}

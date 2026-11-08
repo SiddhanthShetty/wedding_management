@@ -12,6 +12,16 @@ import { moderateBlessingAction } from "@/app/actions/invitations";
 type Data = InvitationWorkspace;
 type Update = <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => void;
 
+/** Save the Date: the wedding date (required) and the place. */
+export function SaveTheDateFields({ site, update, readOnly }: { site: InvitationSite; update: Update; readOnly: boolean }) {
+  return <Group title="Date and place" summary={site.save_the_date.date || "Choose the date"} open>
+    <fieldset className="field-grid" disabled={readOnly}>
+      <TextInput label="Wedding date" type="date" required value={site.save_the_date.date} onChange={(event) => update("save_the_date", { ...site.save_the_date, date: event.target.value })} hint="Shown large on the card, with a countdown and an all-day calendar entry for guests." />
+      <TextInput label="City or place" maxLength={60} value={site.save_the_date.city} onChange={(event) => update("save_the_date", { ...site.save_the_date, city: event.target.value })} placeholder="Udupi" />
+    </fieldset>
+  </Group>;
+}
+
 /** One collapsible group of the Content step. */
 function Group({ title, summary, children, open = false }: { title: string; summary: string; children: React.ReactNode; open?: boolean }) {
   return <details className="studio-group" open={open}>
@@ -48,6 +58,8 @@ export function EssentialsFields({ site, update, partners, readOnly }: { site: I
 
 /** Story, guest information, FAQ, palettes, livestream, closing, social and wording fine-tuning. */
 export function WebsiteContentFields({ data, site, update, readOnly }: { data: Data; site: InvitationSite; update: Update; readOnly: boolean }) {
+  // A Save the Date shows the date, story, photos and closing only; the rest belongs to the full invitation.
+  const full = site.kind !== "save_the_date";
   const setStory = (index: number, patch: Partial<StoryMoment>) => update("story", site.story.map((item, i) => i === index ? { ...item, ...patch } : item));
   const setFaq = (index: number, patch: Partial<Faq>) => update("faqs", site.faqs.map((item, i) => i === index ? { ...item, ...patch } : item));
   const setInfo = (index: number, patch: Partial<InfoCard>) => update("info_cards", site.info_cards.map((item, i) => i === index ? { ...item, ...patch } : item));
@@ -71,7 +83,7 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
       </fieldset>
     </Group>
 
-    <Group title="Guest information" summary={count(site.info_cards.length, "card", "cards")}>
+    {full && <Group title="Guest information" summary={count(site.info_cards.length, "card", "cards")}>
       <fieldset className="wording" disabled={readOnly}>
         <p className="field-help">Where to stay, how to get there, or who guests can call. Up to 6 cards. Personal room and pickup details are shown to each guest separately.</p>
         {site.info_cards.map((card, index) => <div key={index} className="site-row">
@@ -82,9 +94,9 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
         </div>)}
         {site.info_cards.length < 6 && <button type="button" className="button button-secondary" onClick={() => update("info_cards", [...site.info_cards, { title: "", text: "", phone: "" }])}><Plus size={14} aria-hidden="true" /> Add a card</button>}
       </fieldset>
-    </Group>
+    </Group>}
 
-    <Group title="Good to know (FAQ)" summary={count(site.faqs.length, "question", "questions")}>
+    {full && <Group title="Good to know (FAQ)" summary={count(site.faqs.length, "question", "questions")}>
       <fieldset className="wording" disabled={readOnly}>
         {!site.faqs.length && <p className="field-help">For example parking, the muhurtham time, rituals explained for friends, what to wear. Up to 12.</p>}
         {site.faqs.map((faq, index) => <div key={index} className="site-row">
@@ -94,9 +106,9 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
         </div>)}
         {site.faqs.length < 12 && <button type="button" className="button button-secondary" onClick={() => update("faqs", [...site.faqs, { question: "", answer: "" }])}><Plus size={14} aria-hidden="true" /> Add a question</button>}
       </fieldset>
-    </Group>
+    </Group>}
 
-    {data.functions.length > 0 && <Group title="Colour palette per function" summary={count(Object.keys(site.palettes).length, "palette", "palettes")}>
+    {full && data.functions.length > 0 && <Group title="Colour palette per function" summary={count(Object.keys(site.palettes).length, "palette", "palettes")}>
       <fieldset className="wording" disabled={readOnly}>
         <p className="field-help">Up to 5 colours as hex codes, separated by spaces, e.g. <code>#E9B44C #7D1747</code>. Guests see them as swatches next to the dress code.</p>
         {data.functions.map((fn) => <div key={fn.id} className="site-palette-row">
@@ -106,9 +118,9 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
       </fieldset>
     </Group>}
 
-    <Group title="Livestream" summary={site.livestream_url ? "Link added" : "None"}>
+    {full && <Group title="Livestream" summary={site.livestream_url ? "Link added" : "None"}>
       <TextInput label="Livestream link (optional)" type="url" value={site.livestream_url ?? ""} onChange={(event) => update("livestream_url", event.target.value || null)} placeholder="https://" hint="Shown as “Watch live” from 30 minutes before a function until 6 hours after it starts." disabled={readOnly} />
-    </Group>
+    </Group>}
 
     <Group title="Closing and family" summary={site.closing.names.length ? count(site.closing.names.length, "name", "names") : "Off"}>
       <fieldset className="field-grid" disabled={readOnly}>

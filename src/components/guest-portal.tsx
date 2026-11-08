@@ -12,8 +12,8 @@ import { InvitationCard } from "@/components/invitation-card";
 import { BlessingHeader, BlessingsSection, CelebrationBurst, ClosingSection, CountdownBanner, FamilyLines, FaqSection, GallerySection, InfoSection, KacheriVeena, MantapaThoranam, MusicButton, OpeningOverlay, Palette, SectionNav, StorySection } from "@/components/portal-site";
 import { nextFunctionStart, readSite, type CelebrationEffect, type InvitationSite } from "@/lib/invitations/site";
 import { resolveFunctionSchedule } from "@/lib/planning/schedule";
-import { buildCardProps, monogramFor } from "@/lib/invitations/card-data";
-import { isLanguage, LANGUAGES, readableAccent, THEMES, type LanguageCode, type ThemeId } from "@/lib/invitations/content";
+import { buildCardProps, monogramFor, saveTheDateOf } from "@/lib/invitations/card-data";
+import { isLanguage, LANGUAGES, pageAccentText, readableAccent, THEMES, type LanguageCode, type ThemeId } from "@/lib/invitations/content";
 
 const initial: GuestActionState = {};
 const LANGUAGE_KEY = "wedding-desk:portal-language";
@@ -262,6 +262,7 @@ function PortalInvitationCard({data}:{data:GuestPortalData}){
     couple:data.couple_names.length?data.couple_names.join(" & "):"Our family",greetingName:portalGuest?.full_name??data.household.name,
     functions:[...seen.values()].map((fn)=>({name:fn.name,function_date:fn.date,start_time:fn.start_time,venue_name:fn.location})),
     photoUrl:data.invitation.photo_url!==undefined?data.invitation.photo_url:data.invitation.has_photo?"/guest/photo":null,showMonogram:data.invitation.show_monogram!==false,
+    saveTheDate:saveTheDateOf(readSite(data.site)),
   });
   return <div className="guest-portal-invitation"><InvitationCard {...card}/></div>;
 }
@@ -308,6 +309,17 @@ function PreviewReplies({data}:{data:GuestPortalData}){
   </section>;
 }
 
+/** Save the Date: the day itself, a calendar entry for it, and a note that the invitation will follow. */
+function SaveTheDateNote({date,couple,timezone}:{date:string;couple:string;timezone:string}){
+  const t=useT(); const format=useFormatters();
+  return <section id="plan" className="guest-portal-person portal-std" aria-labelledby="std-title">
+    <h2 id="std-title">{t.stdTitle}</h2>
+    <p className="portal-std-date">{format.date(date)}</p>
+    <p className="guest-portal-meta">{t.stdFollow}</p>
+    <div className="guest-portal-link-actions"><button type="button" className="itinerary-action" onClick={()=>downloadIcs({id:`save-the-date-${date}`,name:couple,date,start_time:null,end_time:null,timezone,location:null,map_url:null,dress_code:null,status:"confirmed"})}><CalendarPlus size={15} aria-hidden="true"/> {t.addToCalendar}</button></div>
+  </section>;
+}
+
 function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;replay?:number;embedded?:boolean}) {
   const t=useT(); const locale=useLocale();
   const preview=data.preview;
@@ -325,21 +337,26 @@ function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;repl
     seen.set(fn.id,{name:fn.name,startsAt});
   }
   const functionStarts=[...seen.values()];
+  // Save the Date: count down to the wedding day (midnight where the wedding is) instead of a function.
+  const std=site.kind==="save_the_date"&&site.save_the_date.date?site.save_the_date:null;
+  const weddingZone=data.people.flatMap((person)=>person.invitations)[0]?.function.timezone??"Asia/Kolkata";
+  let stdStart:string|null=null;
+  if(std){ try{ stdStart=resolveFunctionSchedule({date:std.date,startTime:"00:00",endTime:"",timezone:weddingZone}).startsAt; }catch{ stdStart=null; } }
   const now=new Date();
-  const target=nextFunctionStart(functionStarts,now);
-  const liveTarget=functionStarts.filter((fn)=>fn.startsAt).map((fn)=>({name:fn.name,startsAt:new Date(fn.startsAt!)})).sort((a,b)=>Math.abs(a.startsAt.getTime()-now.getTime())-Math.abs(b.startsAt.getTime()-now.getTime()))[0]??null;
+  const target=std?(stdStart&&new Date(stdStart)>now?{name:t.theWedding,startsAt:new Date(stdStart)}:null):nextFunctionStart(functionStarts,now);
+  const liveTarget=std?null:functionStarts.filter((fn)=>fn.startsAt).map((fn)=>({name:fn.name,startsAt:new Date(fn.startsAt!)})).sort((a,b)=>Math.abs(a.startsAt.getTime()-now.getTime())-Math.abs(b.startsAt.getTime()-now.getTime()))[0]??null;
   const sections=[
     data.invitation?{id:"invitation",label:t.navInvitation}:null,
     site.story.length?{id:"story",label:site.titles.story||t.navStory}:null,
     data.media?.gallery.length?{id:"gallery",label:t.navGallery}:null,
-    {id:"plan",label:t.navPlan},
-    site.info_cards.length?{id:"info",label:site.titles.info||t.navInfo}:null,
-    {id:"reply",label:t.navReply},
-    site.faqs.length?{id:"faq",label:site.titles.faq||t.navFaq}:null,
-    site.blessings_enabled?{id:"blessings",label:site.titles.blessings||t.navBlessings}:null,
+    std?null:{id:"plan",label:t.navPlan},
+    !std&&site.info_cards.length?{id:"info",label:site.titles.info||t.navInfo}:null,
+    std?null:{id:"reply",label:t.navReply},
+    !std&&site.faqs.length?{id:"faq",label:site.titles.faq||t.navFaq}:null,
+    !std&&site.blessings_enabled?{id:"blessings",label:site.titles.blessings||t.navBlessings}:null,
   ].filter((item):item is {id:string;label:string}=>Boolean(item));
   const theme=THEMES.find((item)=>item.id===data.invitation?.theme);
-  const themeStyle=theme?{["--portal-accent" as string]:data.invitation?.accent||theme.accent,["--portal-accent-text" as string]:readableAccent(theme.id,data.invitation?.accent??null),["--portal-theme-bg" as string]:theme.background,["--portal-theme-ink" as string]:theme.ink} as React.CSSProperties:undefined;
+  const themeStyle=theme?{["--portal-accent" as string]:data.invitation?.accent||theme.accent,["--portal-accent-text" as string]:pageAccentText(theme.id,data.invitation?.accent??null),["--portal-accent-on-theme" as string]:readableAccent(theme.id,data.invitation?.accent??null),["--portal-theme-bg" as string]:theme.background,["--portal-theme-ink" as string]:theme.ink} as React.CSSProperties:undefined;
   const monogram=data.invitation?.show_monogram!==false&&data.couple_names.length?monogramFor(couple)??undefined:undefined;
   return <PortalEffect.Provider value={site.effect}><PortalFrame style={themeStyle} embedded={embedded} className={`portal-template-${site.template}`}>
     {opened>0&&<CelebrationBurst key={`open-${opened}`} kind={site.effect}/>}
@@ -358,6 +375,7 @@ function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;repl
     </section>
     <StorySection t={t} site={site}/>
     <GallerySection t={t} media={data.media}/>
+    {std?<SaveTheDateNote date={std.date} couple={couple} timezone={weddingZone}/>:<>
     <PortalItinerary data={data} site={site}/>
     <InfoSection t={t} site={site}/>
     {preview?<div id="reply" className="portal-reply"><PreviewReplies data={data}/></div>:<div id="reply" className="portal-reply">
@@ -372,6 +390,7 @@ function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;repl
     </div>}
     <FaqSection t={t} site={site}/>
     <BlessingsSection t={t} site={site} blessings={data.blessings??[]} pending={data.my_pending_blessings??0} preview={Boolean(preview)}/>
+    </>}
     <ClosingSection t={t} site={site}/>
     <aside className="guest-portal-help"><p>{t.contactHosts}</p></aside>
   </PortalFrame></PortalEffect.Provider>;

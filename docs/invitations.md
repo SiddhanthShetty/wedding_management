@@ -103,7 +103,20 @@ The studio follows the structure of modern invitation builders, with our own des
   - Files are checked by their first bytes on the server, whatever their name or claimed type.
 - **Known limit.** Each guest page now loads up to about 10 files. Guest reads are limited to 120 per minute per network address. Media responses are cached for an hour, but a large group on one venue Wi-Fi opening links at the same moment could still reach the limit.
 
-**Next milestone (not built):** M3, a multi-page PDF card and Save the Date as its own invitation.
+## Invitation studio (Milestone 3, 2026-11)
+
+- **What are you sending?** Each design is either a full invitation or a **Save the Date**. A Save the Date has:
+  - its own card: a large "Save the date" label, your names, the date and the place;
+  - its own built-in wording in all four languages (Hindi, Kannada and Tulu are drafts);
+  - a guest page with a countdown to the wedding day, an all-day "Add to calendar" entry, your story, photos and closing, and a note that the invitation will follow. It has no schedule, replies, FAQ or blessings.
+
+  To send a Save the Date first and the invitation later, make two designs and switch which one guests see. The studio warns if the design guests currently see becomes a Save the Date after invitations were sent, because replies would disappear from their page.
+- **PDF card (A5).** Made on your phone or computer with no server or new dependency; `src/lib/invitations/pdf.ts` writes one JPEG per page.
+  - Invitation: a cover (photo, or your initials), the invitation with the blessing line and both families' lines, one page per function (date, time, place and colour palette), and a last page with the guest's QR code, closing family names and hashtag.
+  - Save the Date: the cover, the card and the closing page.
+  - A sample is in Extras. Each guest's own PDF, with their QR code, is in Share after their link is created. You can share it straight to WhatsApp where the browser supports file sharing, or download it. A 5-page sample came to about 0.8 MB.
+- **Contrast fix.** Accent text on the white guest page (blessing line, Save the Date date, hashtag, music button) now uses a colour checked at 4.5:1 against white. Before this, the gold of dark themes such as Veena and Kanchi was hard to read there. The countdown keeps the theme's own readable accent, because it sits on the theme background.
+- **No database change** in this milestone: the Save the Date details live in the design's website content.
 
 ### Pending decisions
 

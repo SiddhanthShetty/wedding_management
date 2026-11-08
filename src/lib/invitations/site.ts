@@ -28,7 +28,12 @@ export const EFFECTS = [
 ] as const;
 export type CelebrationEffect = typeof EFFECTS[number]["id"];
 
+export type DesignKind = "invitation" | "save_the_date";
+
 export type InvitationSite = {
+  /** A full invitation, or a Save the Date sent months ahead (just names, date and place; no replies). */
+  kind: DesignKind;
+  save_the_date: { date: string; city: string };
   template: TemplateId;
   opening_style: OpeningStyle;
   /** Plays when a guest opens the invitation and after they reply yes. Skipped for reduced motion. */
@@ -61,6 +66,7 @@ export type InvitationSite = {
 export const BLESSING_PRESETS = ["|| Shree Ganeshaya Namah ||", "॥ ಶ್ರೀ ಗಣೇಶಾಯ ನಮಃ ॥", "॥ श्री गणेशाय नमः ॥", "|| Om ||"] as const;
 
 export const EMPTY_SITE: InvitationSite = {
+  kind: "invitation", save_the_date: { date: "", city: "" },
   template: "classic", opening_style: "envelope", effect: "petals",
   opening_animation: true, countdown: true, blessings_enabled: false, livestream_url: null, story: [], faqs: [], palettes: {},
   blessing_header: "", parents: { one: "", two: "" }, info_cards: [], closing: { title: "", names: [] }, hashtag: "", instagram: [],
@@ -69,6 +75,11 @@ export const EMPTY_SITE: InvitationSite = {
 
 const text = (max: number) => z.string().trim().max(max);
 const siteSchema = z.object({
+  kind: z.enum(["invitation", "save_the_date"]).catch("invitation").default("invitation"),
+  save_the_date: z.object({
+    date: z.union([z.literal(""), z.iso.date("Choose the wedding date for the Save the Date.")]).default(""),
+    city: text(60).default(""),
+  }).default({ date: "", city: "" }),
   template: z.enum(TEMPLATES.map((item) => item.id) as [TemplateId, ...TemplateId[]]).catch("classic").default("classic"),
   opening_style: z.enum(OPENING_STYLES.map((item) => item.id) as [OpeningStyle, ...OpeningStyle[]]).catch("envelope").default("envelope"),
   effect: z.enum(EFFECTS.map((item) => item.id) as [CelebrationEffect, ...CelebrationEffect[]]).catch("petals").default("petals"),
@@ -96,6 +107,7 @@ const siteSchema = z.object({
 export function parseSite(input: unknown): InvitationSite {
   const result = siteSchema.safeParse(input ?? {});
   if (!result.success) throw new Error(result.error.issues[0]?.message ?? "Check the website content.");
+  if (result.data.kind === "save_the_date" && !result.data.save_the_date.date) throw new Error("Choose the wedding date for the Save the Date.");
   // The database keeps the whole website under 64 KB; stop a little earlier with a clear message.
   if (new TextEncoder().encode(JSON.stringify(result.data)).length > 60_000) throw new Error("The website content is too long. Shorten the story, FAQ or guest information.");
   return result.data;

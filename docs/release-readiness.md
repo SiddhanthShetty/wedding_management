@@ -188,3 +188,9 @@ Still unverified: keyboard tab behaviour and signed-in mobile forms in a real br
 - **Checked on the live project afterwards:** migration history matches; `invitation_media` has RLS on and its 4 policies. `authenticated` can select, insert and delete, and update only `caption` and `position`. The 4 read functions can be run by `anon` only (plus the service role). The private helper functions have no API grants.
 - **Checks run:** `tsc --noEmit` passed. `vitest run` passed 182 tests in 14 files. `next build` passed. The Playwright smoke tests passed 5 tests, including a new one: media addresses refuse anonymous, cross-site and session-less requests. The templates, openings, effects and gallery were also checked visually on a temporary demo page with fake data (since deleted).
 - **Not run:** a real music or photo upload against the database, and music playback (the demo had no audio file).
+
+## Invitation studio, Milestone 3 (2026-11)
+
+- **No new migration.** Save the Date settings are stored in `invitation_designs.site`, and the PDF is made on the device.
+- **Checks run:** `tsc --noEmit` passed. `vitest run` passed 190 tests in 15 files. `next build` passed. The Playwright smoke tests passed 5 tests. A 5-page sample PDF was made in the browser and its pages checked visually (header, page count, end of file). The Save the Date guest page was checked visually on a temporary demo page with fake data, since deleted.
+- **Not run:** sharing a PDF to WhatsApp from a real phone, and opening the PDF in a separate PDF viewer app.
