@@ -11,6 +11,7 @@ import { Button } from "@/components/ui";
 import { InvitationCard } from "@/components/invitation-card";
 import { BlessingHeader, BlessingsSection, CelebrationBurst, ClosingSection, CountdownBanner, ExternalInvitationLink, FamilyLines, FaqSection, GallerySection, InfoSection, KacheriVeena, MantapaThoranam, MusicButton, OpeningOverlay, Palette, SectionNav, StorySection } from "@/components/portal-site";
 import { nextFunctionStart, readSite, type CelebrationEffect, type InvitationSite } from "@/lib/invitations/site";
+import { pageView } from "@/lib/invitations/page-style";
 import { resolveFunctionSchedule } from "@/lib/planning/schedule";
 import { artworkOf, buildCardProps, monogramFor, saveTheDateOf } from "@/lib/invitations/card-data";
 import { isLanguage, LANGUAGES, pageAccentText, readableAccent, THEMES, type LanguageCode, type ThemeId } from "@/lib/invitations/content";
@@ -323,7 +324,9 @@ function SaveTheDateNote({date,couple,timezone}:{date:string;couple:string;timez
   </section>;
 }
 
-function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;replay?:number;embedded?:boolean}) {
+function PortalContent({data:raw,replay=0,embedded=false}:{data:GuestPortalData;replay?:number;embedded?:boolean}) {
+  // The simple reply page (the default) leaves out the invitation-website extras; see page-style.ts.
+  const data=pageView(raw);
   const t=useT(); const locale=useLocale();
   const preview=data.preview;
   const [opened,setOpened]=useState(0);

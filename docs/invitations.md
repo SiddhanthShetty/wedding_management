@@ -140,3 +140,19 @@ Automatic email (Option B) and WhatsApp Business sending (Option C). See `messag
 - **Invitation website elsewhere.** Content → "Invitation website elsewhere" adds an https link and button text. Guests see "See our full invitation ↗", with a note to reply on this page, so there's still one guest list.
 - **Exports** now inline same-origin images (artwork and couple photo) before drawing, because an SVG drawn as an image can't load other addresses.
 - Migration `20261118100000_invitation_artwork.sql` adds the `artwork` kind and includes it in the guest and preview media listings. Additive only.
+
+## Simple studio and simple reply page (2026-11-08)
+
+The design side now lives mainly on an invitation website made elsewhere; this app sends links and collects replies.
+
+- **Studio, by default, has 3 steps:**
+  1. **Card:** "Use our own artwork" (upload, name band) or "Design it here" (theme, photo or initials, card wording).
+  2. **Guest page:** page style, both families' lines, the blessing line, guest information cards, and the link to the invitation website.
+  3. **Send & track:** family preview link, private links and messages, filters, send in order, card image and PDF.
+
+  Save the Date, templates, openings, effects, music, gallery, story, FAQ, palettes, livestream, closing, hashtag, wording fine-tuning, the Extras samples, the video maker and blessing approval are hidden.
+- **"Show the full design studio"** at the bottom of the Invitations page brings back all 4 steps and every option. It's remembered per browser and is only a view preference.
+- **Guest page style** (`site.page_style`, default `simple`, stored with the design, no migration):
+  - *Simple reply page* shows the card or artwork, the website button, countdown, each guest's plan, replies, travel and stay, meal and assistance notes, guest information and the contact line. It's built by `pageView()` in `src/lib/invitations/page-style.ts`, which hides the extras without deleting them.
+  - *Full invitation website* shows everything, exactly as before.
+- Existing designs became *simple* when this shipped; their saved story, gallery and so on reappear if the style is set to *full*.

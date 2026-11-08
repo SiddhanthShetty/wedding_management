@@ -57,9 +57,11 @@ export function EssentialsFields({ site, update, partners, readOnly }: { site: I
 }
 
 /** Story, guest information, FAQ, palettes, livestream, closing, social and wording fine-tuning. */
-export function WebsiteContentFields({ data, site, update, readOnly }: { data: Data; site: InvitationSite; update: Update; readOnly: boolean }) {
+export function WebsiteContentFields({ data, site, update, readOnly, simple = false }: { data: Data; site: InvitationSite; update: Update; readOnly: boolean; simple?: boolean }) {
   // A Save the Date shows the date, story, photos and closing only; the rest belongs to the full invitation.
   const full = site.kind !== "save_the_date";
+  // The simple studio edits only what the simple reply page shows.
+  const extras = !simple;
   const setStory = (index: number, patch: Partial<StoryMoment>) => update("story", site.story.map((item, i) => i === index ? { ...item, ...patch } : item));
   const setFaq = (index: number, patch: Partial<Faq>) => update("faqs", site.faqs.map((item, i) => i === index ? { ...item, ...patch } : item));
   const setInfo = (index: number, patch: Partial<InfoCard>) => update("info_cards", site.info_cards.map((item, i) => i === index ? { ...item, ...patch } : item));
@@ -70,7 +72,7 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
     update("palettes", palettes);
   };
   return <>
-    <Group title="Our story" summary={count(site.story.length, "moment", "moments")}>
+    {extras && <Group title="Our story" summary={count(site.story.length, "moment", "moments")}>
       <fieldset className="wording" disabled={readOnly}>
         {!site.story.length && <p className="field-help">For example how you met, the proposal, the engagement. Up to 8 moments.</p>}
         {site.story.map((moment, index) => <div key={index} className="site-row">
@@ -81,7 +83,7 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
         </div>)}
         {site.story.length < 8 && <button type="button" className="button button-secondary" onClick={() => update("story", [...site.story, { when: "", title: "", text: "" }])}><Plus size={14} aria-hidden="true" /> Add a moment</button>}
       </fieldset>
-    </Group>
+    </Group>}
 
     {full && <Group title="Guest information" summary={count(site.info_cards.length, "card", "cards")}>
       <fieldset className="wording" disabled={readOnly}>
@@ -96,7 +98,7 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
       </fieldset>
     </Group>}
 
-    {full && <Group title="Good to know (FAQ)" summary={count(site.faqs.length, "question", "questions")}>
+    {full && extras && <Group title="Good to know (FAQ)" summary={count(site.faqs.length, "question", "questions")}>
       <fieldset className="wording" disabled={readOnly}>
         {!site.faqs.length && <p className="field-help">For example parking, the muhurtham time, rituals explained for friends, what to wear. Up to 12.</p>}
         {site.faqs.map((faq, index) => <div key={index} className="site-row">
@@ -108,7 +110,7 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
       </fieldset>
     </Group>}
 
-    {full && data.functions.length > 0 && <Group title="Colour palette per function" summary={count(Object.keys(site.palettes).length, "palette", "palettes")}>
+    {full && extras && data.functions.length > 0 && <Group title="Colour palette per function" summary={count(Object.keys(site.palettes).length, "palette", "palettes")}>
       <fieldset className="wording" disabled={readOnly}>
         <p className="field-help">Up to 5 colours as hex codes, separated by spaces, e.g. <code>#E9B44C #7D1747</code>. Guests see them as swatches next to the dress code.</p>
         {data.functions.map((fn) => <div key={fn.id} className="site-palette-row">
@@ -125,25 +127,25 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
       </fieldset>
     </Group>
 
-    {full && <Group title="Livestream" summary={site.livestream_url ? "Link added" : "None"}>
+    {full && extras && <Group title="Livestream" summary={site.livestream_url ? "Link added" : "None"}>
       <TextInput label="Livestream link (optional)" type="url" value={site.livestream_url ?? ""} onChange={(event) => update("livestream_url", event.target.value || null)} placeholder="https://" hint="Shown as “Watch live” from 30 minutes before a function until 6 hours after it starts." disabled={readOnly} />
     </Group>}
 
-    <Group title="Closing and family" summary={site.closing.names.length ? count(site.closing.names.length, "name", "names") : "Off"}>
+    {extras && <Group title="Closing and family" summary={site.closing.names.length ? count(site.closing.names.length, "name", "names") : "Off"}>
       <fieldset className="field-grid" disabled={readOnly}>
         <TextInput label="Heading" maxLength={80} value={site.closing.title} onChange={(event) => update("closing", { ...site.closing, title: event.target.value })} placeholder="With best compliments from" hint="Blank uses the built-in heading in each guest's language." />
         <TextArea label="Family names, one per line" rows={4} value={site.closing.names.join("\n")} onChange={(event) => update("closing", { ...site.closing, names: event.target.value.split("\n").map((name) => name.trimStart()).slice(0, 16) })} placeholder={"Shetty family, Udupi\nRai family, Mangaluru"} hint="Up to 16 lines." />
       </fieldset>
-    </Group>
+    </Group>}
 
-    <Group title="Hashtag and Instagram" summary={[site.hashtag, ...site.instagram.map((handle) => `@${handle}`)].filter(Boolean).join(" · ") || "None"}>
+    {extras && <Group title="Hashtag and Instagram" summary={[site.hashtag, ...site.instagram.map((handle) => `@${handle}`)].filter(Boolean).join(" · ") || "None"}>
       <fieldset className="field-grid" disabled={readOnly}>
         <TextInput label="Wedding hashtag" maxLength={40} value={site.hashtag} onChange={(event) => update("hashtag", event.target.value.replace(/\s+/g, ""))} placeholder="#RaviWedsMeera" />
         <HandlesInput value={site.instagram} onChange={(handles) => update("instagram", handles)} />
       </fieldset>
-    </Group>
+    </Group>}
 
-    <Group title="Opening screen and section titles" summary="Fine-tune the wording">
+    {extras && <Group title="Opening screen and section titles" summary="Fine-tune the wording">
       <fieldset className="field-grid" disabled={readOnly}>
         <p className="field-help field-full">Leave any line blank to use the built-in wording in each guest’s language. What you write here is shown as written, in every language.</p>
         <TextInput label="Opening screen heading" maxLength={80} value={site.reveal.title} onChange={(event) => update("reveal", { ...site.reveal, title: event.target.value })} placeholder="You are cordially invited" />
@@ -153,7 +155,7 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
         <TextInput label="“Good to know” heading" maxLength={60} value={site.titles.faq} onChange={(event) => update("titles", { ...site.titles, faq: event.target.value })} placeholder="Good to know" />
         <TextInput label="“Blessings” heading" maxLength={60} value={site.titles.blessings} onChange={(event) => update("titles", { ...site.titles, blessings: event.target.value })} placeholder="Blessings" />
       </fieldset>
-    </Group>
+    </Group>}
   </>;
 }
 

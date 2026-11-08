@@ -32,7 +32,11 @@ export type DesignKind = "invitation" | "save_the_date";
 
 export type NameBand = "none" | "top" | "bottom";
 
+/** "simple": a reply page (card, plan, replies, travel). "full": the whole invitation website. */
+export type PageStyle = "simple" | "full";
+
 export type InvitationSite = {
+  page_style: PageStyle;
   /** Use a finished invitation image made elsewhere instead of the drawn card, and where to write each guest's name on it. */
   artwork: { enabled: boolean; name_band: NameBand };
   /** An invitation website made elsewhere, linked from the guest page. Replies still happen here. */
@@ -72,6 +76,7 @@ export type InvitationSite = {
 export const BLESSING_PRESETS = ["|| Shree Ganeshaya Namah ||", "॥ ಶ್ರೀ ಗಣೇಶಾಯ ನಮಃ ॥", "॥ श्री गणेशाय नमः ॥", "|| Om ||"] as const;
 
 export const EMPTY_SITE: InvitationSite = {
+  page_style: "simple",
   artwork: { enabled: false, name_band: "bottom" }, external_link: { url: null, label: "" },
   kind: "invitation", save_the_date: { date: "", city: "" },
   template: "classic", opening_style: "envelope", effect: "petals",
@@ -82,6 +87,7 @@ export const EMPTY_SITE: InvitationSite = {
 
 const text = (max: number) => z.string().trim().max(max);
 const siteSchema = z.object({
+  page_style: z.enum(["simple", "full"]).catch("simple").default("simple"),
   artwork: z.object({
     enabled: z.boolean().default(false),
     name_band: z.enum(["none", "top", "bottom"]).catch("bottom").default("bottom"),

@@ -9,6 +9,7 @@ import { resizePhoto } from "@/lib/invitations/photo";
 import { PORTAL_STRINGS } from "@/lib/guest-portal/i18n";
 import { Checkbox, Select, TextArea, TextInput } from "@/components/form-fields";
 import { TabList } from "@/components/tab-list";
+import { useRememberedState } from "@/components/use-remembered";
 import { BlessingsModeration, EssentialsFields, SaveTheDateFields, WebsiteContentFields } from "@/components/invitation-website-editor";
 import { PortalPreview } from "@/components/guest-portal";
 import { Card, EmptyState, PageHeading } from "@/components/ui";
@@ -61,14 +62,21 @@ export function InvitationStudio({ data }: { data: Data }) {
   }, [data.designs, designId]);
   const design = data.designs.find((row) => row.id === designId);
   const invitedGuests = useMemo(() => data.guests.filter((guest) => data.invitations.some((invitation) => invitation.guest_id === guest.id)), [data]);
+  // The full design studio (templates, effects, music, gallery, video…) is behind one switch, remembered on this device.
+  const [studioMode, setStudioMode] = useRememberedState("invite-studio", "simple", ["simple", "full"] as const, false);
+  const full = studioMode === "full";
   return <div className="section-stack invitations-page">
-    <PageHeading eyebrow="Guests" title="Invitations" description="Design your invitation in four steps and watch the guest page change as you go. Nothing is sent automatically." />
-    <StudioWorkspace key={designId} data={data} design={design} designId={designId} setDesignId={setDesignId} step={step} setStep={setStep} guests={invitedGuests} defaultDesign={defaultDesign} />
+    <PageHeading eyebrow="Guests" title="Invitations" description={full ? "Design your invitation in four steps and watch the guest page change as you go. Nothing is sent automatically." : "Choose your card, set up the guest page, then send each guest their own private link. Nothing is sent automatically."} />
+    <StudioWorkspace key={designId} data={data} design={design} designId={designId} setDesignId={setDesignId} step={!full && step === "extras" ? "design" : step} setStep={setStep} guests={invitedGuests} defaultDesign={defaultDesign} full={full} />
+    {data.canEdit && <label className="studio-mode-switch">
+      <input type="checkbox" checked={full} onChange={(event) => setStudioMode(event.target.checked ? "full" : "simple")} />
+      <span><strong>Show the full design studio</strong><span className="row-meta">Templates, opening styles, effects, music, gallery, story, FAQ, Save the Date, sample formats and video. Remembered on this device.</span></span>
+    </label>}
   </div>;
 }
 
-function StudioWorkspace({ data, design, designId, setDesignId, step, setStep, guests, defaultDesign }: {
-  data: Data; design?: Design; designId: string; setDesignId: (id: string) => void; step: Step; setStep: (step: Step) => void; guests: Guest[]; defaultDesign?: Design;
+function StudioWorkspace({ data, design, designId, setDesignId, step, setStep, guests, defaultDesign, full }: {
+  data: Data; design?: Design; designId: string; setDesignId: (id: string) => void; step: Step; setStep: (step: Step) => void; guests: Guest[]; defaultDesign?: Design; full: boolean;
 }) {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(design));
   const [lang, setLang] = useState<LanguageCode>("en");
@@ -78,9 +86,12 @@ function StudioWorkspace({ data, design, designId, setDesignId, step, setStep, g
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const updateSite = <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => setDraft((current) => ({ ...current, site: { ...current.site, [key]: value } }));
   const readOnly = !data.canEdit;
-  const steps = [
+  const steps = full ? [
     { id: "design" as Step, label: "1 · Design", icon: Palette }, { id: "content" as Step, label: "2 · Content", icon: FileText },
     { id: "extras" as Step, label: "3 · Extras", icon: Sparkles }, { id: "share" as Step, label: "4 · Share", icon: Send },
+  ] : [
+    { id: "design" as Step, label: "1 · Card", icon: Palette }, { id: "content" as Step, label: "2 · Guest page", icon: FileText },
+    { id: "share" as Step, label: "3 · Send & track", icon: Send },
   ];
   // Leaving with unsaved changes asks first (the browser shows its own wording).
   useEffect(() => {
@@ -105,10 +116,10 @@ function StudioWorkspace({ data, design, designId, setDesignId, step, setStep, g
       </Card>}
       <TabList tabs={steps} selected={step} onSelect={setStep} label="Invitation steps" idPrefix="invite" />
       <section role="tabpanel" id={`invite-panel-${step}`} aria-labelledby={`invite-tab-${step}`} tabIndex={0} className="section-stack">
-        {step === "design" && <DesignStep data={data} design={design} draft={draft} set={set} updateSite={updateSite} onPhoto={setPhoto} readOnly={readOnly} />}
-        {step === "content" && <ContentStep data={data} designId={designId} draft={draft} set={set} updateSite={updateSite} lang={lang} setLang={setLang} readOnly={readOnly} />}
-        {step === "extras" && <ExtrasStep data={data} draft={draft} photo={photo} lang={lang} artworkUrl={studioArtworkUrl(data, design?.id)} />}
-        {step === "share" && <ShareStep data={data} design={design} defaultDesign={defaultDesign} guests={guests} dirty={dirty} />}
+        {step === "design" && <DesignStep data={data} design={design} draft={draft} set={set} updateSite={updateSite} onPhoto={setPhoto} readOnly={readOnly} full={full} lang={lang} setLang={setLang} />}
+        {step === "content" && <ContentStep data={data} designId={designId} draft={draft} set={set} updateSite={updateSite} lang={lang} setLang={setLang} readOnly={readOnly} full={full} />}
+        {step === "extras" && full && <ExtrasStep data={data} draft={draft} photo={photo} lang={lang} artworkUrl={studioArtworkUrl(data, design?.id)} />}
+        {step === "share" && <ShareStep data={data} design={design} defaultDesign={defaultDesign} guests={guests} dirty={dirty} full={full} />}
       </section>
       {step !== "share" && data.canEdit && <SaveBar data={data} design={design} draft={draft} dirty={dirty} />}
     </div>
@@ -134,12 +145,15 @@ function SaveBar({ data, design, draft, dirty }: { data: Data; design?: Design; 
   </div>;
 }
 
-function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }: {
+function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly, full, lang, setLang }: {
   data: Data; design?: Design; draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
   updateSite: <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => void; onPhoto: (photo: string | null) => void; readOnly: boolean;
+  full: boolean; lang: LanguageCode; setLang: (lang: LanguageCode) => void;
 }) {
+  // Simple studio: own artwork needs only the upload and the name band; a drawn card needs its theme, photo and wording.
+  const drawn = !draft.site.artwork.enabled;
   return <>
-    <Card title="What are you sending?" subtitle="You can change this any time. To send a Save the Date first and the invitation later, make two designs and switch which one guests see.">
+    {full && <Card title="What are you sending?" subtitle="You can change this any time. To send a Save the Date first and the invitation later, make two designs and switch which one guests see.">
       <fieldset className="choice-cards" disabled={readOnly}>
         <legend className="sr-only">What are you sending?</legend>
         {([["invitation", "Full invitation", "Every function with its date, time and place, your story, photos and replies."], ["save_the_date", "Save the Date", "Sent months ahead: your names, the wedding date and place, with a countdown. No replies; the invitation follows later."]] as const).map(([id, name, description]) => <label key={id} className={`choice-card ${draft.site.kind === id ? "is-selected" : ""}`}>
@@ -149,7 +163,7 @@ function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }:
       </fieldset>
       {draft.site.kind === "save_the_date" && !draft.site.save_the_date.date && <p className="travel-warning">Choose the wedding date in Content before saving.</p>}
       {draft.site.kind === "save_the_date" && design?.is_default && data.sent.length > 0 && <p className="travel-warning">Guests see this design. As a Save the Date it has no reply section, so guests who already have links will not be able to reply until you show a full invitation again.</p>}
-    </Card>
+    </Card>}
     <Card title="Card artwork" subtitle="Design the card here, or use a finished invitation made elsewhere. Either way, each guest gets their own private link and replies here.">
       <fieldset className="choice-cards" disabled={readOnly}>
         <legend className="sr-only">Card artwork</legend>
@@ -166,7 +180,7 @@ function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }:
         {!studioArtworkUrl(data, design?.id) && <p className="travel-warning">Until artwork is uploaded, guests still see the drawn card.</p>}
       </>}
     </Card>
-    <Card title="Page template" subtitle="How the guest page is laid out. Every template works with every theme and language.">
+    {full && <Card title="Page template" subtitle="How the guest page is laid out. Every template works with every theme and language.">
       <fieldset className="choice-cards" disabled={readOnly}>
         <legend className="sr-only">Page template</legend>
         {TEMPLATES.map((option) => <label key={option.id} className={`choice-card ${draft.site.template === option.id ? "is-selected" : ""}`}>
@@ -175,9 +189,9 @@ function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }:
           <strong>{option.name}</strong><span className="row-meta">{option.description}</span>
         </label>)}
       </fieldset>
-    </Card>
-    <Card title="Theme and colours" subtitle="Each theme sets the card, the guest page and your workspace colours.">
-      <TextInput label="Design name" required maxLength={80} value={draft.name} onChange={(event) => set("name", event.target.value)} disabled={readOnly} hint="Only you see this name." />
+    </Card>}
+    {(full || drawn) && <Card title="Theme and colours" subtitle="Each theme sets the card, the guest page and your workspace colours.">
+      {full && <TextInput label="Design name" required maxLength={80} value={draft.name} onChange={(event) => set("name", event.target.value)} disabled={readOnly} hint="Only you see this name." />}
       <fieldset className="theme-picker" disabled={readOnly}>
         <legend className="field-label">Theme</legend>
         {THEMES.map((option) => <label key={option.id} className={`theme-option ${draft.theme === option.id ? "is-selected" : ""}`}>
@@ -192,12 +206,13 @@ function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }:
           {draft.useAccent && <TextInput label="Accent colour" type="color" value={draft.accent} onChange={(event) => set("accent", event.target.value)} hint="Text keeps the theme colour if yours is too light to read." />}
         </div>
       </div>
-    </Card>
-    <Card title="Photo and monogram">
+    </Card>}
+    {(full || drawn) && <Card title="Photo and monogram">
       {design ? <PhotoUploader data={data} design={design} onPreview={onPhoto} /> : <p className="field-help">Create the design first, then add a couple photo.</p>}
       <Checkbox label="Show our monogram (initials) on the card when there is no photo, and on the opening seal" checked={draft.showMonogram} onChange={(event) => set("showMonogram", event.target.checked)} disabled={readOnly} />
-    </Card>
-    <Card title="How guests open it">
+    </Card>}
+    {!full && drawn && <Card title="Card wording" subtitle="What the card says, in each guest's language. Leave a line blank to use the built-in wording."><CardWording draft={draft} set={set} lang={lang} setLang={setLang} readOnly={readOnly} /></Card>}
+    {full && <Card title="How guests open it">
       <fieldset className="check-list" disabled={readOnly}>
         <Checkbox label="Opening animation that guests tap to open (skipped for people who prefer less motion)" checked={draft.site.opening_animation} onChange={(event) => updateSite("opening_animation", event.target.checked)} />
       </fieldset>
@@ -216,33 +231,57 @@ function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }:
         <Checkbox label="Blessings wall (guests leave wishes; you approve each one before others see it)" checked={draft.site.blessings_enabled} onChange={(event) => updateSite("blessings_enabled", event.target.checked)} />
       </fieldset>
       <p className="field-help">Use “Replay opening” above the phone preview to see the opening again.</p>
-    </Card>
-    <Card title="Music" subtitle="Saved straight away; it does not wait for “Save changes”.">
+    </Card>}
+    {full && <Card title="Music" subtitle="Saved straight away; it does not wait for “Save changes”.">
       <MusicUploader data={data} design={design} />
-    </Card>
+    </Card>}
   </>;
 }
 
-function ContentStep({ data, designId, draft, set, updateSite, lang, setLang, readOnly }: {
-  data: Data; designId: string; draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
-  updateSite: <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => void; lang: LanguageCode; setLang: (lang: LanguageCode) => void; readOnly: boolean;
-}) {
+/** The card's wording in each language (the preview follows the chosen language). */
+function CardWording({ draft, set, lang, setLang, readOnly }: { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void; lang: LanguageCode; setLang: (lang: LanguageCode) => void; readOnly: boolean }) {
   const languageInfo = LANGUAGES.find((item) => item.code === lang)!;
   const setText = (key: typeof TEXT_KEYS[number], value: string) => set("texts", { ...draft.texts, [lang]: { ...draft.texts[lang], [key]: value } });
-  const edited = Object.values(draft.texts[lang] ?? {}).filter((value) => value?.trim()).length;
-  return <Card title="Invitation details" subtitle="Open a section to edit it. The preview updates as you type.">
-    <div className="studio-groups">
-      {draft.site.kind === "save_the_date" && <SaveTheDateFields site={draft.site} update={updateSite} readOnly={readOnly} />}
-      <EssentialsFields site={draft.site} update={updateSite} partners={data.couplePartners} readOnly={readOnly} />
-      <details className="studio-group">
-        <summary><span className="studio-group-title">Card wording</span><span className="studio-group-summary">{languageInfo.label}{edited ? ` · ${edited} line${edited === 1 ? "" : "s"} edited` : " · built-in wording"}</span></summary>
-        <fieldset className="studio-group-body wording" disabled={readOnly}>
+  return <fieldset className="wording" disabled={readOnly}>
           <Select label="Language" value={lang} onChange={(event) => setLang(event.target.value as LanguageCode)} hint="The preview switches to this language too.">{LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select>
           {languageInfo.draft && <p className="travel-warning">The built-in {languageInfo.label} wording is a draft. Please have a native speaker check it{lang === "tcy" ? ", especially Tulu" : ""}. Edit any line below.</p>}
           <p className="field-help">Use {"{{name}}"} for the invited person, {"{{couple}}"} for your names and {"{{link}}"} for that person’s private link. Leave a line blank to use the default shown.</p>
           {TEXT_KEYS.map((key) => <TextArea key={`${lang}-${key}`} label={TEXT_LABELS[key]} rows={key === "share" || key === "body" ? 3 : 1} maxLength={600} lang={lang}
             value={draft.texts[lang]?.[key] ?? ""} placeholder={defaultTexts(lang, draft.site.kind)[key]} onChange={(event) => setText(key, event.target.value)} />)}
-        </fieldset>
+  </fieldset>;
+}
+
+function ContentStep({ data, designId, draft, set, updateSite, lang, setLang, readOnly, full }: {
+  data: Data; designId: string; draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
+  updateSite: <K extends keyof InvitationSite>(key: K, value: InvitationSite[K]) => void; lang: LanguageCode; setLang: (lang: LanguageCode) => void; readOnly: boolean; full: boolean;
+}) {
+  const languageInfo = LANGUAGES.find((item) => item.code === lang)!;
+  const edited = Object.values(draft.texts[lang] ?? {}).filter((value) => value?.trim()).length;
+  const pageStyle = <Card title="Guest page style" subtitle="What guests see when they open their private link.">
+    <fieldset className="choice-cards" disabled={readOnly}>
+      <legend className="sr-only">Guest page style</legend>
+      {([["simple", "Simple reply page", "Your card, a link to your invitation website, each guest's functions, replies, travel and guest information."], ["full", "Full invitation website", "Adds your story, photos, FAQ, blessings, music, opening animation and page templates (edit them in the full design studio)."]] as const).map(([id, name, description]) => <label key={id} className={`choice-card ${draft.site.page_style === id ? "is-selected" : ""}`}>
+        <input type="radio" name="page-style" value={id} checked={draft.site.page_style === id} onChange={() => updateSite("page_style", id)} />
+        <strong>{name}</strong><span className="row-meta">{description}</span>
+      </label>)}
+    </fieldset>
+  </Card>;
+  if (!full) return <>
+    {pageStyle}
+    <Card title="On the guest page" subtitle="Open a section to edit it. The preview updates as you type.">
+      <div className="studio-groups">
+        <EssentialsFields site={draft.site} update={updateSite} partners={data.couplePartners} readOnly={readOnly} />
+        <WebsiteContentFields data={data} site={draft.site} update={updateSite} readOnly={readOnly} simple />
+      </div>
+    </Card>
+  </>;
+  return <>{pageStyle}<Card title="Invitation details" subtitle="Open a section to edit it. The preview updates as you type.">
+    <div className="studio-groups">
+      {draft.site.kind === "save_the_date" && <SaveTheDateFields site={draft.site} update={updateSite} readOnly={readOnly} />}
+      <EssentialsFields site={draft.site} update={updateSite} partners={data.couplePartners} readOnly={readOnly} />
+      <details className="studio-group">
+        <summary><span className="studio-group-title">Card wording</span><span className="studio-group-summary">{languageInfo.label}{edited ? ` · ${edited} line${edited === 1 ? "" : "s"} edited` : " · built-in wording"}</span></summary>
+        <div className="studio-group-body"><CardWording draft={draft} set={set} lang={lang} setLang={setLang} readOnly={readOnly} /></div>
       </details>
       <details className="studio-group">
         <summary><span className="studio-group-title">Photo gallery</span><span className="studio-group-summary">{(() => { const n = data.media.filter((row) => row.design_id === designId && row.kind === "gallery").length; return n ? `${n} photo${n === 1 ? "" : "s"} · saved straight away` : "None yet"; })()}</span></summary>
@@ -250,7 +289,7 @@ function ContentStep({ data, designId, draft, set, updateSite, lang, setLang, re
       </details>
       <WebsiteContentFields data={data} site={draft.site} update={updateSite} readOnly={readOnly} />
     </div>
-  </Card>;
+  </Card></>;
 }
 
 /** A sample card in every format, to check before making each guest's own. */
@@ -286,14 +325,14 @@ function ExtrasStep({ data, draft, photo, lang, artworkUrl }: { data: Data; draf
   </>;
 }
 
-function ShareStep({ data, design, defaultDesign, guests, dirty }: { data: Data; design?: Design; defaultDesign?: Design; guests: Guest[]; dirty: boolean }) {
+function ShareStep({ data, design, defaultDesign, guests, dirty, full }: { data: Data; design?: Design; defaultDesign?: Design; guests: Guest[]; dirty: boolean; full: boolean }) {
   if (!defaultDesign) return <Card><EmptyState title="Create a design first" description="Choose a theme in Design, then save. Then come back here to share it." /></Card>;
   const showBlessings = readSite(defaultDesign.site).blessings_enabled || data.blessings.length > 0;
   return <>
     {design && data.canEdit && <FamilyPreviewLink data={data} design={design} dirty={dirty} />}
     {design && !design.is_default && <p className="travel-warning">Guests see “{defaultDesign.name}”. Sharing below uses that design. Choose “Show this design to guests” to switch.</p>}
-    <SendPanel data={data} design={defaultDesign} guests={guests} />
-    {showBlessings && <BlessingsModeration data={data} />}
+    <SendPanel data={data} design={defaultDesign} guests={guests} full={full} />
+    {full && showBlessings && <BlessingsModeration data={data} />}
   </>;
 }
 
@@ -485,7 +524,7 @@ function timeAgo(value: string) {
   return `${Math.round(minutes / 1440)} d ago`;
 }
 
-function SendPanel({ data, design, guests }: { data: Data; design: Design; guests: Guest[] }) {
+function SendPanel({ data, design, guests, full }: { data: Data; design: Design; guests: Guest[]; full: boolean }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState<SendFilter>("all");
@@ -521,7 +560,7 @@ function SendPanel({ data, design, guests }: { data: Data; design: Design; guest
         {data.canEdit && <div className="doc-actions">
           {open !== guest.id && <button type="button" className="button button-primary" onClick={() => setOpen(guest.id)}><Share2 size={15} aria-hidden="true" /> Prepare individual invitation</button>}
         </div>}
-        {open === guest.id && <SharePanel data={data} design={design} guest={guest} household={household} contact={contact} onClose={() => { setOpen(null); setQueue(false); }} onRecorded={queue ? () => next(guest.id) : undefined} />}
+        {open === guest.id && <SharePanel full={full} data={data} design={design} guest={guest} household={household} contact={contact} onClose={() => { setOpen(null); setQueue(false); }} onRecorded={queue ? () => next(guest.id) : undefined} />}
       </li>;
     })}</ul>
   </Card></>;
@@ -560,7 +599,7 @@ function BulkLinks({ data, design }: { data: Data; design: Design }) {
   </Card>;
 }
 
-function SharePanel({ data, design, guest, household, contact, onClose, onRecorded }: { data: Data; design: Design; guest: Guest; household?: Household; contact: { phone: string; email: string }; onClose: () => void; onRecorded?: () => void }) {
+function SharePanel({ data, design, guest, household, contact, onClose, onRecorded, full }: { full: boolean; data: Data; design: Design; guest: Guest; household?: Household; contact: { phone: string; email: string }; onClose: () => void; onRecorded?: () => void }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [link, setLink] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -629,7 +668,7 @@ function SharePanel({ data, design, guest, household, contact, onClose, onRecord
         <details className="video-maker"><summary>PDF card for {guest.full_name}</summary>
           <PdfMaker content={pdfContent({ card, language, site: readSite(design.site), partners: data.couplePartners, functions: guestFunctions(data, guest), qr: qrPath(link) })} fileName={cardFileName(guest.full_name).replace(/\.png$/, ".pdf")} message={message} />
         </details>
-        <VideoMaker card={card} theme={design.theme} language={language} guestName={guest.full_name} message={message} />
+        {full && <VideoMaker card={card} theme={design.theme} language={language} guestName={guest.full_name} message={message} />}
         <div className="doc-actions" role="group" aria-label="Record how you sent it">
           <span className="field-label">I sent it via</span>
           <button type="button" className="button button-quiet" disabled={busy} onClick={() => record("whatsapp")}>WhatsApp</button>
