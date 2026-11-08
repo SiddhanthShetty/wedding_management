@@ -233,3 +233,17 @@ Still unverified: keyboard tab behaviour and signed-in mobile forms in a real br
 
 - **Migration `20261118100000_invitation_artwork.sql`, applied to `wedding_management` on 2026-11-08** after `npm run backup` (592 KB) and a dry run. Checked afterwards: migration history matches; the kind and size checks include `artwork`; the media listing returns it; the private helper still has no API grants. It adds the `artwork` media kind (one per design, image only, at most 1.3 MB) and returns it in the guest and preview media listings. Data impact: additive.
 - The design studio is frozen except for bug fixes (see [invitations.md](invitations.md)).
+
+## Deployed to Vercel (2026-11-08)
+
+- **Live at https://wedding-management-siddhanth-shetty.vercel.app** (region dub1). All 26 migrations were live and a backup was taken first (`~/Wedding backups/2026-11-08_220335`).
+- **Checked on the live site:**
+  - sign-in and sign-up load; workspace pages redirect to sign-in when signed out;
+  - all five security headers present;
+  - guest pages send `no-store`, `no-referrer` and `noindex`;
+  - the link-preview image uses the live address;
+  - media addresses return 404 without a session, and cross-site uploads return 403;
+  - 5 smoke tests passed against the live site;
+  - in a real browser, sign-in and a fake guest link showed no console errors or blocked resources.
+- **Blocker 6 (trusted proxy headers):** the app runs on Vercel and uses Vercel's own address header in code. Not separately tested by exercising the rate limit.
+- **Not yet checked:** anything signed in on the live site (read-only test, and the phone checklist in [deploy-vercel.md](deploy-vercel.md)).

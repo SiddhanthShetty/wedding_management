@@ -1,6 +1,8 @@
 # Deploying to Vercel
 
-Owner's decision (2026-11-08): deploy straight to production without a staging project. Signed-in flows are checked on the live site after deploying (see "After the first deploy"). Everything in the database is already in place, and all 25 migrations are applied to `wedding_management`.
+**Live since 2026-11-08 at https://wedding-management-siddhanth-shetty.vercel.app** (Hobby plan, Dublin region, no custom domain).
+
+Owner's decision (2026-11-08): deploy straight to production without a staging project. Signed-in flows are checked on the live site after deploying (see "After the first deploy").
 
 ## One-time setup (in your browser, about 10 minutes)
 
@@ -16,7 +18,9 @@ Owner's decision (2026-11-08): deploy straight to production without a staging p
 
    - **Why the same secret:** the live database already holds 20 guest links (as of 2026-11-08). Only their keyed digests are stored, made with this secret, so a different value would silently break every link already sent. Copy it straight from `.env.local` into Vercel. Don't paste it into chat, email or the repository.
    - Never add a Supabase secret or service-role key. The app doesn't use one.
+   - Mark only `GUEST_PORTAL_HMAC_SECRET` as Sensitive. Vercel refuses Sensitive on `NEXT_PUBLIC_` variables, because they are public by design.
 3. Click **Deploy**. From then on, every push to `main` deploys automatically.
+   - In **Deployment Protection**, turn **Vercel Authentication off**. Otherwise every visitor, including guests opening their links, is sent to a Vercel login. The app has its own sign-in, and guest pages need a private link.
 4. In Supabase, go to **Authentication → URL configuration**:
    - Site URL: your Vercel address (or your domain).
    - Redirect URLs: add `https://<your-address>/**`.
