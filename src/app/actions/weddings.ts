@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ZodError } from "zod";
-import { requireAuthenticatedUser } from "@/lib/auth/access";
+import { AuthenticationRequiredError, AuthorizationDeniedError, requireAuthenticatedUser } from "@/lib/auth/access";
 import { updateWeddingSetup } from "@/lib/data/weddings";
 import { weddingSetupSchema } from "@/lib/planning/inputs";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, workspaceNameFor } from "@/lib/locale";
@@ -57,15 +57,20 @@ export async function createWeddingAction(_previous: SetupFormState, formData: F
 }
 
 export async function updateWeddingSetupAction(_previous: SetupFormState, formData: FormData): Promise<SetupFormState> {
-  const parsed = weddingSetupSchema.safeParse(readSetupForm(formData));
+  const input = readSetupForm(formData);
+  const parsed = weddingSetupSchema.safeParse(input);
   if (!parsed.success) return { error: validationMessage(parsed.error) };
   try {
-    await updateWeddingSetup(parsed.data);
+    // updateWeddingSetup validates for itself, so it takes the raw form values, not parsed.data
+    // (the schema converts values, and converted values do not pass it a second time).
+    await updateWeddingSetup(input);
     revalidatePath("/settings");
     revalidatePath("/overview");
     revalidatePath("/functions");
+    revalidatePath("/", "layout");
     return { message: "Wedding details saved." };
-  } catch {
-    return { error: "Could not save these wedding details. Your access may have changed; refresh and try again." };
+  } catch (error) {
+    if (error instanceof AuthorizationDeniedError || error instanceof AuthenticationRequiredError) return { error: "Your access to change wedding details is no longer available. Refresh and try again." };
+    return { error: "Could not save these wedding details. Nothing was changed; please try again." };
   }
 }
