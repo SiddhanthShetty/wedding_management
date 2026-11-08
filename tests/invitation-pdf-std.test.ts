@@ -110,3 +110,34 @@ describe("accent text on the guest page", () => {
     expect(darkenToContrast("#123456")).toBe("#123456");
   });
 });
+
+describe("function list on the card", async () => {
+  const { layoutFunctions } = await import("../src/components/invitation-card");
+  const fn = (name: string) => ({ name, function_date: "2026-12-02", start_time: null, venue_name: null });
+  const render = (count: number, photo = false) => renderToStaticMarkup(createElement(InvitationCard, buildCardProps({
+    theme: "mallige", accent: null, overrides: {}, language: "en", couple: "Sweekruti & Siddhanth", greetingName: "Guest name",
+    functions: ["Haldi", "Mehendi", "Sangeet", "Muhurtham", "Reception", "Grihapravesha", "Satyanarayana Pooja", "Bhojana", "Aarathakshate", "Dibbana"].slice(0, count).concat(Array.from({ length: Math.max(0, count - 10) }, (_, i) => `Extra ${i + 1}`)).map(fn),
+    photoUrl: photo ? "data:image/jpeg;base64,AAAA" : null, showMonogram: true,
+  })));
+
+  it("keeps one column while it fits, then two columns, then single lines", () => {
+    expect(layoutFunctions(3, 775)).toMatchObject({ columns: 1, twoLines: true, shown: 3 });
+    expect(layoutFunctions(5, 775)).toMatchObject({ columns: 2, twoLines: true, shown: 5 });
+    expect(layoutFunctions(5, 935)).toMatchObject({ columns: 1, twoLines: false, shown: 5 });
+    expect(layoutFunctions(14, 775)).toMatchObject({ columns: 2, twoLines: false, shown: 14 });
+    expect(layoutFunctions(40, 775).shown).toBeLessThan(40);
+    expect(layoutFunctions(5, 815, 1125, false)).toMatchObject({ columns: 1, twoLines: false, shown: 5 });
+  });
+
+  it("shows every function for a typical wedding, with or without a photo", () => {
+    for (const photo of [false, true]) for (const count of [5, 8, 10]) {
+      const svg = render(count, photo);
+      expect(svg, `${count} functions, photo ${photo}`).not.toMatch(/>\+\d+</);
+      for (const name of ["Haldi", "Sangeet", "Reception"]) expect(svg).toContain(name);
+    }
+    expect(render(10)).toContain("Dibbana");
+    expect(render(40)).toMatch(/>\+\d+</);
+    // Same day for all: the date is said once, not repeated per function.
+    expect(render(5).match(/Wednesday, 2 December 2026/g)).toHaveLength(1);
+  });
+});

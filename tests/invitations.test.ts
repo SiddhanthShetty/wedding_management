@@ -54,7 +54,8 @@ describe("invitation wording and share links (pure)", () => {
       const markup = renderToStaticMarkup(createElement(InvitationCard, props));
       expect(markup, theme.id).toContain("Priya &amp; Arjun");
       expect(markup, theme.id).toContain("ರಾವ್ ಕುಟುಂಬ");
-      expect(markup, theme.id).toMatch(/\+[1-9]/); // overflowing functions are summarised, never drawn over the footer
+      expect(markup, theme.id).not.toMatch(/>\+[1-9]</); // every function fits: one line each, date said once
+      for (let n = 1; n <= 7; n += 1) expect(markup, theme.id).toContain(`Function ${n}`);
     }
     expect(wrapText("one two three four five six", 9, 2)).toEqual(["one two", "three…"]);
   });

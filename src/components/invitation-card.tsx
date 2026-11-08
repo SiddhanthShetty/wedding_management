@@ -154,6 +154,28 @@ export function Motifs({ theme, accent, soft }: { theme: ThemeId; accent: string
   }
 }
 
+/**
+ * How the function list fits between `top` and the reply line: one column of two-line entries, then
+ * two columns, then single-line entries (one or two columns). "+N" only when even that is too few.
+ */
+export function layoutFunctions(count: number, top: number, bottom = 1125, hasDetails = true): { columns: 1 | 2; twoLines: boolean; rowHeight: number; shown: number } {
+  // Names only (no time or place to show): one centred line each.
+  const modes = !hasDetails ? [
+    { columns: 1 as const, twoLines: false, rowHeight: 50 },
+    { columns: 2 as const, twoLines: false, rowHeight: 50 },
+  ] : [
+    { columns: 1 as const, twoLines: true, rowHeight: 92 },
+    { columns: 2 as const, twoLines: true, rowHeight: 100 },
+    { columns: 1 as const, twoLines: false, rowHeight: 44 },
+    { columns: 2 as const, twoLines: false, rowHeight: 44 },
+  ];
+  const capacity = (mode: typeof modes[number]) => mode.columns * Math.max(0, Math.floor((bottom - top - (mode.twoLines ? 36 : 0)) / mode.rowHeight) + 1);
+  const fit = modes.find((mode) => capacity(mode) >= count);
+  if (fit) return { ...fit, shown: count };
+  const last = modes[modes.length - 1]!;
+  return { ...last, shown: Math.max(0, capacity(last) - 1) };
+}
+
 /** The card's drawing (1080×1350 units), usable inside any outer SVG frame. */
 export function InvitationCardBody(props: InvitationCardProps) {
   const clipId = `card-photo-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -174,10 +196,14 @@ export function InvitationCardBody(props: InvitationCardProps) {
   const coupleY = y; y += (couple.lines.length - 1) * couple.size * 1.12 + 52;
   const bodyY = y; y += body.lines.length * body.size * 1.3 + 30;
   const functionsHeadingY = y; y += 56;
+  // All functions on one day (common for a wedding day): say the date once, then only time and place.
+  const days = new Set(props.functions.map((fn) => fn.when.split(" · ")[0] ?? ""));
+  const sharedDay = props.functions.length > 1 && days.size === 1 ? [...days][0]! : null;
+  const sharedDayY = y - 12; if (sharedDay) y += 54;
   const functionsY = y;
-  // Fit as many functions as there is room for above the reply line; show "+N" for the rest.
-  const room = Math.max(0, Math.floor((1110 - functionsY - 38) / 92) + 1);
-  const shown = props.functions.slice(0, props.functions.length > room ? Math.max(0, room - 1) : room);
+  const detailOf = (fn: CardFunction) => [sharedDay ? fn.when.split(" · ").slice(1).join(" · ") : fn.when, fn.venue].filter(Boolean).join(" · ");
+  const list = layoutFunctions(props.functions.length, functionsY, 1125, props.functions.some((fn) => detailOf(fn)));
+  const shown = props.functions.slice(0, list.shown);
   const hidden = props.functions.length - shown.length;
   const rsvp = fitLines(props.rsvp, { maxWidth: 960, size: 25, minSize: 20, maxLines: 2 });
   const portrait = props.photoUrl ? <g>
@@ -226,11 +252,33 @@ export function InvitationCardBody(props: InvitationCardProps) {
     <Lines lines={body.lines} x={540} y={bodyY} size={body.size} fill={theme.ink} family={SERIF} />
     {shown.length > 0 && <>
       <Lines lines={[props.functionsHeading]} x={540} y={functionsHeadingY} size={26} fill={accentText} family={SANS} weight={700} />
-      {shown.map((fn, index) => { const name = fitLines(fn.name, { maxWidth: 900, size: 32, minSize: 24, maxLines: 1 }); const detail = fitLines([fn.when, fn.venue].filter(Boolean).join(" · "), { maxWidth: 960, size: 23, minSize: 18, maxLines: 1 }); return <g key={index}>
-        <Lines lines={name.lines} x={540} y={functionsY + index * 92} size={name.size} fill={theme.ink} family={SERIF} weight={600} />
-        <Lines lines={detail.lines} x={540} y={functionsY + index * 92 + 38} size={detail.size} fill={theme.ink} family={SANS} />
-      </g>; })}
-      {hidden > 0 && <Lines lines={[`+${hidden}`]} x={540} y={functionsY + shown.length * 92} size={26} fill={accentText} family={SANS} weight={700} />}
+      {sharedDay && <Lines lines={fitLines(sharedDay, { maxWidth: 900, size: 26, minSize: 20, maxLines: 1 }).lines} x={540} y={sharedDayY + 22} size={26} fill={theme.ink} family={SERIF} style="italic" />}
+      {shown.map((fn, index) => {
+        // Column-major, so each column still reads in date order from top to bottom.
+        const perColumn = Math.ceil(shown.length / list.columns);
+        const column = Math.floor(index / perColumn); const row = index % perColumn;
+        const x = list.columns === 1 ? 540 : column === 0 ? 290 : 790;
+        const width = list.columns === 1 ? 940 : 460;
+        const y = functionsY + row * list.rowHeight;
+        const detailText = detailOf(fn);
+        if (!detailText) {
+          const only = fitLines(fn.name, { maxWidth: width, size: 32, minSize: 22, maxLines: 1 });
+          return <Lines key={index} lines={only.lines} x={x} y={y} size={only.size} fill={theme.ink} family={SERIF} weight={600} />;
+        }
+        if (!list.twoLines) {
+          const line = fitLines(`${fn.name} · ${detailText}`, { maxWidth: width, size: list.columns === 1 ? 25 : 21, minSize: 16, maxLines: 1 });
+          return <Lines key={index} lines={line.lines} x={x} y={y} size={line.size} fill={theme.ink} family={SANS} />;
+        }
+        const name = fitLines(fn.name, { maxWidth: width, size: list.columns === 1 ? 32 : 29, minSize: 20, maxLines: 1 });
+        // In two columns the details may wrap to a second line rather than shrink below a readable size.
+        const detail = fitLines(detailText, { maxWidth: width, size: list.columns === 1 ? 23 : 21, minSize: list.columns === 1 ? 17 : 19, maxLines: list.columns === 1 ? 1 : 2 });
+        return <g key={index}>
+          <Lines lines={name.lines} x={x} y={y} size={name.size} fill={theme.ink} family={SERIF} weight={600} />
+          <Lines lines={detail.lines} x={x} y={y + 34} size={detail.size} gap={1.2} fill={theme.ink} family={SANS} />
+        </g>;
+      })}
+      {list.columns === 2 && <rect x={539} y={functionsY - 30} width={2} height={Math.ceil(shown.length / 2) * list.rowHeight - (list.twoLines ? 20 : 30)} fill={accent} opacity={0.35} />}
+      {hidden > 0 && <Lines lines={[`+${hidden}`]} x={540} y={functionsY + Math.ceil(shown.length / list.columns) * list.rowHeight} size={26} fill={accentText} family={SANS} weight={700} />}
     </>}
     <Lines lines={rsvp.lines} x={540} y={1175} size={rsvp.size} fill={theme.ink} family={SANS} />
     <Lines lines={[props.closing]} x={540} y={1240} size={30} fill={accentText} family={SERIF} style="italic" />
