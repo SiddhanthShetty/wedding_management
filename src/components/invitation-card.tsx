@@ -9,6 +9,8 @@ export type InvitationCardProps = {
   photoUrl?: string | null;
   /** Initials shown in a small seal when there is no photo, e.g. "P · A". */
   monogram?: string | null;
+  /** A finished invitation image made elsewhere; drawn instead of the card, with an optional name band. */
+  artwork?: { url: string; nameBand: "none" | "top" | "bottom" } | null;
   /** Save the Date: the formatted date and the place; replaces the function list. */
   saveTheDate?: { date: string; city: string } | null;
 };
@@ -180,6 +182,20 @@ export function layoutFunctions(count: number, top: number, bottom = 1125, hasDe
 export function InvitationCardBody(props: InvitationCardProps) {
   const clipId = `card-photo-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const theme = themeById(props.theme);
+  if (props.artwork) {
+    // The couple's own artwork, uncropped (letterboxed on the theme colour if it isn't 4:5).
+    const band = props.artwork.nameBand;
+    const greeting = fitLines(props.greeting, { maxWidth: 960, size: 64, minSize: 38, maxLines: 1 });
+    const bandY = band === "top" ? 0 : CARD_HEIGHT - 150;
+    return <>
+      <rect width={CARD_WIDTH} height={CARD_HEIGHT} fill={theme.background} />
+      <image href={props.artwork.url} x={0} y={0} width={CARD_WIDTH} height={CARD_HEIGHT} preserveAspectRatio="xMidYMid meet" />
+      {band !== "none" && <g>
+        <rect x={0} y={bandY} width={CARD_WIDTH} height={150} fill="#fffdf7" opacity={0.92} />
+        <Lines lines={greeting.lines} x={540} y={bandY + 96} size={greeting.size} fill="#2a2620" family={SERIF} style="italic" weight={600} />
+      </g>}
+    </>;
+  }
   const accent = props.accent || theme.accent; // borders and motifs
   const accentText = readableAccent(props.theme, props.accent); // text: always at least 4.5:1
   const top = props.theme === "kanchi" ? 250 : props.theme === "thoranam" ? 300 : 290;

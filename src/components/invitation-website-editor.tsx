@@ -118,6 +118,13 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
       </fieldset>
     </Group>}
 
+    <Group title="Invitation website elsewhere" summary={site.external_link.url ? "Linked" : "None"}>
+      <fieldset className="field-grid" disabled={readOnly}>
+        <TextInput label="Link (optional)" type="url" value={site.external_link.url ?? ""} onChange={(event) => update("external_link", { ...site.external_link, url: event.target.value || null })} placeholder="https://" hint="If you made an invitation website with another service, guests see a button to open it. Replies stay here, so you keep one guest list." className="field-full" />
+        <TextInput label="Button text" maxLength={60} value={site.external_link.label} onChange={(event) => update("external_link", { ...site.external_link, label: event.target.value })} placeholder="See our full invitation" />
+      </fieldset>
+    </Group>
+
     {full && <Group title="Livestream" summary={site.livestream_url ? "Link added" : "None"}>
       <TextInput label="Livestream link (optional)" type="url" value={site.livestream_url ?? ""} onChange={(event) => update("livestream_url", event.target.value || null)} placeholder="https://" hint="Shown as “Watch live” from 30 minutes before a function until 6 hours after it starts." disabled={readOnly} />
     </Group>}

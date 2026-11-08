@@ -13,10 +13,10 @@ import { BlessingsModeration, EssentialsFields, SaveTheDateFields, WebsiteConten
 import { PortalPreview } from "@/components/guest-portal";
 import { Card, EmptyState, PageHeading } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
-import { buildCardProps, saveTheDateOf } from "@/lib/invitations/card-data";
+import { artworkOf, buildCardProps, saveTheDateOf } from "@/lib/invitations/card-data";
 import { buildPreviewData, previewFunction } from "@/lib/invitations/preview";
 import { EFFECTS, OPENING_STYLES, readSite, TEMPLATES, type InvitationSite } from "@/lib/invitations/site";
-import { GalleryEditor, MusicUploader, studioMedia } from "@/components/invitation-media-editor";
+import { ArtworkUploader, GalleryEditor, MusicUploader, studioArtworkUrl, studioMedia } from "@/components/invitation-media-editor";
 import { PdfMaker, pdfContent } from "@/components/invitation-pdf";
 import { defaultTexts, LANGUAGES, isLanguage, mailtoUrl, resolveTexts, shareMessage, TEXT_KEYS, TEXT_LABELS, THEMES, themeById, whatsappUrl, type LanguageCode, type TextOverrides, type ThemeId } from "@/lib/invitations/content";
 import { cardFileName, svgElementToPng } from "@/lib/invitations/export-card";
@@ -107,7 +107,7 @@ function StudioWorkspace({ data, design, designId, setDesignId, step, setStep, g
       <section role="tabpanel" id={`invite-panel-${step}`} aria-labelledby={`invite-tab-${step}`} tabIndex={0} className="section-stack">
         {step === "design" && <DesignStep data={data} design={design} draft={draft} set={set} updateSite={updateSite} onPhoto={setPhoto} readOnly={readOnly} />}
         {step === "content" && <ContentStep data={data} designId={designId} draft={draft} set={set} updateSite={updateSite} lang={lang} setLang={setLang} readOnly={readOnly} />}
-        {step === "extras" && <ExtrasStep data={data} draft={draft} photo={photo} lang={lang} />}
+        {step === "extras" && <ExtrasStep data={data} draft={draft} photo={photo} lang={lang} artworkUrl={studioArtworkUrl(data, design?.id)} />}
         {step === "share" && <ShareStep data={data} design={design} defaultDesign={defaultDesign} guests={guests} dirty={dirty} />}
       </section>
       {step !== "share" && data.canEdit && <SaveBar data={data} design={design} draft={draft} dirty={dirty} />}
@@ -149,6 +149,22 @@ function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly }:
       </fieldset>
       {draft.site.kind === "save_the_date" && !draft.site.save_the_date.date && <p className="travel-warning">Choose the wedding date in Content before saving.</p>}
       {draft.site.kind === "save_the_date" && design?.is_default && data.sent.length > 0 && <p className="travel-warning">Guests see this design. As a Save the Date it has no reply section, so guests who already have links will not be able to reply until you show a full invitation again.</p>}
+    </Card>
+    <Card title="Card artwork" subtitle="Design the card here, or use a finished invitation made elsewhere. Either way, each guest gets their own private link and replies here.">
+      <fieldset className="choice-cards" disabled={readOnly}>
+        <legend className="sr-only">Card artwork</legend>
+        {([[false, "Design it here", "Theme, wording, photo or initials, drawn for every guest in their language."], [true, "Use our own artwork", "Upload your designer's or Canva invitation. We can write each guest's name on it."]] as const).map(([enabled, name, description]) => <label key={name} className={`choice-card ${draft.site.artwork.enabled === enabled ? "is-selected" : ""}`}>
+          <input type="radio" name="artwork-choice" checked={draft.site.artwork.enabled === enabled} onChange={() => updateSite("artwork", { ...draft.site.artwork, enabled })} />
+          <strong>{name}</strong><span className="row-meta">{description}</span>
+        </label>)}
+      </fieldset>
+      {draft.site.artwork.enabled && <>
+        <ArtworkUploader data={data} design={design} />
+        <Select label="Guest's name on the artwork" value={draft.site.artwork.name_band} onChange={(event) => updateSite("artwork", { ...draft.site.artwork, name_band: event.target.value as InvitationSite["artwork"]["name_band"] })} disabled={readOnly} hint="A light band with “Dear (name),” in the guest's language. Choose the side your artwork leaves plain.">
+          <option value="bottom">Band at the bottom</option><option value="top">Band at the top</option><option value="none">No name, artwork as is</option>
+        </Select>
+        {!studioArtworkUrl(data, design?.id) && <p className="travel-warning">Until artwork is uploaded, guests still see the drawn card.</p>}
+      </>}
     </Card>
     <Card title="Page template" subtitle="How the guest page is laid out. Every template works with every theme and language.">
       <fieldset className="choice-cards" disabled={readOnly}>
@@ -238,11 +254,11 @@ function ContentStep({ data, designId, draft, set, updateSite, lang, setLang, re
 }
 
 /** A sample card in every format, to check before making each guest's own. */
-function ExtrasStep({ data, draft, photo, lang }: { data: Data; draft: Draft; photo: string | null; lang: LanguageCode }) {
+function ExtrasStep({ data, draft, photo, lang, artworkUrl }: { data: Data; draft: Draft; photo: string | null; lang: LanguageCode; artworkUrl: string | null }) {
   const [format, setFormat] = useState<CardFormat>("print");
   const [error, setError] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  const card = buildCardProps({ theme: draft.theme, accent: draft.useAccent ? draft.accent : null, overrides: draft.texts, language: lang, couple: data.coupleNames, greetingName: PORTAL_STRINGS[lang].previewGuest, functions: data.functions.slice(0, 4), photoUrl: photo, showMonogram: draft.showMonogram, saveTheDate: saveTheDateOf(draft.site) });
+  const card = buildCardProps({ theme: draft.theme, accent: draft.useAccent ? draft.accent : null, overrides: draft.texts, language: lang, couple: data.coupleNames, greetingName: PORTAL_STRINGS[lang].previewGuest, functions: data.functions.slice(0, 4), photoUrl: photo, showMonogram: draft.showMonogram, saveTheDate: saveTheDateOf(draft.site), artwork: artworkOf(draft.site, artworkUrl) });
   const download = async () => {
     setError("");
     try {
@@ -344,17 +360,17 @@ function PhonePreview({ data, draft, photo, lang, setLang, guests, designId }: {
     <div className="phone-frame">
       <div className="phone-screen guest-portal-shell">
         {mode === "invite" ? <PortalPreview data={portal} lang={lang} setLang={setLang} replay={replay} embedded />
-          : <WhatsAppMock data={data} draft={draft} photo={photo} lang={lang} guestName={guestName} fnRows={fnRows} />}
+          : <WhatsAppMock data={data} draft={draft} photo={photo} lang={lang} guestName={guestName} fnRows={fnRows} artworkUrl={studioArtworkUrl(data, designId)} />}
       </div>
     </div>
     <p className="field-help">{mode === "invite" ? "The guest page with your unsaved changes. Replies are switched off in previews." : "How the card and message arrive when you share them from Share. Your real message contains the guest's private link."}</p>
   </div>;
 }
 
-function WhatsAppMock({ data, draft, photo, lang, guestName, fnRows }: { data: Data; draft: Draft; photo: string | null; lang: LanguageCode; guestName: string; fnRows: Data["functions"] }) {
+function WhatsAppMock({ data, draft, photo, lang, guestName, fnRows, artworkUrl }: { data: Data; draft: Draft; photo: string | null; lang: LanguageCode; guestName: string; fnRows: Data["functions"]; artworkUrl: string | null }) {
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
-  const card = buildCardProps({ theme: draft.theme, accent: draft.useAccent ? draft.accent : null, overrides: draft.texts, language: lang, couple: data.coupleNames, greetingName: guestName, functions: fnRows, photoUrl: photo, showMonogram: draft.showMonogram, saveTheDate: saveTheDateOf(draft.site) });
+  const card = buildCardProps({ theme: draft.theme, accent: draft.useAccent ? draft.accent : null, overrides: draft.texts, language: lang, couple: data.coupleNames, greetingName: guestName, functions: fnRows, photoUrl: photo, showMonogram: draft.showMonogram, saveTheDate: saveTheDateOf(draft.site), artwork: artworkOf(draft.site, artworkUrl) });
   const message = shareMessage(resolveTexts(lang, draft.texts, true, draft.site.kind), { name: guestName, couple: data.coupleNames, link: `${origin}/guest#…` });
   return <div className="wa-mock" lang={lang}>
     <div className="wa-header"><span className="wa-avatar" aria-hidden="true">{guestName.slice(0, 1)}</span><span>{guestName}</span></div>
@@ -455,9 +471,9 @@ function guestFunctions(data: Data, guest: Guest) {
   const invited = new Set(data.invitations.filter((row) => row.guest_id === guest.id).map((row) => row.function_id));
   return data.functions.filter((fn) => invited.has(fn.id));
 }
-type CardDesign = Pick<Design, "theme" | "accent" | "texts"> & { photo_data?: string | null; show_monogram?: boolean; site?: unknown };
+type CardDesign = Pick<Design, "theme" | "accent" | "texts"> & { id?: string; photo_data?: string | null; show_monogram?: boolean; site?: unknown };
 function guestCard(data: Data, design: CardDesign, guest: Guest, language: LanguageCode) {
-  return buildCardProps({ theme: design.theme, accent: design.accent, overrides: design.texts, language, couple: data.coupleNames, greetingName: guest.full_name, functions: guestFunctions(data, guest), photoUrl: design.photo_data ?? null, showMonogram: design.show_monogram !== false, saveTheDate: saveTheDateOf(readSite(design.site)) });
+  return buildCardProps({ theme: design.theme, accent: design.accent, overrides: design.texts, language, couple: data.coupleNames, greetingName: guest.full_name, functions: guestFunctions(data, guest), photoUrl: design.photo_data ?? null, showMonogram: design.show_monogram !== false, saveTheDate: saveTheDateOf(readSite(design.site)), artwork: artworkOf(readSite(design.site), studioArtworkUrl(data, design.id)) });
 }
 const kindOf = (design: { site?: unknown }) => readSite(design.site).kind;
 

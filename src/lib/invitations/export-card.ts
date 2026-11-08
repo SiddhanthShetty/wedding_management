@@ -62,6 +62,15 @@ export async function svgElementToImage(svg: SVGSVGElement, type: "image/png" | 
     familyNames(computed.fontFamily).forEach((name) => families.add(name));
     try { await document.fonts.load(`${computed.fontStyle} ${computed.fontWeight} 32px ${computed.fontFamily}`, text.textContent ?? ""); } catch { /* fall back to what is loaded */ }
   }));
+  // An SVG drawn as an image cannot load other addresses, so same-origin pictures (the couple's
+  // artwork, the couple photo) are inlined as data URLs first.
+  await Promise.all(Array.from(clone.querySelectorAll("image")).map(async (image) => {
+    const href = image.getAttribute("href") ?? image.getAttribute("xlink:href") ?? "";
+    if (!href || href.startsWith("data:")) return;
+    const absolute = new URL(href, window.location.href);
+    if (absolute.origin !== window.location.origin) return;
+    try { image.setAttribute("href", await toDataUrl(absolute.toString())); } catch { /* drawn without it */ }
+  }));
   try {
     const css = await embeddedFontCss(families);
     if (css) {

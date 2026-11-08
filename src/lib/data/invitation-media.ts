@@ -22,9 +22,9 @@ export async function uploadInvitationMedia(input: { weddingId: string; designId
     position = Array.from({ length: MAX_GALLERY_PHOTOS }, (_, index) => index).find((index) => !taken.has(index)) ?? -1;
     if (position < 0) throw new InvitationRuleError(`The gallery holds up to ${MAX_GALLERY_PHOTOS} photos. Remove one first.`);
   } else {
-    // One music file per design: the new one replaces the old.
-    const removed = await supabase.from("invitation_media").delete().eq("wedding_id", input.weddingId).eq("design_id", input.designId).eq("kind", "music");
-    if (removed.error) throw new Error("Could not replace the music.");
+    // One music file and one artwork per design: a new one replaces the old.
+    const removed = await supabase.from("invitation_media").delete().eq("wedding_id", input.weddingId).eq("design_id", input.designId).eq("kind", input.kind);
+    if (removed.error) throw new Error("Could not replace the file.");
   }
   const { data, error } = await supabase.from("invitation_media").insert({
     wedding_id: input.weddingId, design_id: input.designId, kind: input.kind, position, mime: checked.mime,

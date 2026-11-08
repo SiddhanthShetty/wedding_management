@@ -9,10 +9,10 @@ import { recordGuestPortalRsvpBatchAction, saveGuestPortalProfileAction, type Gu
 import type { GuestPortalData, PortalGuest, PortalInvitation } from "@/lib/guest-portal/server";
 import { Button } from "@/components/ui";
 import { InvitationCard } from "@/components/invitation-card";
-import { BlessingHeader, BlessingsSection, CelebrationBurst, ClosingSection, CountdownBanner, FamilyLines, FaqSection, GallerySection, InfoSection, KacheriVeena, MantapaThoranam, MusicButton, OpeningOverlay, Palette, SectionNav, StorySection } from "@/components/portal-site";
+import { BlessingHeader, BlessingsSection, CelebrationBurst, ClosingSection, CountdownBanner, ExternalInvitationLink, FamilyLines, FaqSection, GallerySection, InfoSection, KacheriVeena, MantapaThoranam, MusicButton, OpeningOverlay, Palette, SectionNav, StorySection } from "@/components/portal-site";
 import { nextFunctionStart, readSite, type CelebrationEffect, type InvitationSite } from "@/lib/invitations/site";
 import { resolveFunctionSchedule } from "@/lib/planning/schedule";
-import { buildCardProps, monogramFor, saveTheDateOf } from "@/lib/invitations/card-data";
+import { artworkOf, buildCardProps, monogramFor, saveTheDateOf } from "@/lib/invitations/card-data";
 import { isLanguage, LANGUAGES, pageAccentText, readableAccent, THEMES, type LanguageCode, type ThemeId } from "@/lib/invitations/content";
 
 const initial: GuestActionState = {};
@@ -265,6 +265,7 @@ function PortalInvitationCard({data}:{data:GuestPortalData}){
     functions:[...seen.values()].map((fn)=>({name:fn.name,function_date:fn.date,start_time:fn.start_time,venue_name:fn.location})),
     photoUrl:data.invitation.photo_url!==undefined?data.invitation.photo_url:data.invitation.has_photo?"/guest/photo":null,showMonogram:data.invitation.show_monogram!==false,
     saveTheDate:saveTheDateOf(readSite(data.site)),
+    artwork:artworkOf(readSite(data.site),data.media?.artwork?`${data.media.base}${data.media.artwork}`:null),
   });
   return <div className="guest-portal-invitation"><InvitationCard {...card}/></div>;
 }
@@ -373,6 +374,7 @@ function PortalContent({data,replay=0,embedded=false}:{data:GuestPortalData;repl
       <BlessingHeader site={site}/>
       <PortalInvitationCard data={data}/>
       <FamilyLines names={data.couple_names} site={site}/>
+      <ExternalInvitationLink t={t} site={site}/>
       <CountdownBanner t={t} target={target} liveTarget={liveTarget} site={site}/>
     </section>
     <StorySection t={t} site={site}/>

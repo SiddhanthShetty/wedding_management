@@ -6,11 +6,13 @@
 export const MAX_MUSIC_BYTES = 1_572_864; // 1.5 MB: about 90 seconds at 128 kbps
 export const MAX_GALLERY_BYTES = 450_000;
 export const MAX_GALLERY_PHOTOS = 8;
-export type MediaKind = "music" | "gallery";
+/** A finished invitation image made elsewhere; larger than gallery photos so fine lettering stays sharp. */
+export const MAX_ARTWORK_BYTES = 1_300_000;
+export type MediaKind = "music" | "gallery" | "artwork";
 export type MediaMime = "image/jpeg" | "image/webp" | "audio/mpeg" | "audio/mp4" | "audio/ogg";
 
 /** Guest-page media listing; `base` + id is the address of each file for this viewer. */
-export type PortalMedia = { base: string; music: string | null; gallery: Array<{ id: string; caption: string }> };
+export type PortalMedia = { base: string; music: string | null; artwork?: string | null; gallery: Array<{ id: string; caption: string }> };
 
 const startsWith = (bytes: Uint8Array, values: number[], offset = 0) => values.every((value, index) => bytes[offset + index] === value);
 const ascii = (bytes: Uint8Array, text: string, offset = 0) => startsWith(bytes, [...text].map((char) => char.charCodeAt(0)), offset);
@@ -34,7 +36,8 @@ export function checkMedia(kind: MediaKind, bytes: Uint8Array): { mime: MediaMim
     if (bytes.length > MAX_MUSIC_BYTES) return { error: "Music files can be up to 1.5 MB. Trim it to about 90 seconds or export at a lower quality." };
     return { mime };
   }
-  if (!mime?.startsWith("image/")) return { error: "Choose a JPEG or WebP photo." };
+  if (!mime?.startsWith("image/")) return { error: kind === "artwork" ? "Choose your invitation as a JPEG or PNG image (export it as an image from Canva or your designer's PDF)." : "Choose a JPEG or WebP photo." };
+  if (kind === "artwork") return bytes.length > MAX_ARTWORK_BYTES ? { error: "This image is too large. Choose it again so it is resized first." } : { mime };
   if (bytes.length > MAX_GALLERY_BYTES) return { error: "This photo is too large. Choose it again so it is resized first." };
   return { mime };
 }

@@ -1,6 +1,11 @@
 import type { InvitationCardProps } from "@/components/invitation-card";
 import { fillText, formatFunctionDate, resolveTexts, type LanguageCode, type TextOverrides, type ThemeId } from "@/lib/invitations/content";
 
+/** The artwork to draw for a design: its image address when the design uses its own artwork and one is uploaded. */
+export function artworkOf(site: { artwork: { enabled: boolean; name_band: "none" | "top" | "bottom" } }, url: string | null | undefined) {
+  return site.artwork.enabled && url ? { url, nameBand: site.artwork.name_band } : null;
+}
+
 /** The Save the Date part of a design's website content, or null for a full invitation. */
 export function saveTheDateOf(site: { kind: string; save_the_date: { date: string; city: string } }) {
   return site.kind === "save_the_date" && site.save_the_date.date ? site.save_the_date : null;
@@ -14,6 +19,8 @@ export function buildCardProps(input: {
   photoUrl?: string | null; showMonogram?: boolean;
   /** Save the Date designs: the wedding date (YYYY-MM-DD) and place instead of a function list. */
   saveTheDate?: { date: string; city: string } | null;
+  /** The couple's own artwork (image address) and where to write the guest's name; null draws the card. */
+  artwork?: { url: string; nameBand: "none" | "top" | "bottom" } | null;
 }): InvitationCardProps {
   const kind = input.saveTheDate ? "save_the_date" : "invitation";
   const texts = resolveTexts(input.language, input.overrides, true, kind);
@@ -26,6 +33,7 @@ export function buildCardProps(input: {
     functions: sorted.map((fn) => ({ name: fn.name, when: formatFunctionDate(fn.function_date, fn.start_time, input.language), venue: fn.venue_name })),
     photoUrl: input.photoUrl ?? null,
     monogram: input.showMonogram === false ? null : monogramFor(input.couple),
+    artwork: input.artwork ?? null,
     saveTheDate: input.saveTheDate ? { date: formatFunctionDate(input.saveTheDate.date, null, input.language), city: input.saveTheDate.city } : null,
   };
 }

@@ -228,3 +228,8 @@ Still unverified: keyboard tab behaviour and signed-in mobile forms in a real br
 - **Guest-link secret:** production must use the same `GUEST_PORTAL_HMAC_SECRET` as `.env.local`. The live database already holds 20 guest links (from the 2026-11-08 backup), and a different secret would break them all.
 - `vercel.json` pins the Dublin region (dub1) to sit next to the database (eu-west-1).
 - **Signed-in tests:** new `E2E_TARGET=readonly` mode for the live site, which only opens pages.
+
+## Own artwork and outside link (2026-11-08)
+
+- **Migration `20261118100000_invitation_artwork.sql`, applied to `wedding_management` on 2026-11-08** after `npm run backup` (592 KB) and a dry run. Checked afterwards: migration history matches; the kind and size checks include `artwork`; the media listing returns it; the private helper still has no API grants. It adds the `artwork` media kind (one per design, image only, at most 1.3 MB) and returns it in the guest and preview media listings. Data impact: additive.
+- The design studio is frozen except for bug fixes (see [invitations.md](invitations.md)).

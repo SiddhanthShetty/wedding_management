@@ -115,8 +115,8 @@ describe("invitation media in the database", () => {
     const photo = (await insert(other, "gallery", 0, "image/jpeg")).rows[0]!.id;
     await db.query("select public.create_invitation_preview_link($1,$2,$3)", [WEDDING_A, other, "d".repeat(64)]);
     await assumeUser(db, null, "anon");
-    const listing = (await db.query<{ m: { music: unknown; gallery: Array<{ id: string }> } }>("select public.list_invitation_preview_media($1) m", ["d".repeat(64)])).rows[0]!.m;
-    expect(listing).toEqual({ music: null, gallery: [{ id: photo, caption: "" }] });
+    const listing = (await db.query<{ m: { music: unknown; artwork: unknown; gallery: Array<{ id: string }> } }>("select public.list_invitation_preview_media($1) m", ["d".repeat(64)])).rows[0]!.m;
+    expect(listing).toEqual({ music: null, artwork: null, gallery: [{ id: photo, caption: "" }] });
     expect((await db.query<{ f: { mime: string } }>("select public.get_invitation_preview_media($1,$2) f", ["d".repeat(64), photo])).rows[0]!.f.mime).toBe("image/jpeg");
     await db.query("reset role");
     await db.query("update public.invitation_preview_links set expires_at=now()-interval '1 second'");

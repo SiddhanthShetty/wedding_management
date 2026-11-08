@@ -38,8 +38,13 @@ export function PdfPages({ content }: { content: PdfContent }) {
   const sorted = [...content.functions].sort((a, b) => `${a.function_date ?? "9999"}${a.start_time ?? ""}`.localeCompare(`${b.function_date ?? "9999"}${b.start_time ?? ""}`));
   const pages: React.ReactNode[] = [];
 
+  if (card.artwork) {
+    // Your own artwork is the invitation: one page with it and the guest's QR code, then the
+    // function pages (full invitations) and the closing page below.
+    pages.push(<FormattedCard key="artwork" format="print" card={card} qr={content.qr} qrLabel={t.openInvitation} />);
+  }
   // 1. Cover: photo or initials, the label, your names and the date.
-  pages.push(<Page key="cover" card={card} label={`${card.couple}: ${std ? t.stdTitle : t.brand}`}>
+  if (!card.artwork) pages.push(<Page key="cover" card={card} label={`${card.couple}: ${std ? t.stdTitle : t.brand}`}>
     {card.photoUrl ? <g>
       <defs><clipPath id={clip}><circle cx={874} cy={860} r={330} /></clipPath></defs>
       <image href={card.photoUrl} x={544} y={530} width={660} height={660} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clip})`} />
@@ -55,7 +60,7 @@ export function PdfPages({ content }: { content: PdfContent }) {
   </Page>);
 
   if (std) {
-    pages.push(<FormattedCard key="card" format="print" card={card} qr={null} qrLabel={card.closing} />);
+    if (!card.artwork) pages.push(<FormattedCard key="card" format="print" card={card} qr={null} qrLabel={card.closing} />);
   } else {
     // 2. The invitation: blessing line, greeting, both families, the invitation and the closing.
     const greeting = fitLines(card.greeting, { maxWidth: 1400, size: 64, minSize: 44, maxLines: 1 });
@@ -76,7 +81,7 @@ export function PdfPages({ content }: { content: PdfContent }) {
     parts.push(<Lines key="body" lines={body.lines} x={874} y={y + 40} size={body.size} fill={ink} family={SERIF} />);
     parts.push(<Lines key="rsvp" lines={fitLines(card.rsvp, { maxWidth: 1400, size: 46, minSize: 34, maxLines: 2 }).lines} x={874} y={2060} size={44} fill={ink} family={SANS} />);
     parts.push(<Lines key="close" lines={[card.closing]} x={874} y={2200} size={58} fill={accentText} family={SERIF} style="italic" />);
-    pages.push(<Page key="invite" card={card} label={card.heading}>{parts}</Page>);
+    if (!card.artwork) pages.push(<Page key="invite" card={card} label={card.heading}>{parts}</Page>);
 
     // 3. One page per function.
     sorted.forEach((fn, index) => {

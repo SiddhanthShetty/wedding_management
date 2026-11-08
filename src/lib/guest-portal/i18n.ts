@@ -25,7 +25,7 @@ export type PortalStrings = {
   blessingThanks: string; blessingPending: (n: number) => string; blessingLimit: string; noBlessingsYet: string;
   revealTitle: string; infoTitle: string; navInfo: string; call: string; closingTitle: string; shareMoments: string;
   previewBanner: string; previewUntil: (time: string) => string; previewRsvpOff: string; previewGuest: string;
-  theWedding: string; stdFollow: string; stdTitle: string;
+  theWedding: string; stdFollow: string; stdTitle: string; fullInvitation: string; replyHere: string;
   playMusic: string; pauseMusic: string; galleryTitle: string; navGallery: string; photoOf: (n: number, total: number) => string; close: string; previous: string; next: string;
   // Server results, shown after saving.
   savedResponses: (count: number) => string; alreadySaved: string; savedInfo: string; conflict: string; unavailableShort: string; invalid: string;
@@ -64,6 +64,7 @@ const en: PortalStrings = {
   previewBanner: "Preview · replies are switched off", previewUntil: (time) => `This preview link works until ${time}.`, previewRsvpOff: "Guests reply here. Replies are switched off in this preview.", previewGuest: "Guest name",
   playMusic: "Play music", pauseMusic: "Pause music", galleryTitle: "Our photos", navGallery: "Photos", photoOf: (n, total) => `Photo ${n} of ${total}`, close: "Close", previous: "Previous photo", next: "Next photo",
   theWedding: "the wedding", stdTitle: "Save the date", stdFollow: "The formal invitation, with every function and a way to reply, will follow.",
+  fullInvitation: "See our full invitation", replyHere: "Opens our invitation website. Please reply here, on this page.",
   savedResponses: (n) => `${n} ${n === 1 ? "response" : "responses"} saved.`, alreadySaved: "These responses were already saved.", savedInfo: "Your information has been updated.",
   conflict: "This was changed a moment ago. Please refresh the page and try again.", unavailableShort: "This invitation is no longer available. Please contact your hosts.", invalid: "Please check your answers and try again.",
 };
@@ -101,6 +102,7 @@ const hi: PortalStrings = {
   previewBanner: "पूर्वावलोकन · उत्तर बंद हैं", previewUntil: (time) => `यह पूर्वावलोकन लिंक ${time} तक चलेगा।`, previewRsvpOff: "मेहमान यहाँ उत्तर देंगे। इस पूर्वावलोकन में उत्तर बंद हैं।", previewGuest: "अतिथि का नाम",
   playMusic: "संगीत चलाएँ", pauseMusic: "संगीत रोकें", galleryTitle: "हमारी तस्वीरें", navGallery: "तस्वीरें", photoOf: (n, total) => `तस्वीर ${n} / ${total}`, close: "बंद करें", previous: "पिछली तस्वीर", next: "अगली तस्वीर",
   theWedding: "विवाह", stdTitle: "तारीख़ याद रखें", stdFollow: "सभी कार्यक्रमों और उत्तर देने की सुविधा के साथ औपचारिक निमंत्रण जल्द आएगा।",
+  fullInvitation: "हमारा पूरा निमंत्रण देखें", replyHere: "हमारी निमंत्रण वेबसाइट खुलेगी। कृपया उत्तर यहीं, इसी पेज पर दें।",
   savedResponses: (n) => `${n} उत्तर सहेजे गए।`, alreadySaved: "ये उत्तर पहले ही सहेजे जा चुके हैं।", savedInfo: "आपकी जानकारी अपडेट हो गई है।",
   conflict: "यह अभी-अभी बदला गया है। कृपया पेज रीफ़्रेश करके फिर कोशिश करें।", unavailableShort: "यह निमंत्रण अब उपलब्ध नहीं है। कृपया मेज़बानों से संपर्क करें।", invalid: "कृपया अपने उत्तर जाँचकर फिर कोशिश करें।",
 };
@@ -138,6 +140,7 @@ const kn: PortalStrings = {
   previewBanner: "ಮುನ್ನೋಟ · ಉತ್ತರಗಳು ಸ್ಥಗಿತ", previewUntil: (time) => `ಈ ಮುನ್ನೋಟ ಲಿಂಕ್ ${time} ರವರೆಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ.`, previewRsvpOff: "ಅತಿಥಿಗಳು ಇಲ್ಲಿ ಉತ್ತರಿಸುತ್ತಾರೆ. ಈ ಮುನ್ನೋಟದಲ್ಲಿ ಉತ್ತರಗಳು ಸ್ಥಗಿತ.", previewGuest: "ಅತಿಥಿಯ ಹೆಸರು",
   playMusic: "ಸಂಗೀತ ಕೇಳಿ", pauseMusic: "ಸಂಗೀತ ನಿಲ್ಲಿಸಿ", galleryTitle: "ನಮ್ಮ ಫೋಟೋಗಳು", navGallery: "ಫೋಟೋಗಳು", photoOf: (n, total) => `ಫೋಟೋ ${n} / ${total}`, close: "ಮುಚ್ಚಿ", previous: "ಹಿಂದಿನ ಫೋಟೋ", next: "ಮುಂದಿನ ಫೋಟೋ",
   theWedding: "ವಿವಾಹ", stdTitle: "ದಿನಾಂಕ ನೆನಪಿರಲಿ", stdFollow: "ಎಲ್ಲಾ ಸಮಾರಂಭಗಳ ವಿವರ ಮತ್ತು ಉತ್ತರಿಸುವ ಅವಕಾಶದೊಂದಿಗೆ ಔಪಚಾರಿಕ ಆಹ್ವಾನ ಶೀಘ್ರದಲ್ಲೇ ಬರಲಿದೆ.",
+  fullInvitation: "ನಮ್ಮ ಪೂರ್ಣ ಆಹ್ವಾನ ನೋಡಿ", replyHere: "ನಮ್ಮ ಆಹ್ವಾನದ ವೆಬ್‌ಸೈಟ್ ತೆರೆಯುತ್ತದೆ. ದಯವಿಟ್ಟು ಉತ್ತರವನ್ನು ಇಲ್ಲೇ, ಈ ಪುಟದಲ್ಲಿ ನೀಡಿ.",
   savedResponses: (n) => `${n} ಉತ್ತರಗಳನ್ನು ಉಳಿಸಲಾಗಿದೆ.`, alreadySaved: "ಈ ಉತ್ತರಗಳನ್ನು ಈಗಾಗಲೇ ಉಳಿಸಲಾಗಿದೆ.", savedInfo: "ನಿಮ್ಮ ಮಾಹಿತಿ ನವೀಕರಿಸಲಾಗಿದೆ.",
   conflict: "ಇದನ್ನು ಈಗಷ್ಟೇ ಬದಲಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಪುಟವನ್ನು ರಿಫ್ರೆಶ್ ಮಾಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.", unavailableShort: "ಈ ಆಹ್ವಾನ ಈಗ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಆತಿಥೇಯರನ್ನು ಸಂಪರ್ಕಿಸಿ.", invalid: "ದಯವಿಟ್ಟು ನಿಮ್ಮ ಉತ್ತರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
 };
@@ -159,6 +162,7 @@ const tcy: PortalStrings = {
   travelHelp: "ದಾಲ ತಪ್ಪು ತೋಜಿಂಡ ಆತಿಥೇಯೆರೆನ್ ಸಂಪರ್ಕ ಮಲ್ಪುಲೆ.",
   openInvitation: "ಈರೆನ ಲೆಪ್ಪು ತೆರಲೆ", navInvitation: "ಲೆಪ್ಪು", navStory: "ಎಂಕುಲೆನ ಕತೆ", ourStory: "ಎಂಕುಲೆನ ಕತೆ",
   blessingsTitle: "ಆಶೀರ್ವಾದೊಲು", sendBlessing: "ಆಶೀರ್ವಾದ ಕಡಪುಡ್ಲೆ", blessingPlaceholder: "ಈರೆನ ಶುಭಾಶಯೊಲು…",
+  fullInvitation: "ಎಂಕುಲೆನ ಪೂರ್ಣ ಲೆಪ್ಪು ತೂಲೆ",
   theWedding: "ಮದಿಮೆ", stdTitle: "ದಿನ ನೆನಪು ಮಲ್ಪುಲೆ", stdFollow: "ಮಾತಾ ಕಾರ್ಯಕ್ರಮೊಲೆನ ವಿವರೊದೊಟ್ಟುಗು ಲೆಪ್ಪು ಬೊಕ್ಕ ಬರ್ಪುಂಡು.",
   galleryTitle: "ಎಂಕುಲೆನ ಪಟೊಲು", navGallery: "ಪಟೊಲು",
   revealTitle: "ಈರೆಗ್ ಪ್ರೀತಿದ ಲೆಪ್ಪು", call: "ಫೋನ್ ಮಲ್ಪುಲೆ", previewGuest: "ಬಿನ್ನೆರೆನ ಪುದರ್",

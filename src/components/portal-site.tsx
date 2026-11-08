@@ -228,6 +228,15 @@ export function KacheriVeena() {
   </svg>;
 }
 
+/** A link to an invitation website made elsewhere. Replies still happen on this page. */
+export function ExternalInvitationLink({ t, site }: { t: PortalStrings; site: InvitationSite }) {
+  if (!site.external_link.url) return null;
+  return <div className="portal-external">
+    <a className="portal-live-button" href={site.external_link.url} target="_blank" rel="noopener noreferrer">{site.external_link.label || t.fullInvitation} ↗</a>
+    <p className="guest-portal-meta">{t.replyHere}</p>
+  </div>;
+}
+
 /** The blessing line shown above the invitation. */
 export function BlessingHeader({ site }: { site: InvitationSite }) {
   return site.blessing_header ? <p className="portal-blessing-header">{site.blessing_header}</p> : null;

@@ -126,3 +126,17 @@ The studio follows the structure of modern invitation builders, with our own des
 ## Not included (on hold)
 
 Automatic email (Option B) and WhatsApp Business sending (Option C). See `messaging-integration-design.md`. You will be reminded once the remaining usability steps are done.
+
+## Own artwork, outside invitation sites, and the studio freeze (2026-11-08)
+
+**Decision:** invitations, private guest links and replies stay in this app. They depend on the guest list (different functions per guest, households, languages, catering counts and tracking), and a separate invitation app would split the guest list in two. The artwork can come from anywhere. **The design studio is frozen:** no new templates, effects or design features; only bug fixes. Effort until the wedding goes to replies, headcounts and wedding-week operations.
+
+- **Use our own artwork.** Under Design → Card artwork, upload a finished invitation image from a designer, Canva or an invitation studio.
+  - It's resized on the device to at most 2000 px and 1.3 MB, and stored as `invitation_media` kind `artwork`, one per design. Guests reach it only through their session; family previews through their link.
+  - It's shown whole, never cropped. If it isn't 4:5, it sits on the theme colour.
+  - Optionally a light band at the top or bottom carries "Dear (name)," in the guest's language.
+  - Every output uses it: the guest page, share image and formats, video, and the PDF. In the PDF, the artwork page with the guest's QR code replaces the drawn cover and invitation pages.
+  - For a PDF from a designer, export the main page as JPEG or PNG first.
+- **Invitation website elsewhere.** Content → "Invitation website elsewhere" adds an https link and button text. Guests see "See our full invitation ↗", with a note to reply on this page, so there's still one guest list.
+- **Exports** now inline same-origin images (artwork and couple photo) before drawing, because an SVG drawn as an image can't load other addresses.
+- Migration `20261118100000_invitation_artwork.sql` adds the `artwork` kind and includes it in the guest and preview media listings. Additive only.

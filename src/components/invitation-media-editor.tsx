@@ -4,12 +4,48 @@ import { useRouter } from "next/navigation";
 import { ImagePlus, Music } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { TextInput } from "@/components/form-fields";
-import { MAX_GALLERY_PHOTOS, MAX_MUSIC_BYTES, resizeToJpeg, type PortalMedia } from "@/lib/invitations/media";
+import { MAX_ARTWORK_BYTES, MAX_GALLERY_PHOTOS, MAX_MUSIC_BYTES, resizeToJpeg, type PortalMedia } from "@/lib/invitations/media";
 import type { InvitationWorkspace } from "@/lib/data/invitations";
 import { captionMediaAction, deleteMediaAction } from "@/app/actions/invitations";
 
 type Data = InvitationWorkspace;
 type Design = Data["designs"][number];
+
+/** The address of a design's own artwork for the studio, or null when none is uploaded. */
+export function studioArtworkUrl(data: Data, designId: string | undefined) {
+  const row = designId ? data.media.find((item) => item.design_id === designId && item.kind === "artwork") : undefined;
+  return row ? `/api/invitations/media/${data.wedding.id}/${row.id}` : null;
+}
+
+/** One finished invitation image per design, resized on this device. Saved straight away. */
+export function ArtworkUploader({ data, design }: { data: Data; design?: Design }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!design) return <p className="field-help">Create the design first, then add your artwork.</p>;
+  const artwork = data.media.find((row) => row.design_id === design.id && row.kind === "artwork");
+  const choose = async (file: File | undefined) => {
+    if (!file) return;
+    setError(""); setBusy(true);
+    try { await upload(data, design, "artwork", await resizeToJpeg(file, 2000, MAX_ARTWORK_BYTES), file.name.replace(/\.[^.]+$/, "") + ".jpg"); router.refresh(); }
+    catch (problem) { setError((problem as Error).message); } finally { setBusy(false); }
+  };
+  return <div className="section-stack">
+    <p className="field-help">Your finished invitation as an image, from a designer, Canva or an invitation studio. Best in portrait 4:5 (for example 1080 × 1350 or larger); other shapes are shown whole, on your theme colour. For a PDF, export the main page as a JPEG or PNG first. Saved straight away, and only invited guests can see it.</p>
+    {artwork && <div className="artwork-row">
+      {/* eslint-disable-next-line @next/next/no-img-element -- private, signed-in file */}
+      <img src={`/api/invitations/media/${data.wedding.id}/${artwork.id}`} alt="Your uploaded invitation artwork" />
+      <span className="row-meta">{(artwork.byte_size / 1_048_576).toFixed(1)} MB</span>
+      {data.canEdit && <ActionForm action={deleteMediaAction} submitLabel="Remove artwork" variant="quiet" className="inline-action-form">
+        <input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="mediaId" value={artwork.id} />
+      </ActionForm>}
+    </div>}
+    {data.canEdit && <label className="button button-secondary photo-pick"><ImagePlus size={15} aria-hidden="true" /> {busy ? "Uploading…" : artwork ? "Replace artwork" : "Choose artwork"}
+      <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void choose(file); }} />
+    </label>}
+    {error && <p className="field-error" role="alert">{error}</p>}
+  </div>;
+}
 
 /** Where the studio loads a design's media from (signed-in members only). */
 export function studioMedia(data: Data, designId: string | undefined): PortalMedia | undefined {
@@ -19,11 +55,12 @@ export function studioMedia(data: Data, designId: string | undefined): PortalMed
   return {
     base: `/api/invitations/media/${data.wedding.id}/`,
     music: rows.find((row) => row.kind === "music")?.id ?? null,
+    artwork: rows.find((row) => row.kind === "artwork")?.id ?? null,
     gallery: rows.filter((row) => row.kind === "gallery").sort((a, b) => a.position - b.position).map((row) => ({ id: row.id, caption: row.caption })),
   };
 }
 
-async function upload(data: Data, design: Design, kind: "music" | "gallery", file: Blob, name: string) {
+async function upload(data: Data, design: Design, kind: "music" | "gallery" | "artwork", file: Blob, name: string) {
   const form = new FormData();
   form.set("weddingId", data.wedding.id); form.set("designId", design.id); form.set("kind", kind); form.set("caption", "");
   form.set("file", file, name);

@@ -971,3 +971,5 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 /* Long couple names: two lines, not a cut-off single line. */
 .brand { align-items: center; min-width: 0; }
 .brand-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; white-space: normal; line-height: 1.15; font-size: 18px; }
+.portal-external { display: grid; justify-items: center; gap: 6px; margin: 4px 0 8px; text-align: center; } .portal-external .portal-live-button { background: var(--portal-accent-text, var(--ink)); font-size: 16px; text-decoration: none; }
+.artwork-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; } .artwork-row img { width: 120px; border: 1px solid var(--line); border-radius: 8px; }

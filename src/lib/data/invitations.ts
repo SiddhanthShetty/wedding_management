@@ -38,7 +38,7 @@ export async function getInvitationWorkspace(weddingId: string) {
     wedding: context.wedding,
     canEdit: context.membership.role === "owner" || context.membership.role === "co_owner" || context.moduleAccess.guests === "edit",
     coupleNames: [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean).join(" & ") || context.wedding.name,
-    media: (media.data ?? []) as Array<{ id: string; design_id: string; kind: "music" | "gallery"; position: number; mime: string; byte_size: number; caption: string; created_at: string }>,
+    media: (media.data ?? []) as Array<{ id: string; design_id: string; kind: "music" | "gallery" | "artwork"; position: number; mime: string; byte_size: number; caption: string; created_at: string }>,
     weddingDate: (wedding.data?.wedding_date as string | null | undefined) ?? null,
     couplePartners: [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean) as string[],
     designs: (designs.data ?? []) as Array<{ id: string; name: string; theme: ThemeId; accent: string | null; texts: TextOverrides; site: unknown; photo_data: string | null; show_monogram: boolean; is_default: boolean; version: number; updated_at: string }>,

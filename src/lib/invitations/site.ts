@@ -30,7 +30,13 @@ export type CelebrationEffect = typeof EFFECTS[number]["id"];
 
 export type DesignKind = "invitation" | "save_the_date";
 
+export type NameBand = "none" | "top" | "bottom";
+
 export type InvitationSite = {
+  /** Use a finished invitation image made elsewhere instead of the drawn card, and where to write each guest's name on it. */
+  artwork: { enabled: boolean; name_band: NameBand };
+  /** An invitation website made elsewhere, linked from the guest page. Replies still happen here. */
+  external_link: { url: string | null; label: string };
   /** A full invitation, or a Save the Date sent months ahead (just names, date and place; no replies). */
   kind: DesignKind;
   save_the_date: { date: string; city: string };
@@ -66,6 +72,7 @@ export type InvitationSite = {
 export const BLESSING_PRESETS = ["|| Shree Ganeshaya Namah ||", "॥ ಶ್ರೀ ಗಣೇಶಾಯ ನಮಃ ॥", "॥ श्री गणेशाय नमः ॥", "|| Om ||"] as const;
 
 export const EMPTY_SITE: InvitationSite = {
+  artwork: { enabled: false, name_band: "bottom" }, external_link: { url: null, label: "" },
   kind: "invitation", save_the_date: { date: "", city: "" },
   template: "classic", opening_style: "envelope", effect: "petals",
   opening_animation: true, countdown: true, blessings_enabled: false, livestream_url: null, story: [], faqs: [], palettes: {},
@@ -75,6 +82,14 @@ export const EMPTY_SITE: InvitationSite = {
 
 const text = (max: number) => z.string().trim().max(max);
 const siteSchema = z.object({
+  artwork: z.object({
+    enabled: z.boolean().default(false),
+    name_band: z.enum(["none", "top", "bottom"]).catch("bottom").default("bottom"),
+  }).default({ enabled: false, name_band: "bottom" }),
+  external_link: z.object({
+    url: z.union([z.literal(""), z.null(), z.url({ protocol: /^https$/, message: "The invitation website link must start with https://" })]).transform((value) => value || null).default(null),
+    label: text(60).default(""),
+  }).default({ url: null, label: "" }),
   kind: z.enum(["invitation", "save_the_date"]).catch("invitation").default("invitation"),
   save_the_date: z.object({
     date: z.union([z.literal(""), z.iso.date("Choose the wedding date for the Save the Date.")]).default(""),
