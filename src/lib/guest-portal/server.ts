@@ -45,14 +45,21 @@ function publicSupabase() {
   return createClient(env.url, env.publishableKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
 }
 
-function clientAddress(headersList: Headers) {
-  // Hosting must overwrite forwarded IP headers. If no trusted address is supplied,
-  // all callers share the fail-closed "unknown" rate-limit bucket.
+/**
+ * The caller's network address for rate limiting. On Vercel (VERCEL is set only there) the
+ * platform's own header is used, which clients cannot set. Elsewhere the hosting proxy must
+ * overwrite x-real-ip / x-forwarded-for. With no address, callers share the "unknown" bucket.
+ */
+export function clientAddress(headersList: Headers, onVercel = Boolean(process.env.VERCEL)) {
+  if (onVercel) {
+    const vercel = headersList.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+    if (vercel) return vercel;
+  }
   const forwarded = headersList.get("x-forwarded-for")?.split(",")[0]?.trim();
   return headersList.get("x-real-ip")?.trim() || forwarded || "unknown";
 }
 
-export async function consumePortalRateLimit(scope: "exchange" | "submit" | "read", headersList?: Headers) {
+export async function consumePortalRateLimit(scope: "exchange" | "submit" | "read" | "media", headersList?: Headers) {
   const list = headersList ?? await headers();
   const keyDigest = digestGuestPortalAddress(clientAddress(list), scope);
   const supabase = publicSupabase();
@@ -146,7 +153,7 @@ export async function submitPortalBlessing(input: { message: string; submissionK
 export async function getGuestPortalPhoto(): Promise<{ type: string; bytes: Buffer } | null> {
   try {
     const sessionDigest = await getGuestPortalSessionDigest();
-    if (!sessionDigest || !(await consumePortalRateLimit("read"))) return null;
+    if (!sessionDigest || !(await consumePortalRateLimit("media"))) return null;
     const { data, error } = await publicSupabase().rpc("get_guest_portal_photo", { p_session_digest: sessionDigest });
     if (error || typeof data !== "string") return null;
     const match = /^data:(image\/(?:jpeg|webp));base64,([A-Za-z0-9+/]+=*)$/.exec(data);
@@ -176,7 +183,7 @@ function decodeMedia(data: unknown): MediaFile | null {
 export async function getGuestPortalMedia(mediaId: string): Promise<MediaFile | null> {
   try {
     const sessionDigest = await getGuestPortalSessionDigest();
-    if (!sessionDigest || !(await consumePortalRateLimit("read"))) return null;
+    if (!sessionDigest || !(await consumePortalRateLimit("media"))) return null;
     const { data, error } = await publicSupabase().rpc("get_guest_portal_media", { p_session_digest: sessionDigest, p_media_id: mediaId });
     return error ? null : decodeMedia(data);
   } catch { return null; }
@@ -193,7 +200,7 @@ export async function listPreviewMedia(token: string): Promise<Omit<PortalMedia,
 export async function getPreviewMedia(mediaId: string): Promise<MediaFile | null> {
   try {
     const token = (await cookies()).get(PREVIEW_COOKIE)?.value;
-    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token) || !(await consumePortalRateLimit("read"))) return null;
+    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token) || !(await consumePortalRateLimit("media"))) return null;
     const { data, error } = await publicSupabase().rpc("get_invitation_preview_media", { p_token_digest: digestGuestPortalValue("preview", token), p_media_id: mediaId });
     return error ? null : decodeMedia(data);
   } catch { return null; }

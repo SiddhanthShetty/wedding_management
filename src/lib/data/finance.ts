@@ -1,10 +1,11 @@
+import type { LooseRow } from "@/lib/types/loose";
 import "server-only";
 
 import { authorizeWeddingOperation } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fromMinorUnits, toMinorUnits, type FinanceBooking, calculateFinanceTotals, isOverpaid, outstandingBalance, refundOutstanding, scheduledPaymentRemaining } from "@/lib/planning/money";
 
-type Row = Record<string, any>;
+type Row = LooseRow;
 const fail = (message: string) => { throw new Error(message); };
 
 export async function getFinanceDashboard(weddingId: string) {
@@ -91,7 +92,7 @@ export async function saveFinancialRecord(weddingId: string, table: string, valu
 }
 
 export async function createFinancialBooking(weddingId: string, values: Record<string, unknown>, allocations: Array<Record<string, unknown>>) {
-  const context = await authorizeWeddingOperation(weddingId, "suppliers_finance", "edit");
+  await authorizeWeddingOperation(weddingId, "suppliers_finance", "edit");
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("create_financial_booking", {
     p_values: { ...values, wedding_id: weddingId }, p_allocations: allocations,

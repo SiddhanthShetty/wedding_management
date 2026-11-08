@@ -5,7 +5,7 @@ import { PrintButton } from "@/components/print-button";
 import { EmptyState } from "@/components/ui";
 import { describeStatus } from "@/lib/planning/status-vocabulary";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
-import { ARRANGEMENT_LABELS, ARRANGEMENT_STATUS_LABELS, checklistProgress, ISSUE_STATUS_LABELS, SCHEDULE_STATUS_LABELS, scheduleWarnings, SEVERITY_LABELS, sortIssues } from "@/lib/planning/operations-rules";
+import { ARRANGEMENT_LABELS, checklistProgress, scheduleWarnings, SEVERITY_LABELS, sortIssues } from "@/lib/planning/operations-rules";
 
 /**
  * Printable operational pack. It is a snapshot: the generation time is printed on every page

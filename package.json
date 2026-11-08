@@ -12,7 +12,10 @@
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
     "test:unit": "vitest run",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "tools/lint/node_modules/.bin/eslint -c tools/lint/eslint.config.mjs .",
+    "lint:install": "npm --prefix tools/lint ci",
+    "backup": "bash scripts/backup-db.sh"
   },
   "keywords": [],
   "author": "",

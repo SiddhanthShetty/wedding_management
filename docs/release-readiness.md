@@ -11,16 +11,16 @@ The code and database rules are well covered by automated tests, but the app has
 | # | Blocker | Why it blocks | How to clear |
 | --- | --- | --- | --- |
 | 1 | **Partly cleared (2026-11-06):** all 14 migrations are applied to `wedding_management` (`reikygaktingpoworigo`, labelled production). A schema and data dump was taken first. RLS on every new table, the private `wedding-documents` bucket (8 MB, allowed types) and its 3 storage policies were verified. The app has **not** yet been exercised signed in against it. | Behaviour through PostgREST/Auth/Storage is still unverified. | Run the signed-in browser and upload checks against this project (blocker 2), or against a separate staging project. |
-| 2 | No integration or browser tests ran **signed in**. There's no local Supabase (Docker missing), so Playwright only covers signed-out flows. | Mobile and keyboard use of every signed-in form, upload and download, signed URLs and RLS through PostgREST are unverified. | Run `npx supabase start` (needs Docker), `npm run db:reset`, then extend `tests/smoke.spec.ts` with signed-in journeys for the seeded `*.test` users. |
-| 3 | **Backups and restore not configured or tested.** | Losing guest, RSVP or payment records is unrecoverable. | Enable Supabase PITR or daily backups on the production plan, then run the restore drill below in an isolated project. |
-| 4 | **Storage bucket untested on real Supabase.** The bucket and object policies are created only when the `storage` schema exists. Tests use a minimal stand-in. | Uploads or downloads may fail, or be wrongly permitted, if the real storage schema differs. | On staging, upload, view, download and purge as owner, scoped member and other-wedding owner. Confirm the bucket is private and signed URLs expire after 60 s. |
-| 5 | **No linter configured** (`eslint` is not a dependency, and Next 16 has no `next lint`). | Agreed checks include linting. | Approve adding `eslint` + `eslint-config-next` (dev-only), or explicitly waive. |
-| 6 | **Trusted proxy headers.** Guest-portal rate limiting trusts `x-real-ip` / `x-forwarded-for`, and same-origin checks trust `x-forwarded-host`. | Behind a proxy that passes client-supplied values through, rate limits can be bypassed. | Deploy behind a platform that overwrites these headers (for example Vercel). Confirm with a staging request. |
+| 2 | **In progress (2026-11-08):** signed-in browser tests are written (`tests/signed-in.spec.ts`: every section on desktop, every section at phone width, document upload/download/archive, studio preview and family preview link). They run only with `E2E_TARGET=staging`, and **have not run yet**. | Signed-in forms, uploads, signed URLs and RLS through PostgREST are still unverified on a real project. | Create the staging project and a TEST account, then run the suite ([staging.md](staging.md)). |
+| 3 | **Partly cleared (2026-11-08):** chosen approach is the free backup script, not a paid plan. `npm run backup` saves roles, schema, data and Storage documents outside the repository with checksums. First backup taken 2026-11-08 (532 KB). Supabase itself keeps no backups on this plan. | A restore has never been rehearsed, and backups only exist when someone runs the script. | Run the restore drill into staging ([backup-restore.md](backup-restore.md)), then run the script before every release and weekly. |
+| 4 | **Storage bucket untested on real Supabase.** The backup script reached the live bucket (empty so far). The upload journey is in the signed-in suite. | Uploads or downloads may fail, or be wrongly permitted, if the real Storage setup differs. | Run the signed-in suite on staging; also try a scoped member and a member of another wedding there. |
+| 5 | **Cleared (2026-11-08):** ESLint 9 with `eslint-config-next` (core web vitals and TypeScript) in `tools/lint/`, its own folder because typescript-eslint needs TypeScript 6 while the app uses TypeScript 7. `npm run lint` passes with 0 errors after fixing 52 findings. 27 warnings (setState in effects) were reviewed and are deliberate. | – | Run `npm run lint:install` once per checkout. |
+| 6 | **Code ready (2026-11-08):** on Vercel, rate limits use Vercel's own `x-vercel-forwarded-for`, which clients cannot set. Elsewhere it falls back to `x-real-ip` / `x-forwarded-for` (tested). | Only confirmed once deployed. | Deploy on Vercel ([deploy-vercel.md](deploy-vercel.md)) and check headers with the `curl` commands there. |
 
 Not blocking, but should be fixed soon:
 
 - **No malware scanning** of uploads. This is documented, and the UI says “not malware-scanned”. Add a scanner before inviting many collaborators to upload.
-- No Content-Security-Policy header yet.
+- **Done (2026-11-08):** Content-Security-Policy and security headers (`next.config.ts`): self-only scripts, styles, fonts and connections; blob/data images and media; no framing; HSTS in production. Checked on a production build: no blocked resources on sign-in or the guest preview, and guest pages keep `no-referrer` and `no-store`.
 - One wedding per account in the UI (`requireCurrentWorkspace` picks the oldest membership; no switcher).
 
 ## Checks actually run
@@ -194,3 +194,26 @@ Still unverified: keyboard tab behaviour and signed-in mobile forms in a real br
 - **No new migration.** Save the Date settings are stored in `invitation_designs.site`, and the PDF is made on the device.
 - **Checks run:** `tsc --noEmit` passed. `vitest run` passed 190 tests in 15 files. `next build` passed. The Playwright smoke tests passed 5 tests. A 5-page sample PDF was made in the browser and its pages checked visually (header, page count, end of file). The Save the Date guest page was checked visually on a temporary demo page with fake data, since deleted.
 - **Not run:** sharing a PDF to WhatsApp from a real phone, and opening the PDF in a separate PDF viewer app.
+
+## Release-readiness pass (2026-11-08)
+
+- **Decisions:** backups by a free script (no paid plan); signed-in testing on a separate staging project; ESLint added.
+- **Linter:** `tools/lint/` (run `npm run lint:install` once, then `npm run lint`). Fixes:
+  - 20 untyped `any`s moved into one documented `Loose` alias, pending generated database types;
+  - unused imports and variables removed;
+  - apostrophes in visible text made typographic;
+  - three intentional hook-dependency choices commented.
+- **Backups:** `scripts/backup-db.sh` (`npm run backup`), [backup-restore.md](backup-restore.md). First backup taken.
+- **Security headers:** a Content-Security-Policy plus `nosniff`, `X-Frame-Options: DENY`, `Permissions-Policy` and HSTS (production only).
+- **Guest-page limits for venues:** migration `20261117100000_portal_rate_limits_for_venues.sql`, **applied to `wedding_management` on 2026-11-08**, after a backup with `npm run backup` and a dry run:
+  - opening a link: 200 per 15 minutes (was 30);
+  - page reads: 600 per minute (was 120);
+  - replies: 120 per 15 minutes (was 30);
+  - a new `media` allowance of 1,500 per minute for photos and music.
+
+  Counters are per network address, and a whole venue shares one. Guest links can't be guessed, so these limits only guard database load. Data impact: none to wedding data. Checked on the live project afterwards: migration history matches, the scope check includes `media`, the four limits are as listed, and the function is still callable by `anon` only (plus the service role).
+- **New guides:** [staging.md](staging.md) and [deploy-vercel.md](deploy-vercel.md).
+- **Checks run:** `npm run lint` passed (0 errors, 27 reviewed warnings). `tsc --noEmit` passed. `vitest run` passed 195 tests in 16 files. `next build` passed. Smoke tests: 5 passed, and the 4 signed-in tests were skipped because no staging target was set. On a local production build, all security headers were present and the browser console showed no blocked resources.
+- **Still to do before real guest data:**
+  1. create staging and run the signed-in suite and the restore drill;
+  2. deploy to Vercel and check the headers.

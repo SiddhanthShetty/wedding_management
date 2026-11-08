@@ -6,7 +6,7 @@ import {
   addDecisionCommentAction, addDecisionOptionAction, createDecisionAction,
   saveDecisionPreferenceAction, updateDecisionAction,
 } from "@/app/actions/decisions";
-import { Button, Card, EmptyState, NotificationRegion, StageBadge, StatusLabel } from "@/components/ui";
+import { Button, Card, EmptyState, NotificationRegion, StageBadge } from "@/components/ui";
 import { Dialog } from "@/components/dialog";
 import type { WeddingDecision } from "@/lib/data/decisions";
 

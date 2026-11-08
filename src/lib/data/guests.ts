@@ -1,3 +1,4 @@
+import type { LooseRow } from "@/lib/types/loose";
 import "server-only";
 
 import { authorizeWeddingOperation } from "@/lib/auth/access";
@@ -6,7 +7,7 @@ import { createCsv } from "@/lib/planning/guest-csv";
 import { guestImportRows, guestInvitationChangesInput } from "@/lib/planning/guest-inputs";
 import { digestGuestPortalValue, newGuestPortalToken } from "@/lib/guest-portal/crypto";
 
-type Row=Record<string,any>;
+type Row=LooseRow;
 export type GuestImportRecord={rowNumber:number;raw:Record<string,string>;fullName:string;householdName:string;email:string;phone:string;familySide:"couple_one"|"couple_two"|"shared"|"unknown";mealPreference:string;allergies:string;assistanceNeeds:string;errors:string[];allowDuplicate:boolean};
 const required=(error:unknown,message:string)=>{if(error)throw new Error(message);};
 function canEdit(context:Awaited<ReturnType<typeof authorizeWeddingOperation>>){return context.membership.role==="owner"||context.membership.role==="co_owner"||context.moduleAccess.guests==="edit";}

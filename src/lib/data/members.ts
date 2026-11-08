@@ -73,7 +73,7 @@ export async function revokeWeddingMember(input: { weddingId: string; targetUser
 }
 
 export async function listWeddingMembers(weddingId: string) {
-  const context = await requireMemberManager(weddingId);
+  await requireMemberManager(weddingId);
   const supabase = await createSupabaseServerClient();
   const { data: members, error } = await supabase
     .from("wedding_members")

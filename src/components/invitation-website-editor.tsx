@@ -138,7 +138,7 @@ export function WebsiteContentFields({ data, site, update, readOnly }: { data: D
 
     <Group title="Opening screen and section titles" summary="Fine-tune the wording">
       <fieldset className="field-grid" disabled={readOnly}>
-        <p className="field-help field-full">Leave any line blank to use the built-in wording in each guest's language. What you write here is shown as written, in every language.</p>
+        <p className="field-help field-full">Leave any line blank to use the built-in wording in each guest’s language. What you write here is shown as written, in every language.</p>
         <TextInput label="Opening screen heading" maxLength={80} value={site.reveal.title} onChange={(event) => update("reveal", { ...site.reveal, title: event.target.value })} placeholder="You are cordially invited" />
         <TextInput label="Opening button" maxLength={80} value={site.reveal.hint} onChange={(event) => update("reveal", { ...site.reveal, hint: event.target.value })} placeholder="Open your invitation" />
         <TextInput label="“Our story” heading" maxLength={60} value={site.titles.story} onChange={(event) => update("titles", { ...site.titles, story: event.target.value })} placeholder="Our story" />

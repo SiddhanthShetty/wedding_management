@@ -1,0 +1,10 @@
+{
+  "name": "wedding-lint",
+  "private": true,
+  "description": "ESLint for the app, kept separate because typescript-eslint needs TypeScript 6 while the app uses TypeScript 7.",
+  "devDependencies": {
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.5",
+    "typescript": "6.0.3"
+  }
+}

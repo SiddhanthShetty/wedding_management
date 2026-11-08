@@ -223,7 +223,7 @@ function ContentStep({ data, designId, draft, set, updateSite, lang, setLang, re
         <fieldset className="studio-group-body wording" disabled={readOnly}>
           <Select label="Language" value={lang} onChange={(event) => setLang(event.target.value as LanguageCode)} hint="The preview switches to this language too.">{LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select>
           {languageInfo.draft && <p className="travel-warning">The built-in {languageInfo.label} wording is a draft. Please have a native speaker check it{lang === "tcy" ? ", especially Tulu" : ""}. Edit any line below.</p>}
-          <p className="field-help">Use {"{{name}}"} for the invited person, {"{{couple}}"} for your names and {"{{link}}"} for that person's private link. Leave a line blank to use the default shown.</p>
+          <p className="field-help">Use {"{{name}}"} for the invited person, {"{{couple}}"} for your names and {"{{link}}"} for that person’s private link. Leave a line blank to use the default shown.</p>
           {TEXT_KEYS.map((key) => <TextArea key={`${lang}-${key}`} label={TEXT_LABELS[key]} rows={key === "share" || key === "body" ? 3 : 1} maxLength={600} lang={lang}
             value={draft.texts[lang]?.[key] ?? ""} placeholder={defaultTexts(lang, draft.site.kind)[key]} onChange={(event) => setText(key, event.target.value)} />)}
         </fieldset>
@@ -256,12 +256,12 @@ function ExtrasStep({ data, draft, photo, lang }: { data: Data; draft: Draft; ph
         {(Object.keys(CARD_FORMATS) as CardFormat[]).map((value) => <option key={value} value={value}>{CARD_FORMATS[value].label}</option>)}
       </Select>
       <div className="invite-preview" ref={ref}><FormattedCard format={format} card={card} qr={format === "print" ? qrPath("https://example.invalid/guest#sample-qr-code") : null} qrLabel={PORTAL_STRINGS[lang].openInvitation} /></div>
-      {format === "print" && <p className="field-help">This sample QR code does not open anything. Each guest's card gets a QR code for their own private link.</p>}
+      {format === "print" && <p className="field-help">This sample QR code does not open anything. Each guest’s card gets a QR code for their own private link.</p>}
       <div className="doc-actions"><button type="button" className="button button-secondary" onClick={download}><Download size={15} aria-hidden="true" /> Download sample</button></div>
       {error && <p className="field-error" role="alert">{error}</p>}
     </Card>
     <Card title="PDF card" subtitle={draft.site.kind === "save_the_date" ? "A cover, your Save the Date and a closing page, to forward on WhatsApp or print (A5)." : "A cover, your invitation with both families, a page for each function and a page with the guest's QR code, to forward on WhatsApp or print (A5)."}>
-      <p className="field-help">This sample uses a sample guest, every function and a QR code that opens nothing. Each guest's own PDF, with their name and QR code, is made in Share after you create their link.</p>
+      <p className="field-help">This sample uses a sample guest, every function and a QR code that opens nothing. Each guest’s own PDF, with their name and QR code, is made in Share after you create their link.</p>
       <PdfMaker content={pdfContent({ card, language: lang, site: draft.site, partners: data.couplePartners, functions: data.functions, qr: qrPath("https://example.invalid/guest#sample-qr-code") })} fileName="invitation-sample.pdf" label="Make sample PDF" />
     </Card>
     <Card title="Video invitation">
@@ -374,10 +374,13 @@ function PhotoUploader({ data, design, onPreview }: { data: Data; design: Design
   const [busy, setBusy] = useState(false);
   if (!data.canEdit) return null;
   return <div className="photo-uploader">
-    <div className="photo-thumb" aria-hidden="true">{(photo ?? design.photo_data) ? <img src={photo ?? design.photo_data!} alt="" /> : <ImageIcon size={22} />}</div>
+    <div className="photo-thumb" aria-hidden="true">{(photo ?? design.photo_data)
+      // eslint-disable-next-line @next/next/no-img-element -- a local data-URL preview; next/image adds nothing here
+      ? <img src={photo ?? design.photo_data!} alt="" />
+      : <ImageIcon size={22} />}</div>
     <div className="section-stack">
       <p className="field-label">Couple photo (optional)</p>
-      <p className="field-help">Shown in a circle on the card and on guests' pages. It is resized on this device to at most 900 px before upload. Only invited guests with a valid link can see it.</p>
+      <p className="field-help">Shown in a circle on the card and on guests’ pages. It is resized on this device to at most 900 px before upload. Only invited guests with a valid link can see it.</p>
       <label className="button button-secondary photo-pick">{busy ? "Preparing…" : "Choose photo"}
         <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" className="sr-only" disabled={busy} onChange={async (event) => {
           const file = event.target.files?.[0]; event.target.value = "";
@@ -398,7 +401,7 @@ function PhotoUploader({ data, design, onPreview }: { data: Data; design: Design
 }
 
 /** Makes an 8-second 9:16 video of this guest's card on this device, with optional own music. */
-function VideoMaker({ card, theme, accent, language, guestName, message }: { card: ReturnType<typeof guestCard>; theme: ThemeId; accent: string | null; language: LanguageCode; guestName: string; message: string }) {
+function VideoMaker({ card, theme, language, guestName, message }: { card: ReturnType<typeof guestCard>; theme: ThemeId; language: LanguageCode; guestName: string; message: string }) {
   const storyRef = useRef<HTMLDivElement>(null);
   const [music, setMusic] = useState<File | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -536,7 +539,7 @@ function BulkLinks({ data, design }: { data: Data; design: Design }) {
           <RecordSent data={data} design={design} guestId={row.guestId} message={message} link={url} />
         </span></li>;
       })}</ul>
-      <p className="field-help">Each link is shown only once here. Replacing a guest's link revokes the previous one. Record manual sending against the individual guest.</p>
+      <p className="field-help">Each link is shown only once here. Replacing a guest’s link revokes the previous one. Record manual sending against the individual guest.</p>
     </>}
   </Card>;
 }
@@ -610,7 +613,7 @@ function SharePanel({ data, design, guest, household, contact, onClose, onRecord
         <details className="video-maker"><summary>PDF card for {guest.full_name}</summary>
           <PdfMaker content={pdfContent({ card, language, site: readSite(design.site), partners: data.couplePartners, functions: guestFunctions(data, guest), qr: qrPath(link) })} fileName={cardFileName(guest.full_name).replace(/\.png$/, ".pdf")} message={message} />
         </details>
-        <VideoMaker card={card} theme={design.theme} accent={design.accent} language={language} guestName={guest.full_name} message={message} />
+        <VideoMaker card={card} theme={design.theme} language={language} guestName={guest.full_name} message={message} />
         <div className="doc-actions" role="group" aria-label="Record how you sent it">
           <span className="field-label">I sent it via</span>
           <button type="button" className="button button-quiet" disabled={busy} onClick={() => record("whatsapp")}>WhatsApp</button>

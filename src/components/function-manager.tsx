@@ -252,6 +252,8 @@ function ArchiveFunctionButton({ weddingId, item, linkedTasks, onArchived }: { w
   const [state, formAction, pending] = useActionState(archiveFunctionAction, {});
   useEffect(() => {
     if (state.message && open) { setOpen(false); onArchived(item.name); }
+    // Close once per new result; reopening the dialog must not close it again on the old message.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.message, onArchived]);
   const titleId = "archive-" + item.id + "-title";
   const descriptionId = "archive-" + item.id + "-description";

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { AuthorizationDeniedError, authorizeWeddingOperation, type WorkspaceContext } from "@/lib/auth/access";
+import { authorizeWeddingOperation, type WorkspaceContext } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   supplierAvailabilityInputSchema, supplierFollowUpTaskSchema, supplierInputSchema,

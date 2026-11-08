@@ -11,7 +11,7 @@ import { describeStatus, statusOptions } from "@/lib/planning/status-vocabulary"
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import { addMinutesToLocal, defaultScheduleStart, instantToLocalInput } from "@/lib/planning/local-time";
 import {
-  ARRANGEMENT_LABELS, ARRANGEMENT_STATUS_LABELS, checklistProgress, ISSUE_STATUS_LABELS, minutesLate, ownerKey, SCHEDULE_STATUS_LABELS, scheduleWarnings,
+  ARRANGEMENT_LABELS, checklistProgress, minutesLate, ownerKey, scheduleWarnings,
   SEVERITY_LABELS, sortIssues, unresolvedIssueCounts, type ArrangementCategory, type IssueSeverity, type ScheduleStatus,
 } from "@/lib/planning/operations-rules";
 import type { OperationsWorkspace } from "@/lib/data/operations";

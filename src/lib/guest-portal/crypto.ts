@@ -16,6 +16,6 @@ export function digestGuestPortalValue(kind: "link" | "session" | "rate" | "prev
   return createHmac("sha256", secret()).update(`wedding-guest-portal:v1:${kind}:${value}`).digest("hex");
 }
 
-export function digestGuestPortalAddress(address: string, scope: "exchange" | "submit" | "read") {
+export function digestGuestPortalAddress(address: string, scope: "exchange" | "submit" | "read" | "media") {
   return digestGuestPortalValue("rate", `${scope}:${address}`);
 }

@@ -10,13 +10,12 @@ import {
   addTaskChecklistItemAction, addTaskCommentAction, createTaskAction,
   toggleTaskChecklistAction, updateTaskAction,
 } from "@/app/actions/tasks";
-import type { TaskFormState } from "@/app/actions/tasks";
 import { Button, Card, EmptyState, NotificationRegion, StageBadge } from "@/components/ui";
 import { describeStatus } from "@/lib/planning/status-vocabulary";
 import { Dialog } from "@/components/dialog";
 import type { WeddingFunction } from "@/lib/data/functions";
 import type { WeddingTask } from "@/lib/data/tasks";
-import { isTaskDueSoon, isTaskOverdue, wouldCreateDependencyCycle } from "@/lib/planning/task-rules";
+import { isTaskOverdue, wouldCreateDependencyCycle } from "@/lib/planning/task-rules";
 
 type Assignee = { userId: string; role: string; name: string };
 
@@ -27,13 +26,6 @@ function formatDueDate(value: string | null) {
     .format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
-const statusLabels: Record<WeddingTask["status"], string> = {
-  not_started: "Not started",
-  in_progress: "In progress",
-  blocked: "Blocked",
-  completed: "Completed",
-  cancelled: "Cancelled",
-};
 
 export function TaskManager({
   weddingId,

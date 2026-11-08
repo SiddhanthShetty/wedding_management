@@ -12,7 +12,7 @@ import { describeStatus, statusOptions } from "@/lib/planning/status-vocabulary"
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import { instantToLocalInput } from "@/lib/planning/local-time";
 import {
-  ALLOCATION_LABELS, JOURNEY_KIND_LABELS, JOURNEY_STATUS_LABELS, NEED_LABELS, NEED_STATE_LABELS, PAYMENT_LABELS,
+  ALLOCATION_LABELS, JOURNEY_KIND_LABELS, NEED_LABELS, NEED_STATE_LABELS, PAYMENT_LABELS,
   defaultStayDates, pickupSuggestions, stayCapacityIssues, stayNights, travelGapCounts, vehicleConflicts, type PickupSuggestion,
   type AllocationStatus, type JourneyStatus, type NeedState,
 } from "@/lib/planning/travel-rules";

@@ -132,6 +132,8 @@ function PersonRsvpForm({person}:{person:PortalGuest}){
   useEffect(()=>{
     setSubmissionKeys(Object.fromEntries(person.invitations.map((invitation)=>[invitation.id,crypto.randomUUID()])));
     setBatchSubmissionKey(crypto.randomUUID());
+    // New keys only when the person changes; a refresh of their invitations keeps in-progress keys.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   },[person.id]);
   useEffect(()=>{
     if(state.message&&state.savedId===batchSubmissionKey){

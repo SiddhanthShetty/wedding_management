@@ -1,4 +1,5 @@
 "use client";
+import type { LooseRow } from "@/lib/types/loose";
 import { useState, type ReactNode } from "react";
 import { PageHeading, Card, EmptyState } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
@@ -8,7 +9,7 @@ import { countCateringGuests, calculateCateringCount, calculatePlateEstimate, ca
 import { CateringActionForm } from "@/components/catering-action-form";
 import { approveCateringMenuAction, cateringGuestCategoryAction, cateringTastingAction, createCateringServiceAction, saveCateringCountsAction, saveCateringMenuAction, snapshotCateringAction, updateCateringServiceAction } from "@/app/actions/catering";
 
-type Row = Record<string, any>;
+type Row = LooseRow;
 type Data = { wedding: { id:string;timezone:string;currency:string }; canEdit:boolean;canSeeAllergies:boolean;canLinkBookings:boolean;functions:Row[];suppliers:Row[];bookings:Row[];services:Row[] };
 const cats: CateringCategory[] = ["adult","child","vendor","staff"];
 function Field({label,name,type="text",defaultValue,required=false,inputMode,placeholder}: {label:string;name:string;type?:string;defaultValue?:string|number;required?:boolean;inputMode?:"decimal"|"numeric";placeholder?:string}) {return <label className="field"><span className="field-label">{label}</span><input className="field-control" name={name} type={type} inputMode={inputMode} defaultValue={defaultValue} placeholder={placeholder} required={required}/></label>;}
@@ -20,7 +21,6 @@ export function CateringManager({data}:{data:Data}) {
   const [printService,setPrintService]=useState<string|null>(null);
   const onPrint=(id:string)=>{setPrintService(id);requestAnimationFrame(()=>{window.print();setPrintService(null);});};
   const functions=new Map(data.functions.map(fn=>[fn.id,fn.name]));
-  const suppliers=new Map(data.suppliers.map(v=>[v.id,v.name]));
   return <main className="catering-page">
     <PageHeading eyebrow="Function logistics" title="Catering plans" description="Menus, dietary summaries and headcounts are maintained per meal service. Final counts are snapshots; an approved guarantee never shifts with RSVP changes." action={<button className="button button-secondary" type="button" onClick={()=>window.print()}>Print all summaries</button>}/>
     {data.canEdit&&<Card title="Add a meal service" subtitle="Choose a function and record only confirmed planning details." className="catering-create-card"><CateringActionForm action={createCateringServiceAction} label="Create meal service" className="catering-form"><input type="hidden" name="weddingId" value={data.wedding.id}/><Select label="Function" name="functionId"><option value="">Choose a function</option>{data.functions.map(fn=><option key={fn.id} value={fn.id}>{fn.name}</option>)}</Select><Field label="Meal service name" name="name" placeholder="Dinner service" required/><Field label="Service time" name="serviceTime" type="time"/><Field label="Catering rate currency (ISO 4217)" name="currency" defaultValue={data.wedding.currency} required/><Select label="Caterer" name="catererId"><option value="">Not linked</option>{data.suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</Select>{data.canLinkBookings&&<Select label="Existing agreed booking" name="bookingId"><option value="">Not linked</option>{data.bookings.map(b=><option key={b.id} value={b.id}>{b.label} · {formatMoney(String(b.agreed_total),b.currency)}</option>)}</Select>}<Field label={`Final-count deadline (${data.wedding.timezone})`} name="deadline" type="datetime-local"/></CateringActionForm></Card>}

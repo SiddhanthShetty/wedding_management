@@ -1,10 +1,11 @@
+import type { LooseRow } from "@/lib/types/loose";
 import "server-only";
 import { AuthorizationDeniedError, authorizeWeddingOperation } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveFunctionSchedule } from "@/lib/planning/schedule";
 
 const categories = ["adult", "child", "vendor", "staff"] as const;
-type Row = Record<string, any>;
+type Row = LooseRow;
 const fail = (message: string): never => { throw new Error(message); };
 function localDateTimeToInstant(value: string | null | undefined, timezone: string) {
   if (!value) return null;

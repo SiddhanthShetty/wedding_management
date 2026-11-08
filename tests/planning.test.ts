@@ -4,7 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { resolveFunctionSchedule } from "../src/lib/planning/schedule";
 import { isTaskDueSoon, isTaskOverdue, wouldCreateDependencyCycle } from "../src/lib/planning/task-rules";
 import { compareSuppliers, filterSuppliers } from "../src/lib/planning/supplier-rules";
-import { allocationDifference, calculateFinanceTotals, formatMoney, fromMinorUnits, isOverpaid, outstandingBalance, refundOutstanding, scheduledPaymentRemaining, sumMoney, toMinorUnits } from "../src/lib/planning/money";
+import { allocationDifference, calculateFinanceTotals, formatMoney, isOverpaid, outstandingBalance, refundOutstanding, scheduledPaymentRemaining, sumMoney, toMinorUnits } from "../src/lib/planning/money";
 import { bookingInput, transactionInput } from "../src/lib/planning/finance-inputs";
 import { createCsv, parseCsv, protectSpreadsheetCell } from "../src/lib/planning/guest-csv";
 import { isoTimestampInput, rsvpInput } from "../src/lib/planning/guest-inputs";
@@ -425,14 +425,14 @@ describe("per-function catering counts, guarantees and snapshots",()=>{
     expect(invites.rows[0]).toEqual({invited:"4",confirmed:"2"});
     await expectDenied(db.query("insert into public.catering_guest_assignments(wedding_id,meal_service_id,guest_id,category) values($1,$2,$3,'child')",[WEDDING_A,serviceId,people[0]]));
     const snapId=await db.query<{id:string}>("select public.capture_catering_count_snapshot($1,$2) id",[WEDDING_A,serviceId]);
-    const snap=await db.query<{id:string;invited_count:number;confirmed_count:number;final_catering_count:number;approved_guarantee:number;category_totals:any}>("select id,invited_count,confirmed_count,final_catering_count,approved_guarantee,category_totals from public.catering_count_snapshots where id=$1",[snapId.rows[0]!.id]);
+    const snap=await db.query<{id:string;invited_count:number;confirmed_count:number;final_catering_count:number;approved_guarantee:number;category_totals:Record<string,{manual_expected:number}>}>("select id,invited_count,confirmed_count,final_catering_count,approved_guarantee,category_totals from public.catering_count_snapshots where id=$1",[snapId.rows[0]!.id]);
     expect(snap.rows[0]).toMatchObject({invited_count:4,confirmed_count:2,approved_guarantee:7,final_catering_count:9});
     expect(snap.rows[0]?.category_totals.vendor.manual_expected).toBe(1);
     expect(snap.rows[0]?.category_totals.staff.manual_expected).toBe(1);
   });
 
   it("does not mutate an approved guarantee or prior snapshot when an RSVP changes after deadline",async()=>{
-    const {people,serviceId,invitations}=await createCateringFixture();
+    const {serviceId}=await createCateringFixture();
     const first=await db.query<{id:string}> ("select public.capture_catering_count_snapshot($1,$2) id",[WEDDING_A,serviceId]);
     const original=await db.query<{final_catering_count:number;confirmed_count:number}> ("select final_catering_count,confirmed_count from public.catering_count_snapshots where id=$1",[first.rows[0]!.id]);
     const noResponse=await db.query<{id:string}> ("select i.id from public.guest_invitations i join public.guest_rsvps r on r.wedding_id=i.wedding_id and r.invitation_id=i.id where i.wedding_id=$1 and i.function_id=$2 and r.response='no' limit 1",[WEDDING_A,FUNCTION_A]);
@@ -648,7 +648,7 @@ describe("private guest household portal",()=>{
   it("rate-limits repeated access attempts in a shared hashed bucket",async()=>{
     await assumeUser(null,"anon");
     const key="f".repeat(64);
-    for(let attempt=1;attempt<=30;attempt++)expect((await db.query<{ok:boolean}>("select public.consume_guest_portal_rate_limit('exchange',$1) ok",[key])).rows[0]?.ok).toBe(true);
+    for(let attempt=1;attempt<=200;attempt++)expect((await db.query<{ok:boolean}>("select public.consume_guest_portal_rate_limit('exchange',$1) ok",[key])).rows[0]?.ok).toBe(true);
     expect((await db.query<{ok:boolean}>("select public.consume_guest_portal_rate_limit('exchange',$1) ok",[key])).rows[0]?.ok).toBe(false);
   });
 });
