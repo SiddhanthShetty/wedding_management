@@ -24,11 +24,11 @@ export async function addMemberAction(_previous: MemberFormState, formData: Form
     guests: formData.get("guests"),
     logistics: formData.get("logistics"),
   });
-  if (!parsed.success) return { error: "Check the email, role, and module access selections." };
+  if (!parsed.success) return { error: "Check the email, role and what they can access." };
 
   const { weddingId, email, role, ...levels } = parsed.data;
   if (role === "read_only_collaborator" && Object.values(levels).some((level) => level === "edit")) {
-    return { error: "Read-only collaborators can only receive read access." };
+    return { error: "View-only helpers can only be given view access." };
   }
   const moduleAccess = role === "owner" || role === "co_owner"
     ? {}
@@ -36,7 +36,7 @@ export async function addMemberAction(_previous: MemberFormState, formData: Form
   try {
     await addVerifiedMemberByEmail({ weddingId, email, role, moduleAccess });
     revalidatePath("/settings");
-    return { message: "Membership and module access updated." };
+    return { message: "Saved. Their access is updated." };
   } catch {
     return { error: "Could not update membership. Only an owner or co-owner can manage members; owner roles require an owner account." };
   }

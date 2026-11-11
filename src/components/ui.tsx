@@ -23,7 +23,7 @@ export function StatusLabel({ children }: { children: string }) {
   return <span className={`status status-${kind}`}><span aria-hidden="true">{kind === "confirmed" || kind === "complete" ? "✓" : "•"}</span>{children}</span>;
 }
 
-export function DemoNotice({ children = "Preview only. This workspace uses synthetic demo data; changes are not saved." }: { children?: ReactNode }) {
+export function DemoNotice({ children = "Preview only. This uses made-up sample data, and changes aren't saved." }: { children?: ReactNode }) {
   return <div className="demo-note" role="note"><Info size={15} aria-hidden="true" /><span>{children}</span></div>;
 }
 

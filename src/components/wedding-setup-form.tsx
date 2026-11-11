@@ -10,7 +10,7 @@ type Props = { mode: "create" } | { mode: "edit"; wedding: WeddingSetup };
 
 /**
  * First run asks only for your names, the date and the city; time zone and currency default to
- * this device's time zone and rupees. Settings shows everything, with rarely changed fields folded away.
+ * India (IST) and rupees. Settings shows everything, with rarely changed fields folded away.
  */
 export function WeddingSetupForm(props: Props) {
   const action = props.mode === "create" ? createWeddingAction : updateWeddingSetupAction;
@@ -47,7 +47,7 @@ export function WeddingSetupForm(props: Props) {
         <Field label="Overall budget" name="overallBudget" type="number" min="0" max="999999999999.99" step="0.01" defaultValue={wedding?.overall_budget == null ? "" : String(wedding.overall_budget)} hint={`In ${currency}. Optional.`} />
         <details className="more-details field-full"><summary>More details</summary>
           <div className="field-grid">
-            <Field label="Workspace name" name="name" maxLength={160} defaultValue={wedding?.name ?? ""} placeholder={workspaceNameFor(one, two)} hint="Shown at the top of every page. Leave blank to use your names." />
+            <Field label="Name shown at the top" name="name" maxLength={160} defaultValue={wedding?.name ?? ""} placeholder={workspaceNameFor(one, two)} hint="Shown at the top of every page. Leave blank to use your names." />
             <TextAreaField label="Planning notes" name="planningNotes" maxLength={10000} defaultValue={wedding?.planning_notes ?? ""} className="field-full" />
           </div>
         </details></>}

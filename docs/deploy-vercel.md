@@ -25,7 +25,9 @@ Owner's decision (2026-11-08): deploy straight to production without a staging p
    - Site URL: your Vercel address (or your domain).
    - Redirect URLs: add `https://<your-address>/**`.
 
-   Without this, sign-up confirmation emails point at the wrong address.
+   Without this, sign-up confirmation and password-reset emails point at the wrong address. The `/**` pattern already covers `/auth/callback` and `/auth/confirm`.
+
+   **Optional, for reset links opened on a different phone or browser:** by default a reset link only works in the browser where it was asked for. To make it work anywhere, change the **Reset Password** email template (Authentication → Emails) so its link is `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`.
 5. Optional: add your own domain in Vercel (**Settings → Domains**), then update `NEXT_PUBLIC_SITE_URL` and the Supabase URLs to match, and redeploy.
 
 ## Before each later deploy
@@ -61,6 +63,8 @@ It signs in, opens every section, and checks each one fits a phone screen. The t
 - [ ] Open a real guest link you already sent yourself (or create one for a TEST guest). Reply "Yes", then check the reply shows in Guests.
 - [ ] Upload a gallery photo and a song, open the guest link, and tap "Open" to hear the music.
 - [ ] Make a guest's PDF card and share it to yourself on WhatsApp.
+- [ ] Sign out, tap "Forgot password?", and reset your own password from the email (open the link in the same browser).
+- [ ] In Functions → "Move all dates", check the preview, then move your functions to their 2027 dates.
 
 Note anything that fails and send it to me before inviting more guests.
 

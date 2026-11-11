@@ -23,14 +23,14 @@ const readText = (formData: FormData, key: string) => {
 function getActionError(error: unknown) {
   if (error instanceof TaskEditConflictError) return "This task was changed by someone else. Refresh the list and review their changes before saving again.";
   if (error instanceof ZodError) return error.issues[0]?.message ?? "Check the task details.";
-  if (error instanceof AuthorizationDeniedError) return "Your planning edit access is no longer available. Refresh and try again.";
+  if (error instanceof AuthorizationDeniedError) return "You can no longer change this. Refresh the page, and ask the couple if it keeps happening.";
   if (error instanceof Error && /circular|depend/i.test(error.message)) return error.message;
   return "The change could not be saved. No success was recorded; refresh and try again.";
 }
 
 export async function createTaskAction(_previous: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const weddingId = z.uuid().safeParse(readText(formData, "weddingId"));
-  if (!weddingId.success) return { error: "Invalid wedding workspace." };
+  if (!weddingId.success) return { error: "Something went wrong with this page. Refresh it and try again." };
   try {
     const task = await createWeddingTask(weddingId.data, taskFormValues(formData));
     revalidatePath("/tasks");

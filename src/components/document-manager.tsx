@@ -46,7 +46,7 @@ function UploadForm({ data, documentId, fixedEntity, initialTarget = "" }: { dat
       setState({ error: "The upload could not reach the server. Nothing was saved." });
     } finally { setPending(false); }
   };
-  if (!fixedEntity && !editable.length) return <p className="readonly-note">You do not have edit access to any record that accepts documents.</p>;
+  if (!fixedEntity && !editable.length) return <p className="readonly-note">You can’t add files here. Ask the couple if you need to.</p>;
   return <form ref={formRef} onSubmit={submit} className="field-grid action-form" aria-busy={pending}>
     <input type="hidden" name="weddingId" value={data.wedding.id} />
     {documentId && <input type="hidden" name="documentId" value={documentId} />}

@@ -13,7 +13,7 @@ const id = z.uuid();
 function failure(error: unknown, area: string): BulkActionState {
   if (error instanceof ZodError) return { error: error.issues[0]?.message ?? "Check the selection." };
   if (error instanceof TravelRuleError) return { error: error.message };
-  if (error instanceof AuthorizationDeniedError) return { error: `You need ${area} edit access for this.` };
+  if (error instanceof AuthorizationDeniedError) return { error: "You can't change this. Ask the couple if you need something changed." };
   if (error instanceof Error && /^(Could not save all invitation changes|Could not create this guest's private link|Assign a household to every invited guest)/.test(error.message)) return { error: error.message };
   return { error: "Nothing was changed. Refresh and try again." };
 }

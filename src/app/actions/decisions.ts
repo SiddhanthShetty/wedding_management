@@ -19,7 +19,7 @@ const value = (formData: FormData, key: string) => {
 function actionError(error: unknown) {
   if (error instanceof DecisionEditConflictError) return "Someone else changed this decision. Refresh and review the latest version before saving.";
   if (error instanceof ZodError) return error.issues[0]?.message ?? "Check the decision details.";
-  if (error instanceof AuthorizationDeniedError) return "Your planning edit access is no longer available. Refresh and try again.";
+  if (error instanceof AuthorizationDeniedError) return "You can no longer change this. Refresh the page, and ask the couple if it keeps happening.";
   return "The change could not be saved. No success was recorded; refresh and try again.";
 }
 
@@ -29,7 +29,7 @@ export async function createDecisionAction(_previous: DecisionFormState, formDat
     question: value(formData, "question"),
     options: value(formData, "options").split(/\r?\n/).map((option) => option.trim()).filter(Boolean),
   });
-  if (!weddingId.success) return { error: "Invalid wedding workspace." };
+  if (!weddingId.success) return { error: "Something went wrong with this page. Refresh it and try again." };
   if (!input.success) return { error: input.error.issues[0]?.message ?? "Add at least two unique options." };
   try {
     const decisionId = await createWeddingDecision(weddingId.data, input.data);
@@ -51,7 +51,7 @@ export async function updateDecisionAction(_previous: DecisionFormState, formDat
     reason: value(formData, "reason"),
   });
   const weddingId = z.uuid().safeParse(value(formData, "weddingId"));
-  if (!weddingId.success || !input.success) return { error: input.success ? "Invalid wedding workspace." : input.error.issues[0]?.message ?? "Check the decision details." };
+  if (!weddingId.success || !input.success) return { error: input.success ? "Something went wrong with this page. Refresh it and try again." : input.error.issues[0]?.message ?? "Check the decision details." };
   try {
     await updateWeddingDecision(weddingId.data, input.data);
     revalidatePath("/decisions");

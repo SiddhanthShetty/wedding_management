@@ -160,8 +160,8 @@ function SupplierDetails({ weddingId, currentUserId, supplier, assignees, canEdi
     <section className="supplier-detail-section"><h3>Follow-up tasks</h3>
       {supplier.follow_ups.length ? <ul className="supplier-list-compact">{supplier.follow_ups.map((task) => <li key={task.id}><span><strong>{task.title}</strong>{task.due_date && ` · due ${dateLabel(task.due_date)}`} · {task.status.replaceAll("_", " ")}</span></li>)}</ul> : <p className="field-help">No supplier follow-up tasks.</p>}
       {canEdit && canPlan && <FollowUpForm weddingId={weddingId} supplierId={supplier.id} assignees={assignees} currentUserId={currentUserId} />}
-      {canEdit && !canPlan && <p className="field-help">Creating a follow-up task also requires planning edit access.</p>}
-      {!canEdit && <p className="field-help">You have read-only access to suppliers.</p>}
+      {canEdit && !canPlan && <p className="field-help">You can’t add tasks, so follow-up tasks aren’t available to you.</p>}
+      {!canEdit && <p className="field-help">You can view this but not change it. Ask the couple if you need something changed.</p>}
     </section>
   </div>;
 }

@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof InvitationRuleError) return reply(400, { ok: false, message: error.message });
     if (error instanceof AuthenticationRequiredError) return reply(401, { ok: false, message: "Sign in again to upload." });
-    if (error instanceof AuthorizationDeniedError) return reply(403, { ok: false, message: "Guest-list edit access is needed to change the invitation." });
+    if (error instanceof AuthorizationDeniedError) return reply(403, { ok: false, message: "You can't change the invitation. Ask the couple if you need something changed." });
     return reply(500, { ok: false, message: "The upload failed. Nothing was saved." });
   }
 }

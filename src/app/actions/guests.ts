@@ -14,7 +14,7 @@ export type GuestActionState={error?:string;message?:string;savedId?:string;data
 const read=(form:FormData,key:string)=>{const value=form.get(key);return typeof value==="string"?value:"";};
 function actionError(error:unknown){
   if(error instanceof ZodError)return error.issues[0]?.message??"Check the guest details.";
-  if(error instanceof AuthorizationDeniedError)return "Your guest edit access is no longer available. Refresh and try again.";
+  if(error instanceof AuthorizationDeniedError)return "You can no longer change this. Refresh the page, and ask the couple if it keeps happening.";
   if(error instanceof Error&&/(guest|rsvp) edit conflict/i.test(error.message))return error.message;
   return error instanceof Error&&/(already imported|duplicate)/i.test(error.message)?error.message:"Could not save this guest change. No success was recorded; refresh and try again.";
 }
@@ -28,14 +28,14 @@ export async function deleteGuestAction(wedding:string,guest:string,expectedUpda
   const weddingResult=z.uuid().safeParse(wedding);const guestResult=z.uuid().safeParse(guest);const expected=isoTimestampInput.safeParse(expectedUpdatedAt);
   if(!weddingResult.success||!guestResult.success||!expected.success)return {error:"Invalid guest selection. Refresh the page and try again."};
   try{await deleteGuest(weddingResult.data,guestResult.data,expected.data);await revalidate();revalidatePath("/logistics");return {message:"Guest and their invitation records were deleted."};}
-  catch(error){if(error instanceof AuthorizationDeniedError)return {error:"Your guest edit access is no longer available. Refresh and try again."};return {error:error instanceof Error?error.message:"Could not delete this guest. No deletion was recorded."};}
+  catch(error){if(error instanceof AuthorizationDeniedError)return {error:"You can no longer change this. Refresh the page, and ask the couple if it keeps happening."};return {error:error instanceof Error?error.message:"Could not delete this guest. No deletion was recorded."};}
 }
 
 export async function deleteGuestHouseholdAction(wedding:string,household:string,deleteMembers:boolean):Promise<GuestActionState>{
   const weddingResult=z.uuid().safeParse(wedding);const householdResult=z.uuid().safeParse(household);const deleteMembersResult=z.boolean().safeParse(deleteMembers);
   if(!weddingResult.success||!householdResult.success||!deleteMembersResult.success)return {error:"Invalid household selection. Refresh the page and try again."};
   try{const count=await deleteGuestHousehold(weddingResult.data,householdResult.data,deleteMembersResult.data);await revalidate();revalidatePath("/logistics");return {message:`Household deleted with ${count} individual guest${count===1?"":"s"} and their invitation records.`};}
-  catch(error){if(error instanceof AuthorizationDeniedError)return {error:"Your guest edit access is no longer available. Refresh and try again."};return {error:error instanceof Error?error.message:"Could not delete this household. No deletion was recorded."};}
+  catch(error){if(error instanceof AuthorizationDeniedError)return {error:"You can no longer change this. Refresh the page, and ask the couple if it keeps happening."};return {error:error instanceof Error?error.message:"Could not delete this household. No deletion was recorded."};}
 }
 
 export async function saveHouseholdAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
@@ -85,7 +85,7 @@ export async function saveGuestInvitationsBulkAction(wedding:string,entries:unkn
     await revalidate();
     return {message:`${count} invitation changes saved together.`};
   }catch(error){
-    if(error instanceof AuthorizationDeniedError)return {error:"Your guest edit access is no longer available. Refresh and try again."};
+    if(error instanceof AuthorizationDeniedError)return {error:"You can no longer change this. Refresh the page, and ask the couple if it keeps happening."};
     return {error:error instanceof Error?error.message:"Could not save the invitation changes."};
   }
 }

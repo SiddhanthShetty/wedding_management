@@ -10,7 +10,7 @@ const id = z.uuid();
 
 async function run(form: FormData, task: (weddingId: string) => Promise<string>): Promise<CommunicationActionState> {
   const wedding = id.safeParse(text(form, "weddingId"));
-  if (!wedding.success) return { error: "Invalid wedding workspace." };
+  if (!wedding.success) return { error: "Something went wrong with this page. Refresh it and try again." };
   try {
     const message = await task(wedding.data);
     revalidatePath("/messages");
@@ -18,7 +18,7 @@ async function run(form: FormData, task: (weddingId: string) => Promise<string>)
   } catch (error) {
     if (error instanceof ZodError) return { error: error.issues[0]?.message ?? "Check the entered values." };
     if (error instanceof CommunicationRuleError || error instanceof CommunicationConflictError) return { error: error.message };
-    if (error instanceof AuthorizationDeniedError) return { error: "Your guest-list edit access is no longer available. Refresh and try again." };
+    if (error instanceof AuthorizationDeniedError) return { error: "You can no longer change this. Refresh the page, and ask the couple if it keeps happening." };
     return { error: "The change could not be saved. Nothing was recorded; refresh and try again." };
   }
 }

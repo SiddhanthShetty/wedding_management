@@ -7,9 +7,9 @@ import { createCateringService, runCateringRpc, saveCateringMenu, saveCateringTa
 export type CateringActionState = { error?: string; message?: string };
 const text = (form: FormData, key: string) => typeof form.get(key) === "string" ? String(form.get(key)) : "";
 const id = z.uuid();
-function errorMessage(error: unknown) { if (error instanceof ZodError) return error.issues[0]?.message ?? "Check the entered values."; if (error instanceof AuthorizationDeniedError) return "Your logistics edit access is no longer available. Refresh and try again."; return error instanceof Error ? error.message : "Could not save this catering change."; }
+function errorMessage(error: unknown) { if (error instanceof ZodError) return error.issues[0]?.message ?? "Check the entered values."; if (error instanceof AuthorizationDeniedError) return "You can no longer change this. Refresh the page, and ask the couple if it keeps happening."; return error instanceof Error ? error.message : "Could not save this catering change."; }
 async function withWedding(form: FormData, task: (weddingId: string) => Promise<void>): Promise<CateringActionState> {
-  const wedding = id.safeParse(text(form,"weddingId")); if (!wedding.success) return { error: "Invalid wedding workspace." };
+  const wedding = id.safeParse(text(form,"weddingId")); if (!wedding.success) return { error: "Something went wrong with this page. Refresh it and try again." };
   try { await task(wedding.data); revalidatePath("/logistics"); return { message: "Catering change saved." }; } catch (error) { return { error: errorMessage(error) }; }
 }
 

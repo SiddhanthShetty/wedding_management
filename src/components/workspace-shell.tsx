@@ -95,12 +95,12 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
   const phoneTabs = ["/overview", "/guests", "/schedule"].map(tabFor).filter((link): link is NonNullable<typeof link> => Boolean(link));
   return <div className="app-shell" data-look={look} style={brandStyle}>
     <button className={`mobile-backdrop ${open ? "is-open" : ""}`} aria-label="Close navigation" onClick={() => setOpen(false)} tabIndex={open ? 0 : -1} />
-    <aside ref={sidebarRef} className={`sidebar ${open ? "is-open" : ""}`} aria-label="Workspace navigation" role={open ? "dialog" : undefined} aria-modal={open ? "true" : undefined}>
+    <aside ref={sidebarRef} className={`sidebar ${open ? "is-open" : ""}`} aria-label="Menu" role={open ? "dialog" : undefined} aria-modal={open ? "true" : undefined}>
       <Link href="/overview" className="brand" aria-label="Wedding Desk home">
         <span className={`brand-mark ${branding?.monogram ? "has-monogram" : ""}`}>{branding?.monogram ? <span aria-hidden="true">{branding.monogram}</span> : <Heart size={18} strokeWidth={1.7} aria-hidden="true" />}</span><span className="brand-name">{branding?.coupleNames || "Wedding Desk"}</span>
       </Link>
       <div className="workspace-switcher">
-        <span><span className="switch-title">{weddingName}</span><span className="switch-meta">Workspace</span></span>
+        <span><span className="switch-title">{weddingName}</span><span className="switch-meta">Your wedding</span></span>
       </div>
       <nav className="nav-groups" aria-label="Main navigation">
         {groups.map((group) => {
@@ -125,7 +125,7 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
         <div className="topbar-left"><button ref={menuButtonRef} className="icon-button mobile-menu-button" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X size={18} /> : <Menu size={18} />}</button><span className="topbar-crumb">{weddingName}</span><span className="topbar-divider" aria-hidden="true">/</span><span className="topbar-section">{section}</span></div>
         <div className="topbar-right">{isDemoPage && <span className="topbar-date">Demo sample records</span>}<AccountMenu displayName={displayName} roleLabel={ROLE_LABELS[role] ?? "Member"} weddingName={weddingName} isOwner={isOwner} pathname={pathname} look={look} onLook={changeLook} /></div>
       </header>
-      {isDemoPage && <div className="demo-banner"><span className="demo-pill">SAMPLE DATA</span><span>Sample records, dates and figures are synthetic and are not saved to your wedding.</span></div>}
+      {isDemoPage && <div className="demo-banner"><span className="demo-pill">SAMPLE DATA</span><span>Made-up names, dates and amounts to show how this page works. Nothing here is saved to your wedding.</span></div>}
       <nav className="phone-tabs" aria-label="Quick navigation" inert={open}>
         {phoneTabs.map((link) => { const Icon = link.icon; return <Link key={link.href} href={link.href} className="phone-tab" aria-current={isActiveLink(pathname, link) ? "page" : undefined}><Icon size={20} aria-hidden="true" /><span>{link.label}</span></Link>; })}
         <button type="button" className="phone-tab" onClick={() => setOpen(true)} aria-expanded={open}><Menu size={20} aria-hidden="true" /><span>More</span></button>

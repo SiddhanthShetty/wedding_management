@@ -96,6 +96,16 @@ A review of every page as a first-time user produced 45 suggestions, scheduled t
   - Plain schedule lines; the list becomes cards on phones (the `stack-on-phone` table style, reusable on other pages).
 - Short forms with "More details" and hidden empty sections elsewhere come with each page's own phase, so those pages aren't reworked twice.
 
+### Quick fixes, done (2026-11-11)
+From the second new-user review (46 suggestions; 8 marked "Now"):
+- **Bigger text (#1).** 92 style rules raised: 9px to 11px, 10px to 12px, 11px to 13px, and key 12px text (buttons, table names, inputs, hints) to 13px. Field errors are 13px.
+- **Comfortable taps (#2).** On phones and touch screens, buttons, inputs, chips and tabs are at least 44px and icon buttons are 44×44. Form text is 16px there, so iPhones don't zoom in when you type.
+- **Plain words (#3, #10).** "Read-only access", "planning editor", "module", "workspace", "synthetic" and "edit access" are replaced in visible text and error messages. For example: "You can view this but not change it. Ask the couple if you need something changed." Sign-up and setup are reworded ("New here?", "Tell us about your wedding").
+- **Forgot password (#8).** `/forgot-password` emails a reset link (same reply whether or not the email has an account). The link returns through `/auth/callback?next=/reset-password` to `/reset-password`, where you choose a new password. `/auth/confirm` also accepts token-hash links, for use if the Supabase email template is switched (see deploy-vercel.md). Expired links say so in plain words.
+- **Sign-up hints (#9).** A password hint under the field, and a "Check your email" screen after creating an account. Signing in before confirming says "Please confirm your email first" instead of "wrong password". Emails typed with a trailing space (common on phones) are now accepted.
+- **Move all dates (#15).** Functions → "Move all dates": pick a new date for the first function (or "Same dates next year"); every dated function moves by the same number of days, with a preview of old and new dates. Times stay the same and the database recomputes start and end in the wedding's time zone. If any update fails, the ones already moved are put back. Run-sheet times and task due dates don't move.
+- **Payment form (#28).** "Submission key" is now hidden (it still prevents double-recording). "Linked due item" was a free-text box expecting an ID; it is now a list of that booking's instalments. "Convert unbooked estimate" reads "Replaces an earlier estimate?", and "Signed adjustment (+ or −)" reads "Amount" with a plain hint about the minus sign.
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.

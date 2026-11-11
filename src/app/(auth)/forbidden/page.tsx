@@ -1,5 +1,5 @@
 import Link from "next/link";
 
 export default function ForbiddenPage() {
-  return <><p className="auth-eyebrow">Access restricted</p><h1 className="auth-title">You do not have access to this module</h1><p className="auth-copy">Your wedding membership is active, but the required module permission is not available for this account.</p><Link className="button button-secondary" href="/overview">Return to overview</Link></>;
+  return <><p className="auth-eyebrow">Not available</p><h1 className="auth-title">You can’t open this page</h1><p className="auth-copy">You’re part of this wedding, but haven’t been given access to this part yet. Ask the couple to give you access in Settings.</p><Link className="button button-secondary" href="/overview">Back to Home</Link></>;
 }

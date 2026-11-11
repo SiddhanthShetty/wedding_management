@@ -21,13 +21,13 @@ const submissionKey = (form: FormData) => z.union([id, z.literal("")]).transform
 function failure(error: unknown): TravelActionState {
   if (error instanceof ZodError) return { error: error.issues[0]?.message ?? "Check the entered values." };
   if (error instanceof TravelRuleError || error instanceof TravelConflictError) return { error: error.message };
-  if (error instanceof AuthorizationDeniedError) return { error: "Your logistics edit access is no longer available. Refresh and try again." };
+  if (error instanceof AuthorizationDeniedError) return { error: "You can no longer change this. Refresh the page, and ask the couple if it keeps happening." };
   return { error: "The change could not be saved. Nothing was recorded; refresh and try again." };
 }
 
 async function run(form: FormData, message: string, task: (weddingId: string) => Promise<string | void>): Promise<TravelActionState> {
   const wedding = id.safeParse(text(form, "weddingId"));
-  if (!wedding.success) return { error: "Invalid wedding workspace." };
+  if (!wedding.success) return { error: "Something went wrong with this page. Refresh it and try again." };
   try {
     const custom = await task(wedding.data);
     revalidatePath("/travel");
@@ -169,7 +169,7 @@ export async function updateJourneyAction(_state: TravelActionState, form: FormD
 
 export async function addPassengersAction(_state: TravelActionState, form: FormData): Promise<TravelActionState> {
   const wedding = id.safeParse(text(form, "weddingId"));
-  if (!wedding.success) return { error: "Invalid wedding workspace." };
+  if (!wedding.success) return { error: "Something went wrong with this page. Refresh it and try again." };
   try {
     const journeyId = id.parse(text(form, "journeyId"));
     const guestIds = z.array(id).max(100).parse(all(form, "guest_ids"));

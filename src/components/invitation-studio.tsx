@@ -112,7 +112,7 @@ function StudioWorkspace({ data, design, designId, setDesignId, step, setStep, g
             <input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="designId" value={design.id} />
           </ActionForm>}
         </div>
-        {readOnly && <p className="readonly-note">You can preview designs. Guest-list edit access is needed to change them.</p>}
+        {readOnly && <p className="readonly-note">You can look at the designs but not change them. Ask the couple if you need something changed.</p>}
       </Card>}
       <TabList tabs={steps} selected={step} onSelect={setStep} label="Invitation steps" idPrefix="invite" />
       <section role="tabpanel" id={`invite-panel-${step}`} aria-labelledby={`invite-tab-${step}`} tabIndex={0} className="section-stack">

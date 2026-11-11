@@ -97,7 +97,7 @@ export function TaskManager({
         <Button variant="quiet" onClick={() => setSelectedIds([])}>Clear</Button>
       </div>}
       {!filtered.length
-        ? <EmptyState title={tasks.length ? "No tasks in this view" : "No tasks yet"} description={tasks.length ? "Try another view or check the due dates." : canEdit ? "Add a task to start planning." : "A planning editor can add the first task."} />
+        ? <EmptyState title={tasks.length ? "No tasks in this view" : "No tasks yet"} description={tasks.length ? "Try another view or check the due dates." : canEdit ? "Add a task to start planning." : "Nothing added yet."} />
         : <div className="task-group-list">
           {[...groups.entries()].map(([label, rows]) => <section className="task-group" key={label}>
             {groupBy !== "none" && <h3 className="task-group-title">{label}</h3>}
@@ -129,7 +129,7 @@ export function TaskManager({
             </article>)}
           </section>)}
         </div>}
-      {!canEdit && <p className="field-help">You have read-only access to planning tasks.</p>}
+      {!canEdit && <p className="field-help">You can view this but not change it. Ask the couple if you need something changed.</p>}
     </Card>
     <TaskEditor key={editor?.id ?? "new-task"} open={editorOpen} weddingId={weddingId} task={editor} tasks={tasks} functions={functions} assignees={assignees} onClose={() => setEditorOpen(false)} onSaved={onSaved} />
     {notice && <NotificationRegion message={notice} onDismiss={() => setNotice("")} />}
@@ -186,7 +186,7 @@ function TaskEditor({
         <div className="field"><label className="field-label" htmlFor="task-dependency">Depends on</label><select id="task-dependency" className="field-control" name="dependsOnTaskId" value={dependencyId} onChange={(event) => setDependencyId(event.target.value)}><option value="">No dependency</option>{tasks.filter((candidate) => candidate.id !== task?.id).map((candidate) => <option key={candidate.id} value={candidate.id} disabled={disabledDependencies.has(candidate.id)}>{candidate.title}{disabledDependencies.has(candidate.id) ? " · would create a cycle" : ""}</option>)}</select>{hasCycle && <span className="field-error" role="alert">This dependency creates a circular chain.</span>}</div>
         <div className="field"><label className="field-label" htmlFor="task-vendor-reference">Related vendor reference</label><input id="task-vendor-reference" className="field-control" name="relatedVendorReference" maxLength={240} defaultValue={task?.related_vendor_reference ?? ""} aria-describedby="task-reference-hint" /></div>
         <div className="field"><label className="field-label" htmlFor="task-booking-reference">Related booking reference</label><input id="task-booking-reference" className="field-control" name="relatedBookingReference" maxLength={240} defaultValue={task?.related_booking_reference ?? ""} aria-describedby="task-reference-hint" /></div>
-        <p id="task-reference-hint" className="field-help field-full">Vendor and booking modules are not connected yet; these are notes or references, not foreign-key links.</p>
+        <p id="task-reference-hint" className="field-help field-full">Type a vendor or booking name as a note. These aren’t linked to your vendor list yet.</p>
       </div>
       {state.error && <p className="auth-alert" role="alert">{state.error}</p>}
       <div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={pending || hasCycle}>{pending ? "Saving…" : task ? "Save task" : "Create task"}</Button></div>

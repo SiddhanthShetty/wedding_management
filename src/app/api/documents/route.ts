@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof DocumentRuleError) return reply(400, { ok: false, message: error.message });
     if (error instanceof AuthenticationRequiredError) return reply(401, { ok: false, message: "Sign in again to upload." });
-    if (error instanceof AuthorizationDeniedError) return reply(403, { ok: false, message: "You do not have edit access to that record." });
+    if (error instanceof AuthorizationDeniedError) return reply(403, { ok: false, message: "You can't add files to that." });
     return reply(500, { ok: false, message: error instanceof Error && error.message.startsWith("The file") ? error.message : "The upload failed. Nothing was saved as available." });
   }
 }

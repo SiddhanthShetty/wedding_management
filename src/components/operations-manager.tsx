@@ -72,7 +72,7 @@ export function OperationsManager({ data, initialTab, initialFunctionId, tabFrom
       <a className="metric-chip" href="/schedule?tab=timeline"><strong>{new Set(warnings.map((warning) => warning.itemId)).size}</strong> item(s) with warnings</a>
     </div>
     <TabList tabs={TABS} selected={tab} onSelect={selectTab} label="Operations sections" idPrefix="ops" />
-    {!data.canEdit && <p className="readonly-note" role="note">You have read-only access to wedding-day operations.</p>}
+    {!data.canEdit && <p className="readonly-note" role="note">You can view this but not change it. Ask the couple if you need something changed.</p>}
     <section role="tabpanel" id={`ops-panel-${tab}`} aria-labelledby={`ops-tab-${tab}`} tabIndex={0} className="section-stack">
       {tab === "timeline" && <TimelinePanel data={data} lookups={lookups} warnings={warnings} initialFunctionId={initialFunctionId} />}
       {tab === "vendors" && <VendorPanel data={data} lookups={lookups} />}

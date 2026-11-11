@@ -51,7 +51,7 @@ export async function createWeddingAction(_previous: SetupFormState, formData: F
     p_overall_budget: parsed.data.overallBudget,
     p_planning_notes: parsed.data.planningNotes,
   });
-  if (error || !data) return { error: "The wedding workspace could not be created. Please review the details and try again." };
+  if (error || !data) return { error: "Your wedding couldn't be created. Check the details and try again." };
   revalidatePath("/overview");
   redirect("/overview");
 }

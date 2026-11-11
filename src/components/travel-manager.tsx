@@ -74,7 +74,7 @@ export function TravelManager({ data, initialTab, initialFilter, tabFromUrl = fa
       <a className="metric-chip" href="/travel?tab=needs&filter=room-unknown"><strong>{counts.roomNeedUnknown}</strong> room need unknown</a>
     </div>
     <TabList tabs={TABS} selected={tab} onSelect={selectTab} label="Stays and transport sections" idPrefix="travel" />
-    {!data.canEdit && <p className="readonly-note" role="note">You have read-only access to logistics. Ask an owner for logistics edit access to change rooms and rides.</p>}
+    {!data.canEdit && <p className="readonly-note" role="note">You can view this but not change it. Ask the couple if you need something changed.</p>}
     <section role="tabpanel" id={`travel-panel-${tab}`} aria-labelledby={`travel-tab-${tab}`} tabIndex={0} className="section-stack">
       {tab === "needs" && <NeedsPanel data={data} initialFilter={initialFilter} />}
       {tab === "accommodation" && <AccommodationPanel data={data} guestName={guestName} />}

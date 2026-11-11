@@ -5,6 +5,7 @@ import { authorizeWeddingOperation } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { functionInputSchema } from "@/lib/planning/inputs";
 import { resolveFunctionSchedule } from "@/lib/planning/schedule";
+import { planFunctionMove, type FunctionMove } from "@/lib/planning/move-functions";
 
 export type WeddingFunction = {
   id: string;
@@ -133,6 +134,33 @@ export async function archiveWeddingFunction(weddingId: string, functionId: stri
   if (error) throw new Error("Could not archive the wedding function.");
   if (!data) throw new Error("Wedding function not found or already archived.");
   return data;
+}
+
+/**
+ * Moves every dated, non-archived function so the earliest lands on `newFirstDate`.
+ * Each row is only changed if its date is still what was read; if any update fails, the ones
+ * already moved are put back, so the dates are never left half-moved. The database recomputes
+ * start and end times in the wedding's time zone.
+ */
+export async function moveWeddingFunctions(weddingId: string, newFirstDate: string): Promise<{ days: number; moves: FunctionMove[] }> {
+  const context = await authorizeWeddingOperation(weddingId, "planning", "edit");
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("functions").select("id, name, function_date, archived_at")
+    .eq("wedding_id", context.wedding.id).is("archived_at", null).not("function_date", "is", null);
+  if (error) throw new Error("Could not load your functions.");
+  const plan = planFunctionMove((data ?? []) as Array<{ id: string; name: string; function_date: string | null; archived_at: string | null }>, newFirstDate);
+  const done: FunctionMove[] = [];
+  const setDate = (id: string, from: string, to: string) => supabase.from("functions").update({ function_date: to })
+    .eq("wedding_id", context.wedding.id).eq("id", id).eq("function_date", from).is("archived_at", null).select("id").maybeSingle();
+  for (const move of plan.moves) {
+    const { data: row, error: updateError } = await setDate(move.id, move.from, move.to);
+    if (updateError || !row) {
+      for (const back of done.reverse()) await setDate(back.id, back.to, back.from);
+      throw new Error(updateError ? `Could not move ${move.name}, so nothing was moved. Try again.` : "Someone changed a function while you were moving them, so nothing was moved. Refresh and try again.");
+    }
+    done.push(move);
+  }
+  return plan;
 }
 
 export function validateFunctionRecordId(value: unknown) {

@@ -68,7 +68,7 @@ export async function authorizeWeddingOperation(
     .select("id, name, partner_one_display_name, partner_two_display_name, timezone, currency, overall_budget_text:overall_budget::text")
     .eq("id", weddingId)
     .maybeSingle();
-  if (weddingError) throw new Error("Could not load the wedding workspace.");
+  if (weddingError) throw new Error("Could not load your wedding.");
   if (!wedding) throw new AuthorizationDeniedError();
 
   const { data: profile, error: profileError } = await supabase

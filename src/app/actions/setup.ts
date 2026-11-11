@@ -10,13 +10,13 @@ const text = (form: FormData, key: string) => { const value = form.get(key); ret
 
 async function run(form: FormData, task: (weddingId: string) => Promise<string>, paths: string[]): Promise<SetupActionState> {
   const wedding = z.uuid().safeParse(text(form, "weddingId"));
-  if (!wedding.success) return { error: "Invalid wedding workspace." };
+  if (!wedding.success) return { error: "Something went wrong with this page. Refresh it and try again." };
   try {
     const message = await task(wedding.data);
     for (const path of paths) revalidatePath(path);
     return { message, at: Date.now() };
   } catch (error) {
-    if (error instanceof AuthorizationDeniedError) return { error: "You need planning edit access for this." };
+    if (error instanceof AuthorizationDeniedError) return { error: "You can't change this. Ask the couple if you need something changed." };
     if (error instanceof CommunicationRuleError) return { error: error.message };
     return { error: "Nothing was added. Refresh and try again." };
   }

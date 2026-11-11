@@ -22,13 +22,13 @@ const submissionKey = (form: FormData) => z.union([id, z.literal("")]).transform
 function failure(error: unknown): OperationsActionState {
   if (error instanceof ZodError) return { error: error.issues[0]?.message ?? "Check the entered values." };
   if (error instanceof OperationsRuleError || error instanceof OperationsConflictError) return { error: error.message };
-  if (error instanceof AuthorizationDeniedError) return { error: "Your logistics edit access is no longer available. Refresh and try again." };
+  if (error instanceof AuthorizationDeniedError) return { error: "You can no longer change this. Refresh the page, and ask the couple if it keeps happening." };
   return { error: "The change could not be saved. Nothing was recorded; refresh and try again." };
 }
 
 async function run(form: FormData, message: string, task: (weddingId: string) => Promise<void>): Promise<OperationsActionState> {
   const wedding = id.safeParse(text(form, "weddingId"));
-  if (!wedding.success) return { error: "Invalid wedding workspace." };
+  if (!wedding.success) return { error: "Something went wrong with this page. Refresh it and try again." };
   try {
     await task(wedding.data);
     revalidatePath("/schedule"); revalidatePath("/overview");

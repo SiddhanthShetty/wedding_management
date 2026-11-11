@@ -13,12 +13,12 @@ const wedding = (form: FormData) => z.uuid().safeParse(str(form, "weddingId"));
 
 function message(error: unknown) {
   if (error instanceof ZodError) return error.issues[0]?.message ?? "Check the entered details.";
-  if (error instanceof AuthorizationDeniedError) return "Your finance edit access is no longer available. Refresh and try again.";
+  if (error instanceof AuthorizationDeniedError) return "You can no longer change this. Refresh the page, and ask the couple if it keeps happening.";
   return error instanceof Error && error.message.includes("allocations") ? error.message : "The change could not be saved. No success was recorded; refresh and try again.";
 }
 async function runFinance(form: FormData, task: (weddingId: string) => Promise<void>): Promise<FinanceFormState> {
   const weddingId = wedding(form);
-  if (!weddingId.success) return { error: "Invalid wedding workspace." };
+  if (!weddingId.success) return { error: "Something went wrong with this page. Refresh it and try again." };
   try { await task(weddingId.data); revalidatePath("/budget"); return { message: "Financial record saved." }; }
   catch (error) { return { error: message(error) }; }
 }

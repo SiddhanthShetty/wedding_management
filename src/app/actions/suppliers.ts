@@ -22,9 +22,9 @@ const read = (formData: FormData, key: string) => {
 
 function actionError(error: unknown) {
   if (error instanceof ZodError) return error.issues[0]?.message ?? "Check the supplier details.";
-  if (error instanceof AuthorizationDeniedError) return "Your supplier or planning edit access is no longer available. Refresh and try again.";
+  if (error instanceof AuthorizationDeniedError) return "You can no longer change this. Refresh the page, and ask the couple if it keeps happening.";
   return error instanceof Error && /planning edit/i.test(error.message)
-    ? "Supplier access is available, but planning edit access is also needed to create a follow-up task."
+    ? "You can change vendors but not tasks, so the follow-up task wasn't created."
     : "The change could not be saved. No success was recorded; refresh and try again.";
 }
 
@@ -46,7 +46,7 @@ function supplierValues(formData: FormData) {
 export async function createSupplierAction(_previous: SupplierFormState, formData: FormData): Promise<SupplierFormState> {
   const weddingId = z.uuid().safeParse(read(formData, "weddingId"));
   const input = supplierValues(formData);
-  if (!weddingId.success || !input.success) return { error: !input.success ? input.error.issues[0]?.message : "Invalid wedding workspace." };
+  if (!weddingId.success || !input.success) return { error: !input.success ? input.error.issues[0]?.message : "Something went wrong with this page. Refresh it and try again." };
   try {
     const id = await createWeddingSupplier(weddingId.data, input.data);
     revalidatePath("/venues-vendors");
@@ -69,7 +69,7 @@ export async function updateSupplierAction(_previous: SupplierFormState, formDat
 export async function addSupplierSpaceAction(_previous: SupplierFormState, formData: FormData): Promise<SupplierFormState> {
   const input = supplierSpaceInputSchema.safeParse({ supplierId: read(formData, "supplierId"), name: read(formData, "name"), capacity: read(formData, "capacity"), notes: read(formData, "notes") });
   const weddingId = z.uuid().safeParse(read(formData, "weddingId"));
-  if (!weddingId.success || !input.success) return { error: input.success ? "Invalid wedding workspace." : input.error.issues[0]?.message };
+  if (!weddingId.success || !input.success) return { error: input.success ? "Something went wrong with this page. Refresh it and try again." : input.error.issues[0]?.message };
   try {
     const id = await addSupplierSpace(weddingId.data, input.data);
     revalidatePath("/venues-vendors");
@@ -81,7 +81,7 @@ export async function updateSupplierSpaceAction(_previous: SupplierFormState, fo
   const input = supplierSpaceUpdateSchema.safeParse({ supplierId: read(formData, "supplierId"), spaceId: read(formData, "spaceId"), name: read(formData, "name"), capacity: read(formData, "capacity"), notes: read(formData, "notes") });
   const weddingId = z.uuid().safeParse(read(formData, "weddingId"));
   const archive = read(formData, "archive") === "true";
-  if (!weddingId.success || !input.success) return { error: input.success ? "Invalid wedding workspace." : input.error.issues[0]?.message };
+  if (!weddingId.success || !input.success) return { error: input.success ? "Something went wrong with this page. Refresh it and try again." : input.error.issues[0]?.message };
   try {
     const id = await updateSupplierSpace(weddingId.data, input.data, archive);
     revalidatePath("/venues-vendors");
@@ -92,7 +92,7 @@ export async function updateSupplierSpaceAction(_previous: SupplierFormState, fo
 export async function addSupplierAvailabilityAction(_previous: SupplierFormState, formData: FormData): Promise<SupplierFormState> {
   const input = supplierAvailabilityInputSchema.safeParse({ supplierId: read(formData, "supplierId"), requestedDate: read(formData, "requestedDate"), availabilityStatus: read(formData, "availabilityStatus"), checkedAt: read(formData, "checkedAt"), holdExpiresOn: read(formData, "holdExpiresOn"), notes: read(formData, "notes") });
   const weddingId = z.uuid().safeParse(read(formData, "weddingId"));
-  if (!weddingId.success || !input.success) return { error: !input.success ? input.error.issues[0]?.message : "Invalid wedding workspace." };
+  if (!weddingId.success || !input.success) return { error: !input.success ? input.error.issues[0]?.message : "Something went wrong with this page. Refresh it and try again." };
   try {
     await addSupplierAvailability(weddingId.data, input.data);
     revalidatePath("/venues-vendors");
@@ -110,7 +110,7 @@ export async function createSupplierQuoteAction(_previous: SupplierFormState, fo
     })),
   });
   const weddingId = z.uuid().safeParse(read(formData, "weddingId"));
-  if (!weddingId.success || !input.success) return { error: !input.success ? input.error.issues[0]?.message : "Invalid wedding workspace." };
+  if (!weddingId.success || !input.success) return { error: !input.success ? input.error.issues[0]?.message : "Something went wrong with this page. Refresh it and try again." };
   try {
     const id = await createSupplierQuote(weddingId.data, input.data);
     revalidatePath("/venues-vendors");
@@ -121,7 +121,7 @@ export async function createSupplierQuoteAction(_previous: SupplierFormState, fo
 export async function saveSupplierPreferenceAction(_previous: SupplierFormState, formData: FormData): Promise<SupplierFormState> {
   const input = supplierPreferenceSchema.safeParse({ supplierId: read(formData, "supplierId"), preference: read(formData, "preference"), note: read(formData, "note") });
   const weddingId = z.uuid().safeParse(read(formData, "weddingId"));
-  if (!weddingId.success || !input.success) return { error: input.success ? "Invalid wedding workspace." : input.error.issues[0]?.message };
+  if (!weddingId.success || !input.success) return { error: input.success ? "Something went wrong with this page. Refresh it and try again." : input.error.issues[0]?.message };
   try {
     await saveSupplierPreference(weddingId.data, input.data);
     revalidatePath("/venues-vendors");
@@ -132,7 +132,7 @@ export async function saveSupplierPreferenceAction(_previous: SupplierFormState,
 export async function addSupplierVisitAction(_previous: SupplierFormState, formData: FormData): Promise<SupplierFormState> {
   const input = supplierVisitSchema.safeParse({ supplierId: read(formData, "supplierId"), visitDate: read(formData, "visitDate"), notes: read(formData, "notes") });
   const weddingId = z.uuid().safeParse(read(formData, "weddingId"));
-  if (!weddingId.success || !input.success) return { error: input.success ? "Invalid wedding workspace." : input.error.issues[0]?.message };
+  if (!weddingId.success || !input.success) return { error: input.success ? "Something went wrong with this page. Refresh it and try again." : input.error.issues[0]?.message };
   try {
     await addSupplierVisit(weddingId.data, input.data);
     revalidatePath("/venues-vendors");
@@ -146,7 +146,7 @@ export async function addSupplierFollowUpTaskAction(_previous: SupplierFormState
     ownerUserId: read(formData, "ownerUserId"), dueDate: read(formData, "dueDate"), priority: read(formData, "priority"),
   });
   const weddingId = z.uuid().safeParse(read(formData, "weddingId"));
-  if (!weddingId.success || !input.success) return { error: !input.success ? input.error.issues[0]?.message : "Invalid wedding workspace." };
+  if (!weddingId.success || !input.success) return { error: !input.success ? input.error.issues[0]?.message : "Something went wrong with this page. Refresh it and try again." };
   try {
     const id = await addSupplierFollowUpTask(weddingId.data, input.data);
     revalidatePath("/venues-vendors");

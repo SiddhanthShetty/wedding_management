@@ -2,7 +2,8 @@
 
 import { useActionState, useCallback, useEffect, useState } from "react";
 import { Archive, CalendarPlus, Pencil } from "lucide-react";
-import { addStarterFunctionsAction, archiveFunctionAction, createFunctionAction, updateFunctionAction } from "@/app/actions/functions";
+import { addStarterFunctionsAction, archiveFunctionAction, createFunctionAction, moveFunctionsAction, updateFunctionAction } from "@/app/actions/functions";
+import { earliestFunctionDate, moveSummary, planFunctionMove, sameDayNextYear } from "@/lib/planning/move-functions";
 import { FUNCTION_TYPES, shiftDate, STARTER_FUNCTIONS } from "@/lib/planning/starter-functions";
 import { timeZoneOptions } from "@/lib/locale";
 import { Button, Card, DataTable, EmptyState, NotificationRegion, StageBadge, StatusLabel } from "@/components/ui";
@@ -111,7 +112,7 @@ export function FunctionManager({
       ? <Button onClick={() => { setEditing(undefined); setEditorOpen(true); }}><CalendarPlus size={15} aria-hidden="true" /> Add function</Button>
       : undefined}>
       {!activeFunctions.length
-        ? <EmptyState title="No functions yet" description={canEdit ? "Tick the usual functions above, or add your own." : "A planning editor can add the first function."} />
+        ? <EmptyState title="No functions yet" description={canEdit ? "Tick the usual functions above, or add your own." : "Nothing added yet."} />
         : <DataTable className="stack-on-phone" label="Wedding functions" headers={["Function", "Date and time", "Location", "Plan", "Status", ...(canEdit ? ["Actions"] : [])]}>
           {activeFunctions.map((item) => <tr key={item.id}>
             <td><span className="table-primary">{item.name}</span><span className="table-secondary">{item.function_type} · <a className="text-link" href={`/documents?entity=function&id=${item.id}`}>Files</a></span></td>
@@ -127,7 +128,8 @@ export function FunctionManager({
             </div></td>}
           </tr>)}
         </DataTable>}
-      {!canEdit && <p className="field-help">You can view functions. Ask an owner for edit access to change them.</p>}
+      {!canEdit && <p className="field-help">You can view this but not change it. Ask the couple if you need something changed.</p>}
+      {canEdit && earliestFunctionDate(activeFunctions) && <details className="more-details"><summary>Move all dates</summary><MoveFunctionDates weddingId={weddingId} functions={activeFunctions} onMoved={setNotice} /></details>}
       {canEdit && activeFunctions.length > 0 && <details className="more-details"><summary>Add more of the usual functions</summary><StarterFunctions weddingId={weddingId} weddingDate={weddingDate} onAdded={setNotice} existing={activeFunctions.map((item) => item.name.toLowerCase())} plain /></details>}
     </Card>
     {archivedFunctions.length > 0 && <Card title="Archived functions" subtitle="Archived records remain in the wedding history.">
@@ -271,6 +273,38 @@ function ArchiveFunctionButton({ weddingId, item, linkedTasks, onArchived }: { w
 }
 
 /** One tap to add the usual functions, dated around the wedding day when it is known. */
+function weekdayDateLabel(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1, day, 12)));
+}
+
+/** Pick a new date for the first function; every other dated function moves by the same number of days. */
+function MoveFunctionDates({ weddingId, functions, onMoved }: { weddingId: string; functions: WeddingFunction[]; onMoved: (message: string) => void }) {
+  const [state, formAction, pending] = useActionState(moveFunctionsAction, {});
+  const first = earliestFunctionDate(functions) ?? "";
+  const [day, setDay] = useState(first);
+  useEffect(() => { if (state.savedId && state.message) onMoved(state.message); }, [state.savedId, state.message, onMoved]);
+  let plan: ReturnType<typeof planFunctionMove> = { days: 0, moves: [] };
+  try { if (day) plan = planFunctionMove(functions, day); } catch { /* an incomplete date while typing */ }
+  return <form action={formAction} className="move-functions">
+    <input type="hidden" name="weddingId" value={weddingId} />
+    <p className="field-help">Choose the new date for your first function, {weekdayDateLabel(first)}. The others move by the same number of days, so the gaps between them stay the same. Times don&apos;t change.</p>
+    <div className="move-functions-pick">
+      <div className="field"><label className="field-label" htmlFor="move-first-day">New date for the first function</label>
+        <input id="move-first-day" className="field-control" type="date" name="newFirstDate" value={day} onChange={(event) => setDay(event.target.value)} required /></div>
+      <Button type="button" variant="secondary" onClick={() => setDay(sameDayNextYear(first))}>Same dates next year</Button>
+    </div>
+    {plan.moves.length > 0 && <div className="move-functions-preview" aria-live="polite">
+      <p><strong>{plan.moves.length} function{plan.moves.length === 1 ? "" : "s"} will move {moveSummary(plan.days)}:</strong></p>
+      <ul>{plan.moves.map((move) => <li key={move.id}><span>{move.name}</span> <span className="row-meta">{weekdayDateLabel(move.from)} → <strong>{weekdayDateLabel(move.to)}</strong></span></li>)}</ul>
+      <p className="field-help">Functions without a date are left as they are. Run-sheet times and task due dates don&apos;t move.</p>
+    </div>}
+    {state.error && <p className="auth-alert" role="alert">{state.error}</p>}
+    <Button type="submit" disabled={pending || !plan.moves.length}>{pending ? "Moving…" : plan.moves.length ? `Move ${plan.moves.length} function${plan.moves.length === 1 ? "" : "s"}` : "Pick a different date"}</Button>
+  </form>;
+}
+
 function StarterFunctions({ weddingId, weddingDate, onAdded, existing = [], plain = false }: { weddingId: string; weddingDate: string | null; onAdded: (message: string) => void; existing?: string[]; plain?: boolean }) {
   const [state, formAction, pending] = useActionState(addStarterFunctionsAction, {});
   const [day, setDay] = useState(weddingDate ?? "");
