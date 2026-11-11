@@ -90,6 +90,27 @@ export async function getDocumentWorkspace(weddingId: string) {
 }
 export type DocumentWorkspace = Awaited<ReturnType<typeof getDocumentWorkspace>>;
 
+export type RecordFile = { documentId: string; entityId: string; title: string; versionId: string; filename: string; detectedType: string };
+
+/**
+ * Active files attached to records of one type (for example every vendor), newest first, for showing
+ * on the record itself. Row-level security limits this to modules the member can read.
+ */
+export async function listRecordFiles(weddingId: string, entityType: DocumentEntity): Promise<RecordFile[]> {
+  await authorizeWeddingOperation(weddingId, ENTITY_MODULE[entityType], "read");
+  const supabase = await createSupabaseServerClient();
+  const docs = await supabase.from("documents").select("id,entity_id,title,updated_at").eq("wedding_id", weddingId).eq("entity_type", entityType).eq("status", "active").order("updated_at", { ascending: false });
+  if (docs.error) throw new Error("Could not load files.");
+  const ids = (docs.data ?? []).map((doc) => doc.id as string);
+  if (!ids.length) return [];
+  const versions = await supabase.from("document_versions").select("id,document_id,version_number,original_filename,detected_type").eq("wedding_id", weddingId).eq("status", "available").in("document_id", ids).order("version_number", { ascending: false });
+  if (versions.error) throw new Error("Could not load files.");
+  return (docs.data ?? []).flatMap((doc) => {
+    const latest = (versions.data ?? []).find((version) => version.document_id === doc.id);
+    return latest && doc.entity_id ? [{ documentId: doc.id as string, entityId: doc.entity_id as string, title: doc.title as string, versionId: latest.id as string, filename: latest.original_filename as string, detectedType: latest.detected_type as string }] : [];
+  });
+}
+
 function dbError(error: { code?: string; message: string } | null, fallback: string) {
   if (!error) return;
   if (error.code === "42501") throw new AuthorizationDeniedError();

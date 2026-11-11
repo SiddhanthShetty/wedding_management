@@ -62,10 +62,12 @@ export async function getFinanceDashboard(weddingId: string) {
     };
   });
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: context.wedding.timezone }).format(new Date());
-  const upcoming = obligations!.filter((obligation) => obligation.due_date >= today && bookings!.find((booking) => booking.id === obligation.booking_id)?.status !== "cancelled").map((obligation) => {
+  const unpaid = obligations!.filter((obligation) => bookings!.find((booking) => booking.id === obligation.booking_id)?.status !== "cancelled").map((obligation) => {
     const booking = bookings!.find((row) => row.id === obligation.booking_id);
     return { ...obligation, amount: String(obligation.amount_text), remaining: scheduledPaymentRemaining(String(obligation.amount_text), transactions!.filter((tx) => tx.obligation_id === obligation.id && tx.kind === "payment").map((tx) => String(tx.amount_text))), currency: booking?.currency ?? context.wedding.currency, booking_label: booking?.label ?? "Booking" };
   }).filter((row) => row.remaining !== "0.00");
+  // Upcoming keeps its old meaning (due today or later) for the dashboard count; "who we still owe" also needs overdue ones.
+  const upcoming = unpaid.filter((row) => String((row as Row).due_date) >= today);
   const refundDue = bookingDTOs.filter((booking) => booking.status === "cancelled" && booking.refund_expected_amount !== null).map((booking) => {
     const refundRows = booking.transactions.filter((tx: Row) => tx.kind === "refund");
     return { booking: booking.label, currency: booking.currency, amount: refundOutstanding(booking.refund_expected_amount!, refundRows.map((tx:Row)=>String(tx.amount_text))) };
@@ -75,7 +77,7 @@ export async function getFinanceDashboard(weddingId: string) {
     wedding: context.wedding, canEdit, totals, bookings: bookingDTOs,
     estimates: estimates!.map((row) => ({ ...row, amount: String(row.amount_text), function_name: row.function_id ? functionNames.get(row.function_id) ?? "Function" : "Wedding-wide" })),
     allocations: allocations!.map((row) => ({ ...row, amount: String(row.amount_text), function_name: row.function_id ? functionNames.get(row.function_id) ?? "Function" : "Wedding-wide" })),
-    functions: functions!, suppliers: suppliers!, obligations: upcoming, reimbursements: reimbursements!.map((row) => ({ ...row, amount: String(row.amount_text) })),
+    functions: functions!, suppliers: suppliers!, obligations: upcoming, unpaidObligations: unpaid, today, reimbursements: reimbursements!.map((row) => ({ ...row, amount: String(row.amount_text) })),
     adjustments: adjustments!.map((row) => ({ ...row, amount: String(row.amount_text) })), refundDue,
   };
 }
@@ -118,4 +120,13 @@ export async function cancelFinancialBooking(weddingId: string, bookingId: strin
     p_wedding_id: weddingId, p_booking_id: bookingId, p_note: note, p_refund_expected: refundExpected,
   });
   if (error) throw new Error("Could not cancel this booking. Refresh and confirm it has not already been cancelled.");
+}
+
+/** Vendors that already have a booking in the budget (cancelled bookings don't count). */
+export async function listSuppliersInBudget(weddingId: string): Promise<string[]> {
+  await authorizeWeddingOperation(weddingId, "suppliers_finance", "read");
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("bookings").select("supplier_id").eq("wedding_id", weddingId).neq("status", "cancelled").not("supplier_id", "is", null);
+  if (error) throw new Error("Could not load bookings.");
+  return [...new Set((data ?? []).map((row) => String(row.supplier_id)))];
 }

@@ -1062,3 +1062,43 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 .move-functions-preview ul { display: grid; gap: 6px; margin: 8px 0; padding-left: 18px; }
 .move-functions-preview .row-meta { display: block; }
 .move-functions > .button { justify-self: start; }
+
+/* Vendor cards: quick facts, call and WhatsApp, add to budget, files */
+.supplier-card-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.supplier-card-facts strong { color: #405945; }
+.supplier-card-actions .button svg { flex: 0 0 auto; }
+.supplier-budget-prompt { display: grid; gap: 10px; margin: 12px 0 0; border: 1px solid #e9dfc8; border-radius: 12px; background: #fffaf0; padding: 12px 14px; }
+.supplier-budget-prompt p { display: flex; align-items: center; gap: 7px; margin: 0; color: #50442d; font-size: 14px; }
+.supplier-budget-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.supplier-budget-fields .field { flex: 1 1 160px; }
+.quick-upload { display: grid; justify-items: start; gap: 6px; margin: 8px 0; }
+
+/* Budget: headline numbers, who we still owe */
+.finance-main-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.finance-headline { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 18px; }
+.finance-headline-tile { display: grid; gap: 4px; border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 14px 16px; }
+.finance-headline-tile span { color: var(--muted); font-size: 13px; font-weight: 650; }
+.finance-headline-tile strong { color: var(--ink); font-size: 24px; font-weight: 650; letter-spacing: -.3px; }
+.finance-headline-tile small { color: var(--muted); font-size: 12px; }
+.finance-headline-tile.is-due strong { color: #8a5a1f; }
+.finance-headline-note { grid-column: 1 / -1; margin: 0; color: #4f544b; font-size: 14px; }
+.finance-headline-note.is-over { color: #a34f45; font-weight: 650; }
+.owe-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.owe-list li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; align-items: center; gap: 10px 16px; border-top: 1px solid #f0f0ec; padding: 12px 0; }
+.owe-list li:first-child { border-top: 0; }
+.owe-list li.is-overdue .owe-amounts .table-secondary { color: #a34f45; font-weight: 650; }
+.owe-main, .owe-amounts { display: grid; gap: 2px; min-width: 0; }
+.owe-amounts strong { font-size: 15px; }
+.owe-confirm { display: grid; gap: 8px; grid-column: 1 / -1; border: 1px solid var(--line); border-radius: 10px; background: #fbfbf8; padding: 10px 12px; }
+.owe-confirm .field { max-width: 220px; }
+.owe-confirm-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.finance-more > summary { margin: 8px 0 12px; font-size: 14px; }
+.finance-more > .card, .finance-more > .finance-grid { margin-bottom: 16px; }
+.finance-more-heading { margin: 18px 0 10px; font-size: 15px; }
+@media (max-width: 760px) {
+  .finance-headline { grid-template-columns: 1fr; gap: 8px; }
+  .finance-headline-tile { grid-template-columns: 1fr auto; align-items: baseline; padding: 10px 14px; }
+  .finance-headline-tile strong { grid-column: 2; grid-row: 1; font-size: 19px; }
+  .finance-headline-tile small, .finance-headline-tile a { grid-column: 1 / -1; }
+  .owe-list li { grid-template-columns: 1fr; }
+}

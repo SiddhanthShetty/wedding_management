@@ -106,6 +106,17 @@ From the second new-user review (46 suggestions; 8 marked "Now"):
 - **Move all dates (#15).** Functions → "Move all dates": pick a new date for the first function (or "Same dates next year"); every dated function moves by the same number of days, with a preview of old and new dates. Times stay the same and the database recomputes start and end in the wedding's time zone. If any update fails, the ones already moved are put back. Run-sheet times and task due dates don't move.
 - **Payment form (#28).** "Submission key" is now hidden (it still prevents double-recording). "Linked due item" was a free-text box expecting an ID; it is now a list of that booking's instalments. "Convert unbooked estimate" reads "Replaces an earlier estimate?", and "Signed adjustment (+ or −)" reads "Amount" with a plain hint about the minus sign.
 
+### Phase 2A: money, done (2026-11-11)
+Phase 2 is split into three slices, each its own commit: **2A Money** (vendors and budget), **2B Plan** (tasks and decisions), **2C Home and menu**.
+- **Vendor cards (#21).** Each card shows the latest quote, the contact and how many files it has, with **Call** and **WhatsApp** buttons (10-digit numbers are treated as Indian; opening WhatsApp only starts a chat, nothing is sent).
+- **Indian categories (#22).** The category box suggests Caterer, Decorator, Pandit / purohit, Mehendi artist, Nadaswaram / band and others (`src/lib/planning/vendor-rules.ts`). Any category can still be typed.
+- **Venue details folded away (#23)** on the card and in the editor.
+- **Booked, then budget (#24).** A vendor marked Booked or Selected with no booking shows "Booked, but not in your budget yet" with the latest quote filled in and an **Add to budget** button. The whole price counts for the wedding as a whole.
+- **Budget headline (#25).** Budget, Booked and Still to pay, with "Paid so far" and what's left of the budget after everything booked and estimated (or how far over it is).
+- **Who we still owe (#26).** Every booking with money left, overdue instalments first. **Mark paid** records the next instalment (or the whole balance) on a chosen date after a confirm step, with a duplicate-safe key. Overdue instalments are now included (the Home count still uses upcoming ones only).
+- **Two buttons (#27).** "Add a cost" (booked with an agreed price, or just an estimate) and "Record a payment" open short forms. Splitting a price across functions is optional. Cancellations, instalment schedules, budget split, other expected costs and paying people back are under "More".
+- **Files on vendors (#42) and one-step uploads (#43).** Each vendor's details list its files with an **Add a file** button that uploads straight away. On Documents, choosing a file uploads it once you've picked what it belongs to; title and label are optional.
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.

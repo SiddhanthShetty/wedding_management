@@ -55,11 +55,14 @@ function UploadForm({ data, documentId, fixedEntity, initialTarget = "" }: { dat
       <option value="">Choose a record</option>
       {Object.entries(ENTITY_LABELS).map(([type, label]) => { const rows = editable.filter((option) => option.type === type); return rows.length ? <optgroup key={type} label={label}>{rows.map((option) => <option key={`${type}:${option.id}`} value={`${type}:${option.id ?? ""}`}>{option.label}</option>)}</optgroup> : null; })}
     </Select>}
-    {!documentId && <TextInput label="Title" name="title" maxLength={200} placeholder="Defaults to the file name" />}
-    {!documentId && <TextInput label="Category" name="category" maxLength={80} placeholder="Contract, invoice, floor plan…" />}
-    <TextInput label={documentId ? "New version" : "File"} name="file" type="file" required hint={PERMITTED_TYPES_LABEL + ". Type is checked from the file's contents."} accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.txt,.csv" />
+    {!documentId && <details className="more-details field-full"><summary>Name it or add a label (optional)</summary><div className="field-grid">
+      <TextInput label="Title" name="title" maxLength={200} placeholder="Uses the file name if left blank" />
+      <TextInput label="Label" name="category" maxLength={80} placeholder="Contract, invoice, floor plan…" />
+    </div></details>}
+    {/* Choosing a file uploads it straight away once you've said what it belongs to. */}
+    <TextInput label={documentId ? "New version" : "Choose a file"} name="file" type="file" required hint={PERMITTED_TYPES_LABEL + ", up to 8 MB. It uploads as soon as you choose it."} accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.txt,.csv" onChange={(event) => { if (fixedEntity || target) event.currentTarget.form?.requestSubmit(); }} />
     <div className="action-form-footer">
-      <button className="button button-primary" type="submit" disabled={pending}><Upload size={15} aria-hidden="true" /> {pending ? "Uploading…" : documentId ? "Upload new version" : "Upload document"}</button>
+      <button className="button button-primary" type="submit" disabled={pending}><Upload size={15} aria-hidden="true" /> {pending ? "Uploading…" : documentId ? "Upload new version" : "Upload"}</button>
       {state.error && <p className="field-error" role="alert">{state.error}</p>}
       {!state.error && state.message && <p className="field-success" role="status">{state.message}</p>}
     </div>
@@ -81,7 +84,7 @@ export function DocumentManager({ data, initialEntity, recordId = null }: { data
     <PageHeading eyebrow="Private files" title="Documents" description="Contracts, quotes, receipts and plans, kept private and attached to what they belong to." />
     <p className="travel-warning" role="note"><ShieldAlert size={15} aria-hidden="true" /> Uploaded files are <strong>not malware-scanned</strong>. Only open files from people you trust. File types are checked from their contents, and only PDFs and images open in the browser; everything else downloads.</p>
     {recordId && (() => { const record = data.options.find((option) => option.type === initialEntity && option.id === recordId); return record ? <p className="demo-note" role="note">Showing files for <strong>{record.label}</strong>. <a className="text-link" href="/documents">Show all documents</a></p> : null; })()}
-    <Card title="Upload a document"><UploadForm data={data} initialTarget={recordId && data.options.some((option) => option.type === initialEntity && option.id === recordId && option.canEdit) ? `${initialEntity}:${recordId}` : ""} /></Card>
+    <Card title="Add a file"><UploadForm data={data} initialTarget={recordId && data.options.some((option) => option.type === initialEntity && option.id === recordId && option.canEdit) ? `${initialEntity}:${recordId}` : ""} /></Card>
     <Card title="Library" subtitle={`You see documents for the areas you have access to. Loaded ${formatDateTime(data.loadedAt, tz)}.`}>
       <div className="table-toolbar">
         <Select label="Attached to" value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)}><option value="all">Everything</option>{Object.entries(ENTITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>

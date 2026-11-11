@@ -4,7 +4,7 @@ import { supplierIdsWithExpiringItems } from "@/lib/planning/dashboard";
 
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Scale, Search } from "lucide-react";
+import { MessageCircle, Phone, Plus, Scale, Search, Wallet } from "lucide-react";
 import {
   addSupplierAvailabilityAction, addSupplierFollowUpTaskAction, addSupplierSpaceAction,
   addSupplierVisitAction, createSupplierAction, createSupplierQuoteAction,
@@ -15,6 +15,10 @@ import { Button, Card, EmptyState, NotificationRegion, PageHeading, StageBadge }
 import { Dialog } from "@/components/dialog";
 import type { SupplierAssignee, WeddingSupplier } from "@/lib/data/suppliers";
 import { compareSuppliers, filterSuppliers } from "@/lib/planning/supplier-rules";
+import { callLink, latestQuoteTotal, needsBudgetEntry, VENDOR_CATEGORIES, whatsAppLink } from "@/lib/planning/vendor-rules";
+import { saveBookingAction } from "@/app/actions/finance";
+import { QuickUpload } from "@/components/quick-upload";
+import type { RecordFile } from "@/lib/data/documents";
 
 type SupplierAction = (previous: SupplierFormState, formData: FormData) => Promise<SupplierFormState>;
 
@@ -35,8 +39,11 @@ function moneyLabel(amount: number | null, currency: string) {
 }
 
 export function SupplierManager({
-  weddingId, currentUserId, suppliers, assignees, canEdit, canPlan, today, initialExpiringOnly = false,
+  weddingId, currentUserId, suppliers, assignees, canEdit, canPlan, today, initialExpiringOnly = false, suppliersInBudget = [], files = [], currency = "INR",
 }: {
+  suppliersInBudget?: string[];
+  files?: RecordFile[];
+  currency?: string;
   weddingId: string;
   currentUserId: string;
   suppliers: WeddingSupplier[];
@@ -60,6 +67,7 @@ export function SupplierManager({
   const filtered = filterSuppliers(suppliers, { query, status, category, shortlistOnly }).filter((supplier) => !expiringOnly || expiringIds.has(supplier.id));
   const selected = filtered.filter((supplier) => compareIds.includes(supplier.id));
   const categories = [...new Set(suppliers.map((supplier) => supplier.category))].sort((a, b) => a.localeCompare(b));
+  const inBudget = new Set(suppliersInBudget);
 
   function toggleCompare(id: string) {
     setCompareIds((current) => current.includes(id)
@@ -68,40 +76,54 @@ export function SupplierManager({
   }
 
   return <>
-    <PageHeading eyebrow="Supplier research" title="Venues & Vendors" description="Venues and vendors you're considering or have booked, with their quotes and notes." action={canEdit ? <Button onClick={() => { setEditorSupplier(undefined); setEditorOpen(true); }}><Plus size={15} aria-hidden="true" /> Add supplier</Button> : undefined} />
+    <PageHeading eyebrow="Venues and vendors" title="Venues & Vendors" description="Everyone you're considering or have booked: call or WhatsApp them, keep their quotes and files, and add them to the budget once booked." action={canEdit ? <Button onClick={() => { setEditorSupplier(undefined); setEditorOpen(true); }}><Plus size={15} aria-hidden="true" /> Add venue or vendor</Button> : undefined} />
     <div className="section-stack">
-      <Card title="Supplier directory" subtitle={`${suppliers.length} supplier${suppliers.length === 1 ? "" : "s"} · “Booked” is a shortlist status, not a confirmed booking.`}>
+      <Card title="Your list" subtitle={`${suppliers.length} venue${suppliers.length === 1 ? "" : "s"} and vendor${suppliers.length === 1 ? "" : "s"}`}>
         <div className="supplier-toolbar">
-          <div className="field supplier-search"><label className="field-label" htmlFor="supplier-search">Search suppliers</label><div className="input-wrap"><Search size={15} aria-hidden="true" /><input id="supplier-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, category, contact or source" /></div></div>
+          <div className="field supplier-search"><label className="field-label" htmlFor="supplier-search">Search</label><div className="input-wrap"><Search size={15} aria-hidden="true" /><input id="supplier-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, category, contact or source" /></div></div>
           <div className="field"><label className="field-label" htmlFor="supplier-status-filter">Status</label><select id="supplier-status-filter" className="field-control" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
           <div className="field"><label className="field-label" htmlFor="supplier-category-filter">Category</label><select id="supplier-category-filter" className="field-control" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></div>
           <label className="supplier-shortlist-toggle"><input type="checkbox" checked={shortlistOnly} onChange={(event) => setShortlistOnly(event.target.checked)} /> Shortlist only</label>
           <label className="supplier-shortlist-toggle"><input type="checkbox" checked={expiringOnly} onChange={(event) => setExpiringOnly(event.target.checked)} /> Holds or quotes expiring in 14 days ({expiringIds.size})</label>
         </div>
-        <p className="field-help">Choose up to three suppliers to compare side by side. Unknown details remain marked unknown.</p>
+        <p className="field-help">Tick “Compare” on up to three to see them side by side.</p>
         {filtered.length === 0
-          ? <EmptyState title={suppliers.length ? "No matching suppliers" : "No suppliers yet"} description={suppliers.length ? "Change your search or filters to see other suppliers." : canEdit ? "Add a venue or vendor to start a private shortlist." : "A supplier editor can add the first entry."} />
-          : <div className="supplier-list">{filtered.map((supplier) => <article className="supplier-card" key={supplier.id}>
+          ? <EmptyState title={suppliers.length ? "No matching suppliers" : "No suppliers yet"} description={suppliers.length ? "Change your search or filters to see other suppliers." : canEdit ? "Add a venue or vendor you're considering. Only your wedding's members can see this list." : "Nothing added yet."} />
+          : <div className="supplier-list">{filtered.map((supplier) => {
+            const quote = latestQuoteTotal(supplier.quotes);
+            const call = callLink(supplier.contact_phone);
+            const chat = whatsAppLink(supplier.contact_phone);
+            const supplierFiles = files.filter((file) => file.entityId === supplier.id);
+            return <article className="supplier-card" key={supplier.id}>
             <div className="supplier-card-header">
-              <div><span className="eyebrow">{supplier.kind === "venue" ? "Venue" : "Vendor"} · {supplier.category}</span><h2>{supplier.name}</h2><p>{supplier.responsible_name ? `Responsible: ${supplier.responsible_name}` : "No responsible partner assigned"}</p></div>
+              <div><span className="eyebrow">{cardEyebrow(supplier)}</span><h2>{supplier.name}</h2>
+                <p className="supplier-card-facts">{quote ? <strong>{moneyLabel(quote.amount, quote.currency)}</strong> : <span>No quote yet</span>}{supplier.contact_person && <span>{supplier.contact_person}</span>}{supplierFiles.length > 0 && <span>{supplierFiles.length} file{supplierFiles.length === 1 ? "" : "s"}</span>}</p></div>
               <StageBadge kind="supplier" status={supplier.status} />
             </div>
             <div className="supplier-card-actions">
+              {call && <a className="button button-secondary" href={call}><Phone size={15} aria-hidden="true" /> Call</a>}
+              {chat && <a className="button button-secondary" href={chat} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} aria-hidden="true" /> WhatsApp</a>}
+              {canEdit && <Button variant="secondary" onClick={() => { setEditorSupplier(supplier); setEditorOpen(true); }}>Edit</Button>}
               <label className="supplier-compare-check"><input type="checkbox" checked={compareIds.includes(supplier.id)} onChange={() => toggleCompare(supplier.id)} disabled={!compareIds.includes(supplier.id) && compareIds.length >= 3} /> Compare</label>
-              {canEdit && <Button variant="secondary" onClick={() => { setEditorSupplier(supplier); setEditorOpen(true); }}>Edit supplier</Button>}
-              <a className="button button-quiet" href={`/documents?entity=supplier&id=${supplier.id}`}>Files</a>
             </div>
+            {canEdit && needsBudgetEntry(supplier, inBudget) && <AddToBudget weddingId={weddingId} supplier={supplier} amount={quote ? quote.amount.toFixed(2) : ""} currency={quote?.currency ?? currency} />}
             <details className="supplier-details">
-              <summary>Supplier details, quotes and notes</summary>
-              <SupplierDetails weddingId={weddingId} currentUserId={currentUserId} supplier={supplier} assignees={assignees} canEdit={canEdit} canPlan={canPlan} />
+              <summary>Details, quotes, notes and files</summary>
+              <SupplierDetails weddingId={weddingId} currentUserId={currentUserId} supplier={supplier} assignees={assignees} canEdit={canEdit} canPlan={canPlan} files={supplierFiles} />
             </details>
-          </article>)}</div>}
+          </article>; })}</div>}
         {selected.length >= 2 && <ComparisonTable suppliers={selected} />}
       </Card>
     </div>
     <SupplierEditor key={editorSupplier?.id ?? "new-supplier"} open={editorOpen} weddingId={weddingId} supplier={editorSupplier} currentUserId={currentUserId} assignees={assignees} onClose={() => setEditorOpen(false)} onSaved={(message) => { setEditorOpen(false); setNotice(message); }} />
     {notice && <NotificationRegion message={notice} onDismiss={() => setNotice("")} />}
   </>;
+}
+
+/** "Vendor · Caterer", but just "Venue / hall" when the category already says venue. */
+function cardEyebrow(supplier: WeddingSupplier) {
+  const kind = supplier.kind === "venue" ? "Venue" : "Vendor";
+  return supplier.category.toLowerCase().includes(kind.toLowerCase()) ? supplier.category : `${kind} · ${supplier.category}`;
 }
 
 function ComparisonTable({ suppliers }: { suppliers: WeddingSupplier[] }) {
@@ -112,8 +134,34 @@ function ComparisonTable({ suppliers }: { suppliers: WeddingSupplier[] }) {
   </section>;
 }
 
-function SupplierDetails({ weddingId, currentUserId, supplier, assignees, canEdit, canPlan }: {
-  weddingId: string; currentUserId: string; supplier: WeddingSupplier; assignees: SupplierAssignee[]; canEdit: boolean; canPlan: boolean;
+/** Shown on a booked vendor that isn't in the budget yet: one tap adds the booking, with the latest quote filled in. */
+function AddToBudget({ weddingId, supplier, amount: quoted, currency }: { weddingId: string; supplier: WeddingSupplier; amount: string; currency: string }) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(saveBookingAction, {});
+  const [amount, setAmount] = useState(quoted);
+  useEffect(() => { if (state.message && !state.error) router.refresh(); }, [state, router]);
+  return <form action={formAction} className="supplier-budget-prompt">
+    <p><Wallet size={16} aria-hidden="true" /> <strong>{supplier.status === "booked" ? "Booked" : "Selected"}, but not in your budget yet.</strong></p>
+    <input type="hidden" name="weddingId" value={weddingId} />
+    <input type="hidden" name="supplierId" value={supplier.id} />
+    <input type="hidden" name="label" value={supplier.name} />
+    <input type="hidden" name="category" value={supplier.category} />
+    <input type="hidden" name="currency" value={currency} />
+    <input type="hidden" name="sourceEstimateId" value="" />
+    {/* The whole amount counts for the wedding as a whole; split it across functions later on the Budget page if you want. */}
+    <input type="hidden" name="allocationFunctionId" value="" />
+    <input type="hidden" name="allocationAmount" value={amount} />
+    <div className="supplier-budget-fields">
+      <label className="field"><span className="field-label">Agreed price ({currency})</span><input className="field-control" name="amount" inputMode="decimal" placeholder="e.g. 150000" required value={amount} onChange={(event) => setAmount(event.target.value.trim())} /></label>
+      <label className="field"><span className="field-label">Is the price final?</span><select className="field-control" name="status" defaultValue={supplier.status === "booked" ? "confirmed" : "tentative"}><option value="confirmed">Yes, agreed</option><option value="tentative">Not yet</option></select></label>
+      <Button type="submit" disabled={pending || !amount}>{pending ? "Adding…" : "Add to budget"}</Button>
+    </div>
+    {state.error && <p className="field-error" role="alert">{state.error}</p>}
+  </form>;
+}
+
+function SupplierDetails({ weddingId, currentUserId, supplier, assignees, canEdit, canPlan, files = [] }: {
+  weddingId: string; currentUserId: string; supplier: WeddingSupplier; assignees: SupplierAssignee[]; canEdit: boolean; canPlan: boolean; files?: RecordFile[];
 }) {
   const latestDateByRequestedDate = [...new Map(supplier.requested_dates.map((row) => [row.requested_date, row])).values()];
   return <div className="supplier-detail-grid">
@@ -121,8 +169,17 @@ function SupplierDetails({ weddingId, currentUserId, supplier, assignees, canEdi
       <dl className="supplier-facts"><Fact label="Contact person" value={supplier.contact_person} /><Fact label="Email" value={supplier.contact_email} /><Fact label="Phone" value={supplier.contact_phone} /><Fact label="Source / recommendation" value={supplier.source} /><Fact label="Notes" value={supplier.notes} /></dl>
       <div className="supplier-link-list">{supplier.website_url && <a href={supplier.website_url} target="_blank" rel="noreferrer">Open website</a>}{supplier.map_url && <a href={supplier.map_url} target="_blank" rel="noreferrer">Open map link</a>}{!supplier.website_url && !supplier.map_url && <span className="field-help">No links provided.</span>}</div>
     </section>
+    <section className="supplier-detail-section"><h3>Files</h3>
+      {files.length
+        ? <ul className="supplier-list-compact">{files.map((file) => <li key={file.documentId}><a className="text-link" href={`/api/documents/${file.versionId}?mode=${/^(application\/pdf|image\/)/.test(file.detectedType) ? "view" : "download"}`} target="_blank" rel="noopener noreferrer">{file.title}</a></li>)}</ul>
+        : <p className="field-help">No files yet. Add the quote, contract or photos here.</p>}
+      {canEdit && <QuickUpload weddingId={weddingId} entityType="supplier" entityId={supplier.id} />}
+      <a className="text-link" href={`/documents?entity=supplier&id=${supplier.id}`}>Manage files</a>
+    </section>
     {supplier.kind === "venue" && <section className="supplier-detail-section"><h3>Venue details</h3>
+      <details className="more-details"><summary>Rules, rooms, parking and more</summary>
       <dl className="supplier-facts"><Fact label="Room availability information" value={supplier.venue?.room_availability_notes} /><Fact label="Catering" value={supplier.venue?.catering_notes} /><Fact label="Outside-vendor rules" value={supplier.venue?.outside_vendor_notes} /><Fact label="Parking" value={supplier.venue?.parking_notes} /><Fact label="Accessibility" value={supplier.venue?.accessibility_notes} /><Fact label="Pet policy" value={policyLabel(supplier.venue?.pet_policy)} /><Fact label="Alcohol policy" value={policyLabel(supplier.venue?.alcohol_policy)} /><Fact label="Music policy" value={policyLabel(supplier.venue?.music_policy)} /><Fact label="Weather backup" value={supplier.venue?.weather_backup_space} /><Fact label="Weather-backup capacity" value={supplier.venue?.weather_backup_capacity === null || supplier.venue?.weather_backup_capacity === undefined ? "Unknown" : String(supplier.venue.weather_backup_capacity)} /></dl>
+      </details>
       <h4>Event spaces and capacity</h4>
       {supplier.spaces.filter((space) => !space.archived_at).length
         ? <ul className="supplier-list-compact">{supplier.spaces.filter((space) => !space.archived_at).map((space) => <li key={space.id}><span><strong>{space.name}</strong> · {space.capacity === null ? "Capacity unknown" : `${space.capacity} people`}{space.notes && ` · ${space.notes}`}</span>{canEdit && <SpaceEditor weddingId={weddingId} supplierId={supplier.id} space={space} />}</li>)}</ul>
@@ -144,7 +201,6 @@ function SupplierDetails({ weddingId, currentUserId, supplier, assignees, canEdi
         </article>)}</div>
         : <p className="field-help">No quotes recorded.</p>}
       {canEdit && <QuoteForm weddingId={weddingId} supplierId={supplier.id} />}
-      <p className="field-help">Supporting document upload will be available when private document storage is implemented.</p>
     </section>
     <section className="supplier-detail-section"><h3>Partner preference</h3>
       <p className="field-help">Each member records their own view. No response means no preference has been recorded.</p>
@@ -192,25 +248,25 @@ function SupplierEditor({ open, weddingId, supplier, currentUserId, assignees, o
   const venue = supplier?.venue;
   const ownerOptions = assignees.some((member) => member.userId === currentUserId) ? assignees : [{ userId: currentUserId, name: "Me" }, ...assignees];
   return <Dialog open={open} className="planning-editor-dialog" titleId="supplier-editor-title" descriptionId="supplier-editor-description" onClose={onClose}>
-    <h2 id="supplier-editor-title" className="dialog-title">{supplier ? "Edit supplier" : "Add venue or vendor"}</h2>
-    <p id="supplier-editor-description" className="dialog-copy">Save only information you have confirmed. Website and map links are stored as entered and are never fetched by the server.</p>
+    <h2 id="supplier-editor-title" className="dialog-title">{supplier ? `Edit ${supplier.name}` : "Add a venue or vendor"}</h2>
+    <p id="supplier-editor-description" className="dialog-copy">Only the name and category are needed. Add the rest whenever you have it.</p>
     <form action={formAction} className="function-editor-form">
       <input type="hidden" name="weddingId" value={weddingId} />{supplier && <input type="hidden" name="supplierId" value={supplier.id} />}
       <div className="field-grid">
         <label className="field"><span className="field-label">Type</span><select className="field-control" name="kind" value={kind} onChange={(event) => setKind(event.target.value as "venue" | "vendor")}><option value="venue">Venue</option><option value="vendor">Vendor</option></select></label>
-        <label className="field"><span className="field-label">Status</span><select className="field-control" name="status" defaultValue={supplier?.status ?? "researching"}>{Object.entries(statusLabel).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><span className="field-help">Booked here is a supplier status; it does not confirm a booking.</span></label>
+        <label className="field"><span className="field-label">Status</span><select className="field-control" name="status" defaultValue={supplier?.status ?? "researching"}>{Object.entries(statusLabel).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><span className="field-help">Once it&apos;s Booked, you can add it to the budget from its card.</span></label>
         <label className="field"><span className="field-label">Name *</span><input className="field-control" name="name" required maxLength={200} defaultValue={String(value("name"))} /></label>
-        <label className="field"><span className="field-label">Category *</span><input className="field-control" name="category" required maxLength={120} placeholder="e.g. Venue, catering, photography" defaultValue={String(value("category"))} /></label>
+        <label className="field"><span className="field-label">Category *</span><input className="field-control" name="category" required maxLength={120} list="vendor-categories" placeholder="Choose or type, e.g. Caterer" defaultValue={String(value("category"))} /><datalist id="vendor-categories">{VENDOR_CATEGORIES.map((item) => <option key={item} value={item} />)}</datalist></label>
         <label className="field"><span className="field-label">Contact person</span><input className="field-control" name="contactPerson" maxLength={160} defaultValue={String(value("contact_person"))} /></label>
         <label className="field"><span className="field-label">Contact email</span><input className="field-control" type="email" name="contactEmail" maxLength={254} defaultValue={String(value("contact_email"))} /></label>
-        <label className="field"><span className="field-label">Contact phone</span><input className="field-control" type="tel" name="contactPhone" maxLength={80} defaultValue={String(value("contact_phone"))} /></label>
+        <label className="field"><span className="field-label">Phone or WhatsApp</span><input className="field-control" type="tel" name="contactPhone" maxLength={80} placeholder="98450 12345" defaultValue={String(value("contact_phone"))} /><span className="field-help">Indian numbers can be typed without +91.</span></label>
         <label className="field"><span className="field-label">Responsible partner</span><select className="field-control" name="responsibleUserId" defaultValue={String(value("responsible_user_id"))}><option value="">Unassigned</option>{ownerOptions.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</select></label>
         <label className="field"><span className="field-label">Website link</span><input className="field-control" type="url" name="websiteUrl" inputMode="url" maxLength={2048} placeholder="https://…" defaultValue={String(value("website_url"))} /></label>
         <label className="field"><span className="field-label">Map link</span><input className="field-control" type="url" name="mapUrl" inputMode="url" maxLength={2048} placeholder="https://…" defaultValue={String(value("map_url"))} /></label>
         <label className="field field-full"><span className="field-label">Source or recommendation</span><input className="field-control" name="source" maxLength={1000} defaultValue={String(value("source"))} /></label>
         <label className="field field-full"><span className="field-label">Notes</span><textarea className="field-control" name="notes" maxLength={10000} defaultValue={String(value("notes"))} /></label>
       </div>
-      {kind === "venue" && <fieldset className="supplier-venue-fields"><legend>Venue details <span className="field-help">Leave information blank or unknown until confirmed.</span></legend>
+      {kind === "venue" && <details className="more-details"><summary>Venue details (optional): rooms, catering, parking, rules</summary><fieldset className="supplier-venue-fields"><legend className="sr-only">Venue details</legend>
         <div className="field-grid">
           <label className="field field-full"><span className="field-label">Room availability information</span><textarea className="field-control" name="roomAvailabilityNotes" maxLength={5000} defaultValue={venue?.room_availability_notes ?? ""} /></label>
           <label className="field"><span className="field-label">Catering</span><textarea className="field-control" name="cateringNotes" maxLength={5000} defaultValue={venue?.catering_notes ?? ""} /></label>
@@ -223,9 +279,9 @@ function SupplierEditor({ open, weddingId, supplier, currentUserId, assignees, o
           <label className="field"><span className="field-label">Weather-backup space</span><input className="field-control" name="weatherBackupSpace" maxLength={200} defaultValue={venue?.weather_backup_space ?? ""} /></label>
           <label className="field"><span className="field-label">Weather-backup capacity</span><input className="field-control" type="number" min="0" step="1" name="weatherBackupCapacity" defaultValue={venue?.weather_backup_capacity ?? ""} /></label>
         </div>
-      </fieldset>}
+      </fieldset></details>}
       {state.error && <p className="auth-alert" role="alert">{state.error}</p>}
-      <div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save supplier"}</Button></div>
+      <div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save"}</Button></div>
     </form>
   </Dialog>;
 }
