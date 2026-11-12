@@ -29,11 +29,11 @@ export function DecisionManager({
     setNotice(message);
   }, []);
   return <>
-    <Card title="Decision records" subtitle="Partner preferences are recorded per member and never treated as a household response." action={canEdit
-      ? <Button onClick={() => setCreateOpen(true)}><Plus size={15} aria-hidden="true" /> Add decision</Button>
+    <Card title="Things to decide" subtitle={`${decisions.filter((decision) => decision.status === "open").length} still open`} action={canEdit
+      ? <Button onClick={() => setCreateOpen(true)}><Plus size={15} aria-hidden="true" /> Add a question</Button>
       : undefined}>
       {!decisions.length
-        ? <EmptyState title="No decisions yet" description={canEdit ? "Record a question and at least two options to start." : "Nothing added yet."} icon={<Scale size={19} aria-hidden="true" />} />
+        ? <EmptyState title="Nothing to decide yet" description={canEdit ? "Add something you need to decide, like the reception menu, with at least two options." : "Nothing added yet."} icon={<Scale size={19} aria-hidden="true" />} />
         : <div className="decision-list">{shown.map((decision) => <DecisionCard key={decision.id} weddingId={weddingId} currentUserId={currentUserId} decision={decision} canEdit={canEdit} />)}</div>}
       {decisions.length > 0 && <div className="filter-group" role="group" aria-label="Filter decisions"><button type="button" className={`chip ${!openOnly ? "is-active" : ""}`} aria-pressed={!openOnly} onClick={() => setOpenOnly(false)}>All decisions</button><button type="button" className={`chip ${openOnly ? "is-active" : ""}`} aria-pressed={openOnly} onClick={() => setOpenOnly(true)}>Awaiting a decision ({decisions.filter((decision) => decision.status === "open").length})</button></div>}
       {!canEdit && <p className="field-help">You can view this but not change it. Ask the couple if you need something changed.</p>}

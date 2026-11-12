@@ -117,6 +117,14 @@ Phase 2 is split into three slices, each its own commit: **2A Money** (vendors a
 - **Two buttons (#27).** "Add a cost" (booked with an agreed price, or just an estimate) and "Record a payment" open short forms. Splitting a price across functions is optional. Cancellations, instalment schedules, budget split, other expected costs and paying people back are under "More".
 - **Files on vendors (#42) and one-step uploads (#43).** Each vendor's details list its files with an **Add a file** button that uploads straight away. On Documents, choosing a file uploads it once you've picked what it belongs to; title and label are optional.
 
+### Phase 2B: plan, done (2026-11-12)
+- **One-line add (#17).** A box at the top of Tasks: type a task, optionally pick a date, press Enter. Everything else can be added with Edit.
+- **Fewer fields (#18).** The task form shows the task, due date, who's doing it and status; notes, function, priority, "waiting for another task" and vendor/booking notes are under "More details". Plain status words: To do, Started, Stuck, Done, Not needed.
+- **Done button** on each open task (no more tick-then-bulk-action); "Select several" still marks many done at once.
+- **Starter checklist by months before (#19).** Tasks are grouped by when they're due by default: Overdue, then each month labelled with how far it is from the wedding (for example "March 2027 · 9 months before the wedding"), then No due date, then Done (folded). The usual 14-task checklist is offered on Tasks with tick boxes, its lead time and due date; "Add more of the usual tasks" offers the rest later. Home still adds the whole list in one go.
+- **Decisions under Tasks (#20).** One menu entry, Tasks, with **To do** and **To decide** tabs (the same way Guests and Wedding week work). The decisions data and links are unchanged; only the menu and wording moved.
+- The workspace now carries the wedding date, so pages can count back from it.
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.

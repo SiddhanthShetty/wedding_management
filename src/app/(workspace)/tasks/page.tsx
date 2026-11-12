@@ -26,7 +26,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     || workspace.membership.role === "co_owner"
     || workspace.moduleAccess.planning === "edit";
   return <>
-    <PageHeading eyebrow="Keep things moving" title="Tasks" description="Everything to do, who's doing it and by when." />
+    <PageHeading eyebrow="Tasks" title="To do" description="Everything to do, grouped by when it's due. Type a task to add it." />
     <TaskManager
       weddingId={workspace.wedding.id}
       currentUserId={workspace.user.id}
@@ -38,6 +38,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       canEdit={canEdit}
       initialView={initialView}
       viewFromUrl={typeof params.view === "string"}
+      weddingDate={workspace.wedding.wedding_date}
     />
   </>;
 }

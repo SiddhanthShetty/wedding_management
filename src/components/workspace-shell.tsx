@@ -130,7 +130,7 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
         {phoneTabs.map((link) => { const Icon = link.icon; return <Link key={link.href} href={link.href} className="phone-tab" aria-current={isActiveLink(pathname, link) ? "page" : undefined}><Icon size={20} aria-hidden="true" /><span>{link.label}</span></Link>; })}
         <button type="button" className="phone-tab" onClick={() => setOpen(true)} aria-expanded={open}><Menu size={20} aria-hidden="true" /><span>More</span></button>
       </nav>
-      <main id="main-content" className="main-content" inert={open}>{area && <nav className="area-tabs" aria-label={area === "guests" ? "Guests sections" : "Wedding week sections"}>
+      <main id="main-content" className="main-content" inert={open}>{area && <nav className="area-tabs" aria-label={area === "guests" ? "Guests sections" : area === "plan" ? "Tasks sections" : "Wedding week sections"}>
         {AREAS[area].filter(() => groups.some((group) => group.links.some((link) => link.area === area))).map((tab) => <Link key={tab.href} href={tab.href} className="area-tab" aria-current={pathname === tab.href || pathname.startsWith(`${tab.href}/`) ? "page" : undefined}>{tab.label}</Link>)}
       </nav>}{children}{isDemoPage && <p className="footer-note">Demo shell</p>}</main>
     </div>

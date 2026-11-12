@@ -1,12 +1,13 @@
-import { CalendarDays, CalendarHeart, CheckSquare2, FileText, LayoutDashboard, Map, Scale, UsersRound, Wallet, type LucideIcon } from "lucide-react";
+import { CalendarDays, CalendarHeart, CheckSquare2, FileText, LayoutDashboard, Map, UsersRound, Wallet, type LucideIcon } from "lucide-react";
 import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
 
 export type NavLink = { href: string; label: string; icon: LucideIcon; module?: WeddingModule; area?: AreaId };
 export type NavGroup = { id: string; label: string | null; links: NavLink[] };
-export type AreaId = "guests" | "week";
+export type AreaId = "plan" | "guests" | "week";
 
 /** Pages that belong together share one sidebar entry and show section tabs at the top. */
 export const AREAS: Record<AreaId, Array<{ href: string; label: string }>> = {
+  plan: [{ href: "/tasks", label: "To do" }, { href: "/decisions", label: "To decide" }],
   guests: [{ href: "/guests", label: "People & RSVPs" }, { href: "/invitations", label: "Invitations" }, { href: "/messages", label: "Messages" }],
   week: [{ href: "/schedule", label: "Run sheets" }, { href: "/today", label: "Day-of" }, { href: "/logistics", label: "Catering" }, { href: "/travel", label: "Stays & travel" }],
 };
@@ -16,8 +17,7 @@ export const NAV_GROUPS: NavGroup[] = [
   { id: "home", label: null, links: [{ href: "/overview", label: "Overview", icon: LayoutDashboard }] },
   { id: "plan", label: "Plan", links: [
     { href: "/functions", label: "Functions", icon: CalendarDays, module: "planning" },
-    { href: "/tasks", label: "Tasks", icon: CheckSquare2, module: "planning" },
-    { href: "/decisions", label: "Decisions", icon: Scale, module: "planning" },
+    { href: "/tasks", label: "Tasks", icon: CheckSquare2, module: "planning", area: "plan" },
   ] },
   { id: "guests", label: null, links: [{ href: "/guests", label: "Guests", icon: UsersRound, module: "guests", area: "guests" }] },
   { id: "money", label: "Money", links: [

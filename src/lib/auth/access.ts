@@ -12,7 +12,7 @@ export type MemberRole = "owner" | "co_owner" | "scoped_collaborator" | "read_on
 export type WorkspaceContext = {
   user: Pick<User, "id" | "email">;
   displayName: string;
-  wedding: { id: string; name: string; partner_one_display_name: string; partner_two_display_name: string; timezone: string; currency: string; overall_budget: string | null };
+  wedding: { id: string; name: string; partner_one_display_name: string; partner_two_display_name: string; timezone: string; currency: string; overall_budget: string | null; wedding_date: string | null };
   membership: { id: string; role: MemberRole };
   moduleAccess: Partial<Record<WeddingModule, AccessLevel>>;
 };
@@ -65,7 +65,7 @@ export async function authorizeWeddingOperation(
 
   const { data: wedding, error: weddingError } = await supabase
     .from("weddings")
-    .select("id, name, partner_one_display_name, partner_two_display_name, timezone, currency, overall_budget_text:overall_budget::text")
+    .select("id, name, partner_one_display_name, partner_two_display_name, timezone, currency, wedding_date, overall_budget_text:overall_budget::text")
     .eq("id", weddingId)
     .maybeSingle();
   if (weddingError) throw new Error("Could not load your wedding.");
@@ -102,7 +102,7 @@ export async function authorizeWeddingOperation(
   return {
     user,
     displayName: profile?.display_name || user.email || "Wedding member",
-    wedding: { id: wedding.id, name: wedding.name, partner_one_display_name: wedding.partner_one_display_name, partner_two_display_name: wedding.partner_two_display_name, timezone: wedding.timezone, currency: wedding.currency, overall_budget: wedding.overall_budget_text },
+    wedding: { id: wedding.id, name: wedding.name, partner_one_display_name: wedding.partner_one_display_name, partner_two_display_name: wedding.partner_two_display_name, timezone: wedding.timezone, currency: wedding.currency, overall_budget: wedding.overall_budget_text, wedding_date: wedding.wedding_date ?? null },
     membership: { id: membership.id, role },
     moduleAccess,
   };

@@ -1102,3 +1102,19 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
   .finance-headline-tile small, .finance-headline-tile a { grid-column: 1 / -1; }
   .owe-list li { grid-template-columns: 1fr; }
 }
+
+/* Tasks: one-line add, Done button, month groups */
+.quick-add-task { display: grid; gap: 6px; margin: 0 0 16px; padding: 14px 16px; }
+.quick-add-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.quick-add-row #quick-task-title { flex: 1 1 240px; min-width: 0; }
+.quick-add-row .quick-add-date { flex: 0 1 180px; width: auto; }
+.quick-add-task .field-help, .quick-add-task .field-error, .quick-add-task .field-success { margin: 0; }
+.task-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.task-card-actions .task-done-form { display: inline-flex; margin: 0; }
+.task-card-actions .task-done-form .action-form-footer { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; }
+.task-group-title.is-overdue { color: #a34f45; }
+.task-group-hint { color: var(--muted); font-weight: 500; letter-spacing: 0; text-transform: none; }
+.task-priority { color: #8a5a1f; font-weight: 650; }
+.task-card.is-finished .task-card-title { color: var(--muted); text-decoration: line-through; }
+.task-group-done > summary { cursor: pointer; }
+@media (max-width: 760px) { .quick-add-row .quick-add-date { flex: 1 1 140px; } }

@@ -8,6 +8,8 @@ import { addStarterReminderTemplate, applyFunctionSet, applyTaskChecklist } from
 export type SetupActionState = { error?: string; message?: string; at?: number };
 const text = (form: FormData, key: string) => { const value = form.get(key); return typeof value === "string" ? value : ""; };
 
+class PickNothingError extends Error {}
+
 async function run(form: FormData, task: (weddingId: string) => Promise<string>, paths: string[]): Promise<SetupActionState> {
   const wedding = z.uuid().safeParse(text(form, "weddingId"));
   if (!wedding.success) return { error: "Something went wrong with this page. Refresh it and try again." };
@@ -18,6 +20,7 @@ async function run(form: FormData, task: (weddingId: string) => Promise<string>,
   } catch (error) {
     if (error instanceof AuthorizationDeniedError) return { error: "You can't change this. Ask the couple if you need something changed." };
     if (error instanceof CommunicationRuleError) return { error: error.message };
+    if (error instanceof PickNothingError) return { error: "Tick at least one task." };
     return { error: "Nothing was added. Refresh and try again." };
   }
 }
@@ -32,8 +35,11 @@ export async function applyFunctionSetAction(_state: SetupActionState, form: For
 
 export async function applyTaskChecklistAction(_state: SetupActionState, form: FormData): Promise<SetupActionState> {
   return run(form, async (weddingId) => {
-    const result = await applyTaskChecklist(weddingId);
-    if (!result.added) return "The starter checklist is already in your tasks.";
+    // From the Tasks page you tick which ones to add; from Home it adds the whole list.
+    const picked = form.getAll("starterTask").filter((value): value is string => typeof value === "string");
+    if (form.get("picking") === "1" && !picked.length) throw new PickNothingError();
+    const result = await applyTaskChecklist(weddingId, form.get("picking") === "1" ? picked : undefined);
+    if (!result.added) return "Those tasks are already in your list.";
     return `Added ${result.added} task(s)${result.dated ? " with due dates counted back from your wedding date" : " without due dates (set your wedding date to add them)"}.${result.skipped ? ` ${result.skipped} already existed.` : ""}`;
   }, ["/overview", "/tasks"]);
 }

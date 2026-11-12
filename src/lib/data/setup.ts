@@ -64,20 +64,24 @@ export async function applyFunctionSet(weddingId: string, setId: string) {
   return { added: toAdd.length, skipped: set.functions.length - toAdd.length, dated: Boolean(date) };
 }
 
-/** Adds the starter task checklist with due dates counted back from the wedding date. */
-export async function applyTaskChecklist(weddingId: string) {
+/**
+ * Adds the starter task checklist with due dates counted back from the wedding date.
+ * With `titles`, only those checklist items are added (anything else in the list is ignored).
+ */
+export async function applyTaskChecklist(weddingId: string, titles?: string[]) {
   const context = await authorizeWeddingOperation(weddingId, "planning", "edit");
   const date = await weddingDate(weddingId);
   const today = instantToLocalDate(new Date(), context.wedding.timezone);
   const existing = await listWeddingTasks(weddingId);
-  const toAdd = newTemplateItems(TASK_CHECKLIST, existing.map((task) => task.title), (item) => item.title);
+  const picked = titles ? TASK_CHECKLIST.filter((item) => titles.includes(item.title)) : TASK_CHECKLIST;
+  const toAdd = newTemplateItems(picked, existing.map((task) => task.title), (item) => item.title);
   for (const task of toAdd) {
     await createWeddingTask(weddingId, {
       title: task.title, description: task.description, functionId: "", ownerUserId: "", dueDate: templateDueDate(date, task.monthsBefore, today) ?? "",
       priority: task.priority, status: "not_started", relatedVendorReference: "", relatedBookingReference: "", dependsOnTaskId: "",
     });
   }
-  return { added: toAdd.length, skipped: TASK_CHECKLIST.length - toAdd.length, dated: Boolean(date) };
+  return { added: toAdd.length, skipped: picked.length - toAdd.length, dated: Boolean(date) };
 }
 
 /** A ready-made RSVP reminder template for the Messages page. */
