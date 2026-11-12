@@ -27,5 +27,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     suppliersInBudget={suppliersInBudget}
     files={files}
     currency={workspace.wedding.currency}
+    initialQuery={typeof params.q === "string" ? params.q.slice(0, 100) : ""}
+    initialAdd={params.add === "1"}
   />;
 }

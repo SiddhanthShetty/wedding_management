@@ -5,9 +5,9 @@ import { describeStatus, statusOptions } from "../src/lib/planning/status-vocabu
 
 describe("grouped navigation", () => {
   it("shows owners every group and hides groups a collaborator cannot open", () => {
-    expect(visibleNavGroups("owner", {}).map((group) => group.id)).toEqual(["home", "plan", "guests", "money", "week", "files"]);
+    expect(visibleNavGroups("owner", {}).map((group) => group.id)).toEqual(["home", "plan", "guests", "money", "week"]);
     const scoped = visibleNavGroups("scoped_collaborator", { planning: "edit", logistics: "read" });
-    expect(scoped.map((group) => group.id)).toEqual(["home", "plan", "week", "files"]);
+    expect(scoped.map((group) => group.id)).toEqual(["home", "plan", "week"]);
     const readOnly = visibleNavGroups("read_only_collaborator", { guests: "read" });
     expect(readOnly.find((group) => group.id === "guests")?.links.map((link) => link.label)).toEqual(["Guests"]);
     expect(readOnly.some((group) => group.id === "money")).toBe(false);
@@ -18,11 +18,11 @@ describe("grouped navigation", () => {
     expect(currentSectionLabel("/invitations")).toBe("Invitations");
     expect(areaForPath("/today")).toBe("week");
     expect(areaForPath("/messages")).toBe("guests");
-    expect(areaForPath("/budget")).toBeNull();
+    expect(areaForPath("/budget")).toBe("money");
     expect(isActiveLink("/travel", NAV_GROUPS.find((group) => group.id === "week")!.links[0]!)).toBe(true);
     expect(currentSectionLabel("/travel")).toBe("Stays & travel");
     expect(currentSectionLabel("/settings")).toBe("Settings");
-    expect(currentSectionLabel("/unknown")).toBe("Overview");
+    expect(currentSectionLabel("/unknown")).toBe("Home");
   });
 });
 

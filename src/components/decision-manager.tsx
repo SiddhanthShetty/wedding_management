@@ -62,7 +62,7 @@ function CreateDecisionDialog({ open, weddingId, onClose, onCreated }: { open: b
 
 function DecisionCard({ weddingId, currentUserId, decision, canEdit }: { weddingId: string; currentUserId: string; decision: WeddingDecision; canEdit: boolean }) {
   const [state, action, pending] = useActionState(updateDecisionAction, {});
-  return <article className="decision-card">
+  return <article id={`decision-${decision.id}`} className="decision-card">
     <div className="decision-card-header"><div><p className="eyebrow">Question</p><h3>{decision.question}</h3></div><StageBadge kind="decision" status={decision.status} /></div>
     {decision.status === "decided" && <div className="decision-final">
       <strong>Final choice:</strong> {decision.options.find((option) => option.id === decision.final_option_id)?.label ?? "Recorded option"}

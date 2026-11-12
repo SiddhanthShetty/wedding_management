@@ -19,7 +19,7 @@ const writes = target === "staging";
 test.skip(!enabled, "Signed-in journeys run only with E2E_TARGET=staging or E2E_TARGET=readonly and an account.");
 test.describe.configure({ mode: "serial" });
 
-const ROUTES = ["/overview", "/today", "/guests", "/invitations", "/functions", "/tasks", "/decisions", "/venues-vendors", "/budget", "/logistics", "/schedule", "/travel", "/documents", "/messages", "/settings"];
+const ROUTES = ["/overview", "/today", "/guests", "/invitations", "/functions", "/tasks", "/decisions", "/search", "/venues-vendors", "/budget", "/logistics", "/schedule", "/travel", "/documents", "/messages", "/settings"];
 
 async function signIn(page: Page) {
   await page.goto("/sign-in");

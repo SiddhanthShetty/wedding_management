@@ -39,8 +39,10 @@ function moneyLabel(amount: number | null, currency: string) {
 }
 
 export function SupplierManager({
-  weddingId, currentUserId, suppliers, assignees, canEdit, canPlan, today, initialExpiringOnly = false, suppliersInBudget = [], files = [], currency = "INR",
+  weddingId, currentUserId, suppliers, assignees, canEdit, canPlan, today, initialExpiringOnly = false, suppliersInBudget = [], files = [], currency = "INR", initialQuery = "", initialAdd = false,
 }: {
+  initialQuery?: string;
+  initialAdd?: boolean;
   suppliersInBudget?: string[];
   files?: RecordFile[];
   currency?: string;
@@ -55,13 +57,13 @@ export function SupplierManager({
 }) {
   const [expiringOnly, setExpiringOnly] = useState(initialExpiringOnly);
   const expiringIds = supplierIdsWithExpiringItems(suppliers, today);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [status, setStatus] = useState("all");
   const [category, setCategory] = useState("all");
   const [shortlistOnly, setShortlistOnly] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [editorSupplier, setEditorSupplier] = useState<WeddingSupplier | undefined>();
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(initialAdd && canEdit);
   const [notice, setNotice] = useState("");
 
   const filtered = filterSuppliers(suppliers, { query, status, category, shortlistOnly }).filter((supplier) => !expiringOnly || expiringIds.has(supplier.id));

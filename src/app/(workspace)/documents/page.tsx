@@ -11,5 +11,5 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
   const entity = entities.find((value) => value === params.entity) ?? "all";
   // `?entity=supplier&id=…` (from a record's "Files" link) shows only that record's documents and targets uploads at it.
   const recordId = typeof params.id === "string" && /^[0-9a-f-]{36}$/i.test(params.id) ? params.id : null;
-  return <DocumentManager data={data} initialEntity={entity} recordId={entity !== "all" ? recordId : null} />;
+  return <DocumentManager data={data} initialEntity={entity} recordId={entity !== "all" ? recordId : null} initialQuery={typeof params.q === "string" ? params.q.slice(0, 100) : ""} />;
 }

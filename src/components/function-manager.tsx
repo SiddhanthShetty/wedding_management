@@ -4,6 +4,7 @@ import { useActionState, useCallback, useEffect, useState } from "react";
 import { Archive, CalendarPlus, Pencil } from "lucide-react";
 import { addStarterFunctionsAction, archiveFunctionAction, createFunctionAction, moveFunctionsAction, updateFunctionAction } from "@/app/actions/functions";
 import { earliestFunctionDate, moveSummary, planFunctionMove, sameDayNextYear } from "@/lib/planning/move-functions";
+import { functionsByDay } from "@/lib/planning/function-timeline";
 import { FUNCTION_TYPES, shiftDate, STARTER_FUNCTIONS } from "@/lib/planning/starter-functions";
 import { timeZoneOptions } from "@/lib/locale";
 import { Button, Card, DataTable, EmptyState, NotificationRegion, StageBadge, StatusLabel } from "@/components/ui";
@@ -84,7 +85,9 @@ export function FunctionManager({
   arrangements,
   canEdit,
   weddingDate = null,
+  initialAdd = false,
 }: {
+  initialAdd?: boolean;
   weddingId: string;
   timezone: string;
   currency: string;
@@ -94,7 +97,7 @@ export function FunctionManager({
   canEdit: boolean;
 }) {
   const [editing, setEditing] = useState<WeddingFunction | undefined>();
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(initialAdd && canEdit);
   const [notice, setNotice] = useState("");
   const activeFunctions = functions.filter((item) => !item.archived_at);
   const archivedFunctions = functions.filter((item) => item.archived_at);
@@ -113,21 +116,28 @@ export function FunctionManager({
       : undefined}>
       {!activeFunctions.length
         ? <EmptyState title="No functions yet" description={canEdit ? "Tick the usual functions above, or add your own." : "Nothing added yet."} />
-        : <DataTable className="stack-on-phone" label="Wedding functions" headers={["Function", "Date and time", "Location", "Plan", "Status", ...(canEdit ? ["Actions"] : [])]}>
-          {activeFunctions.map((item) => <tr key={item.id}>
-            <td><span className="table-primary">{item.name}</span><span className="table-secondary">{item.function_type} · <a className="text-link" href={`/documents?entity=function&id=${item.id}`}>Files</a></span></td>
-            <td>{scheduleLabel(item.function_date, item.start_time, item.end_time, timezone)}</td>
-            <td>{item.venue_name || "Place not set yet"}</td>
-            <td>{item.expected_attendance == null ? "Guest count not set" : item.expected_attendance.toLocaleString("en-IN") + " guests expected"}
-              {item.budget_allocation != null && <span className="table-secondary">{new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(item.budget_allocation))} budget</span>}
-            </td>
-            <td><StageBadge kind="function" status={item.status} /></td>
-            {canEdit && <td><div className="function-actions">
-              <Button variant="secondary" aria-label={"Edit " + item.name} onClick={() => { setEditing(item); setEditorOpen(true); }}><Pencil size={14} aria-hidden="true" /> Edit</Button>
-              <ArchiveFunctionButton weddingId={weddingId} item={item} linkedTasks={arrangements.filter((arrangement) => arrangement.function_id === item.id)} onArchived={onArchived} />
-            </div></td>}
-          </tr>)}
-        </DataTable>}
+        : <ol className="function-timeline" aria-label="Wedding functions by day">
+          {functionsByDay(activeFunctions).map((day) => <li key={day.date ?? "undated"} className="function-day">
+            <h3 className="function-day-title">{day.date ? weekdayDateLabel(day.date) : "Date not set yet"}</h3>
+            <ul className="function-day-list">{day.items.map((item) => <li key={item.id} id={`function-${item.id}`} className="function-item">
+              <div className="function-item-time">{item.start_time ? localTimeLabel(item.start_time) : "Time TBC"}{item.end_time && <span>to {localTimeLabel(item.end_time)}</span>}</div>
+              <div className="function-item-body">
+                <div className="function-item-head"><h4>{item.name}</h4><StageBadge kind="function" status={item.status} /></div>
+                <p className="function-item-meta">
+                  <span>{item.venue_name || "Place not set yet"}</span>
+                  {item.expected_attendance != null && <span>{item.expected_attendance.toLocaleString("en-IN")} guests</span>}
+                  {item.dress_code && <span>Wear: {item.dress_code}</span>}
+                  {item.budget_allocation != null && <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(Number(item.budget_allocation))} budget</span>}
+                </p>
+                <div className="function-actions">
+                  {canEdit && <Button variant="secondary" aria-label={"Edit " + item.name} onClick={() => { setEditing(item); setEditorOpen(true); }}><Pencil size={14} aria-hidden="true" /> Edit</Button>}
+                  <a className="button button-quiet" href={`/documents?entity=function&id=${item.id}`}>Files</a>
+                  {canEdit && <ArchiveFunctionButton weddingId={weddingId} item={item} linkedTasks={arrangements.filter((arrangement) => arrangement.function_id === item.id)} onArchived={onArchived} />}
+                </div>
+              </div>
+            </li>)}</ul>
+          </li>)}
+        </ol>}
       {!canEdit && <p className="field-help">You can view this but not change it. Ask the couple if you need something changed.</p>}
       {canEdit && earliestFunctionDate(activeFunctions) && <details className="more-details"><summary>Move all dates</summary><MoveFunctionDates weddingId={weddingId} functions={activeFunctions} onMoved={setNotice} /></details>}
       {canEdit && activeFunctions.length > 0 && <details className="more-details"><summary>Add more of the usual functions</summary><StarterFunctions weddingId={weddingId} weddingDate={weddingDate} onAdded={setNotice} existing={activeFunctions.map((item) => item.name.toLowerCase())} plain /></details>}

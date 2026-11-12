@@ -41,7 +41,9 @@ export function TaskManager({
   initialView = "all",
   viewFromUrl = false,
   weddingDate = null,
+  focusAdd = false,
 }: {
+  focusAdd?: boolean;
   weddingId: string;
   currentUserId: string;
   timezone: string;
@@ -71,7 +73,7 @@ export function TaskManager({
   const starterLeft = newTemplateItems(TASK_CHECKLIST, tasks.map((task) => task.title), (item) => item.title);
 
   return <>
-    {canEdit && <QuickAddTask weddingId={weddingId} />}
+    {canEdit && <QuickAddTask weddingId={weddingId} autoFocus={focusAdd} />}
     {canEdit && !tasks.length && <StarterTasks weddingId={weddingId} items={starterLeft} weddingDate={weddingDate} today={today} />}
     <Card title="Your tasks" subtitle={`${tasks.filter((task) => task.status !== "completed" && task.status !== "cancelled").length} to do · ${tasks.filter((task) => task.status === "completed").length} done`}>
       <div className="task-toolbar">
@@ -133,7 +135,7 @@ type GroupBy = typeof GROUP_OPTIONS[number];
 function TaskCard({ task, weddingId, today, canEdit, selecting, selected, onToggle, onEdit }: { task: WeddingTask; weddingId: string; today: string; canEdit: boolean; selecting: boolean; selected: boolean; onToggle: () => void; onEdit: () => void }) {
   const open = task.status !== "completed" && task.status !== "cancelled";
   const overdue = isTaskOverdue(task, today);
-  return <article className={`task-card ${open ? "" : "is-finished"}`}>
+  return <article id={`task-${task.id}`} className={`task-card ${open ? "" : "is-finished"}`}>
     <div className="task-card-main">
       <div className="task-card-title-row">
         {selecting && <input type="checkbox" className="task-select" checked={selected} onChange={onToggle} aria-label={"Select " + task.title} />}
@@ -164,7 +166,7 @@ function TaskCard({ task, weddingId, today, canEdit, selecting, selected, onTogg
 }
 
 /** Type a task and press Enter. Everything else can be added later with Edit. */
-function QuickAddTask({ weddingId }: { weddingId: string }) {
+function QuickAddTask({ weddingId, autoFocus = false }: { weddingId: string; autoFocus?: boolean }) {
   const [state, formAction, pending] = useActionState(createTaskAction, {});
   const formRef = useRef<HTMLFormElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -174,7 +176,7 @@ function QuickAddTask({ weddingId }: { weddingId: string }) {
     {QUICK_DEFAULTS.map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
     <div className="quick-add-row">
       <label className="sr-only" htmlFor="quick-task-title">New task</label>
-      <input ref={titleRef} id="quick-task-title" className="field-control" name="title" required maxLength={200} placeholder="Add a task, e.g. Book the mehendi artist" autoComplete="off" />
+      <input ref={titleRef} id="quick-task-title" className="field-control" name="title" required maxLength={200} placeholder="Add a task, e.g. Book the mehendi artist" autoComplete="off" autoFocus={autoFocus} />
       <label className="sr-only" htmlFor="quick-task-due">Due date (optional)</label>
       <input id="quick-task-due" className="field-control quick-add-date" type="date" name="dueDate" aria-describedby="quick-task-hint" />
       <Button type="submit" disabled={pending}><CirclePlus size={15} aria-hidden="true" /> {pending ? "Adding…" : "Add"}</Button>

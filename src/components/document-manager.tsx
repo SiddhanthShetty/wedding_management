@@ -69,10 +69,10 @@ function UploadForm({ data, documentId, fixedEntity, initialTarget = "" }: { dat
   </form>;
 }
 
-export function DocumentManager({ data, initialEntity, recordId = null }: { data: DocumentWorkspace; initialEntity: string; recordId?: string | null }) {
+export function DocumentManager({ data, initialEntity, recordId = null, initialQuery = "" }: { data: DocumentWorkspace; initialEntity: string; recordId?: string | null; initialQuery?: string }) {
   const [entityFilter, setEntityFilter] = useState(initialEntity);
   const [showArchived, setShowArchived] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const tz = data.wedding.timezone;
   const documents = useMemo(() => data.documents.filter((doc) =>
     (showArchived ? doc.status !== "active" : doc.status === "active")
@@ -81,7 +81,7 @@ export function DocumentManager({ data, initialEntity, recordId = null }: { data
     && (!query || `${doc.title} ${doc.category} ${doc.entity_label}`.toLowerCase().includes(query.toLowerCase()))), [data.documents, entityFilter, showArchived, query, recordId, initialEntity]);
   const paged = useShowMore(documents);
   return <div className="section-stack">
-    <PageHeading eyebrow="Private files" title="Documents" description="Contracts, quotes, receipts and plans, kept private and attached to what they belong to." />
+    <PageHeading eyebrow="Private files" title="All files" description="Contracts, quotes, receipts and plans, kept private and attached to what they belong to. You can also add files straight from a vendor's card." />
     <p className="travel-warning" role="note"><ShieldAlert size={15} aria-hidden="true" /> Uploaded files are <strong>not malware-scanned</strong>. Only open files from people you trust. File types are checked from their contents, and only PDFs and images open in the browser; everything else downloads.</p>
     {recordId && (() => { const record = data.options.find((option) => option.type === initialEntity && option.id === recordId); return record ? <p className="demo-note" role="note">Showing files for <strong>{record.label}</strong>. <a className="text-link" href="/documents">Show all documents</a></p> : null; })()}
     <Card title="Add a file"><UploadForm data={data} initialTarget={recordId && data.options.some((option) => option.type === initialEntity && option.id === recordId && option.canEdit) ? `${initialEntity}:${recordId}` : ""} /></Card>

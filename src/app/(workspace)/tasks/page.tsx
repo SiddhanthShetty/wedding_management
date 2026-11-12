@@ -39,6 +39,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       initialView={initialView}
       viewFromUrl={typeof params.view === "string"}
       weddingDate={workspace.wedding.wedding_date}
+      focusAdd={params.add === "1"}
     />
   </>;
 }

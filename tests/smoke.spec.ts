@@ -7,7 +7,7 @@ test("authentication routes render and unauthenticated workspace routes redirect
   await expect(page.getByRole("heading", { name: "Create an account", level: 1 })).toBeVisible();
 
   const protectedRoutes = [
-    "/overview", "/functions", "/tasks", "/decisions", "/venues-vendors", "/budget",
+    "/overview", "/functions", "/tasks", "/decisions", "/search", "/venues-vendors", "/budget",
     "/guests", "/logistics", "/documents", "/settings", "/design-system",
     "/travel", "/schedule", "/schedule/pack", "/messages", "/overview/export", "/invitations", "/today",
   ];

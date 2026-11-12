@@ -4,7 +4,8 @@ import { requireCurrentWorkspace } from "@/lib/auth/access";
 import { listFunctionTaskArrangements, listWeddingFunctions } from "@/lib/data/functions";
 import { getWeddingSetup } from "@/lib/data/weddings";
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = await searchParams;
   const workspace = await requireCurrentWorkspace("planning");
   const [functions, arrangements, setup] = await Promise.all([
     listWeddingFunctions(workspace.wedding.id),
@@ -16,8 +17,8 @@ export default async function Page() {
     || workspace.moduleAccess.planning === "edit";
   return <>
     <PageHeading
-      eyebrow="Plan the moments"
-      title="Wedding functions"
+      eyebrow="Plan"
+      title="Functions"
       description="Your wedding events, from Haldi to Reception, with their dates, times and places."
     />
     <FunctionManager
@@ -28,6 +29,7 @@ export default async function Page() {
       weddingDate={setup?.wedding_date ?? null}
       arrangements={arrangements}
       canEdit={canEdit}
+      initialAdd={params.add === "1"}
     />
   </>;
 }

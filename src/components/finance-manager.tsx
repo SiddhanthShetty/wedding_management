@@ -149,9 +149,9 @@ function MarkPaid({ row, weddingId, today }: { row:OweRow; weddingId:string; tod
   </form>;
 }
 
-export function FinanceManager({data,weddingId,dueWithin}:{data:FinanceData;weddingId:string;dueWithin?:{days:number;today:string}}) {
-  const [costOpen,setCostOpen]=useState(false);
-  const [payOpen,setPayOpen]=useState(false);
+export function FinanceManager({data,weddingId,dueWithin,initialAdd}:{data:FinanceData;weddingId:string;dueWithin?:{days:number;today:string};initialAdd?:"cost"|"payment"}) {
+  const [costOpen,setCostOpen]=useState(initialAdd==="cost"&&data.canEdit);
+  const [payOpen,setPayOpen]=useState(initialAdd==="payment"&&data.canEdit);
   const owe=whoWeOwe(data.bookings as unknown as OweBooking[], (data.unpaidObligations??[]) as unknown as OweInstalment[], data.today);
   const headlines=data.totals.map(row=>budgetHeadline(row as unknown as Parameters<typeof budgetHeadline>[0]));
   const upcoming=(dueWithin?paymentsDueSoon(data.obligations as unknown as Array<{id:string;due_date:string;remaining:string}>,dueWithin.today,dueWithin.days) as typeof data.obligations:data.obligations);

@@ -16,6 +16,7 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { formatMoney } from "@/lib/planning/money";
 import { SEVERITY_LABELS } from "@/lib/planning/operations-rules";
 import { attentionItems } from "@/lib/planning/attention";
+import { guestLine, moneyLine } from "@/lib/planning/home-lines";
 
 const day = (value: string | null) => value ? formatDate(`${value}T12:00:00Z`, "UTC") : "Date to be set";
 
@@ -101,6 +102,21 @@ async function HiddenNote({ weddingId }: { weddingId: string }) {
   return hidden > 0 ? <p className="readonly-note">Some areas are hidden because your access does not include them.</p> : null;
 }
 
+/** One money line and one guest line, each opening its page. Areas the member can't see are left out. */
+async function AtAGlance({ weddingId, currency }: { weddingId: string; currency: string }) {
+  const [finance, rsvp, tasks] = await Promise.all([loadFinanceSection(weddingId), loadRsvpSection(weddingId), loadTasksSection(weddingId)]);
+  const lines: Array<{ key: string; icon: ReactNode; text: string; href: string; action: string }> = [];
+  if (tasks.state === "ok") lines.push({ key: "tasks", icon: <CheckSquare2 size={16} />, text: tasks.data.total ? `${tasks.data.total} tasks · ${tasks.data.overdue} overdue · ${tasks.data.dueSoon} due this week` : "No tasks yet", href: "/tasks", action: tasks.data.total ? "Open tasks" : "Add tasks" });
+  if (finance.state === "ok") lines.push({ key: "money", icon: <Wallet size={16} />, text: moneyLine(finance.data.totals, finance.data.due.length, currency) ?? "No costs recorded yet", href: "/budget", action: "Open budget" });
+  if (rsvp.state === "ok") lines.push({ key: "guests", icon: <UsersRound size={16} />, text: guestLine(rsvp.data.guests, rsvp.data.functions) ?? "No guests added yet", href: "/guests", action: rsvp.data.guests ? "Open guests" : "Add guests" });
+  if (!lines.length) return null;
+  const failed = [finance, rsvp, tasks].some((section) => section.state === "error");
+  return <Card title="How it's going" className="home-lines">
+    <ul className="home-line-list">{lines.map((line) => <li key={line.key}><span className="dash-icon" aria-hidden="true">{line.icon}</span><span className="home-line-text">{line.text}</span><Link className="text-link" href={line.href}>{line.action}</Link></li>)}</ul>
+    {failed && <p className="field-help">Some areas couldn&apos;t load. Refresh to try again.</p>}
+  </Card>;
+}
+
 export default async function OverviewPage() {
   const workspace = await requireCurrentWorkspace();
   const id = workspace.wedding.id;
@@ -109,11 +125,14 @@ export default async function OverviewPage() {
   return <div className="dashboard">
     <TimeZoneNotice weddingZone={header.wedding.timezone} currency={header.wedding.currency} canChange={header.isOwner} />
     <OverviewHero header={header} weddingId={id} />
-    <PageHeading eyebrow={`Welcome, ${header.displayName}`} title="What's happening"
-      description={`Everything that needs attention, from your wedding's own records. Updated ${formatDateTime(header.generatedAt, tz)} (${tz}).`}
-      action={<div className="heading-actions no-print"><a className="button button-secondary" href="/overview/export" download><Download size={15} aria-hidden="true" /> Export CSV</a><PrintButton label="Print summary" /></div>} />
+    <h1 className="sr-only">Home</h1>
     <Suspense fallback={<SectionSkeleton title="What needs you today" />}><Attention weddingId={id} /></Suspense>
     <Suspense fallback={null}><Setup weddingId={id} /></Suspense>
+    <Suspense fallback={<SectionSkeleton title="How it's going" />}><AtAGlance weddingId={id} currency={header.wedding.currency} /></Suspense>
+    <details className="more-details home-more"><summary>Everything at a glance</summary>
+    <PageHeading eyebrow={`Welcome, ${header.displayName}`} title="Everything at a glance"
+      description={`From your wedding's own records. Updated ${formatDateTime(header.generatedAt, tz)} (${tz}).`}
+      action={<div className="heading-actions no-print"><a className="button button-secondary" href="/overview/export" download><Download size={15} aria-hidden="true" /> Export CSV</a><PrintButton label="Print summary" /></div>} />
     <div className="dash-grid">
       <Suspense fallback={<SectionSkeleton title="Upcoming functions" />}><Slot load={loadFunctionsSection(id)}>{(section) => <DashSection title="Upcoming functions" icon={<CalendarDays size={16} />} section={section} area="Functions">{(functions) => !functions.upcoming.length
         ? <EmptyState title="No upcoming functions" description={functions.total ? "All functions are in the past, cancelled or undated." : "Add your first function to see it here."} />
@@ -166,6 +185,7 @@ export default async function OverviewPage() {
         {issues.items.length > 0 && <ul className="dash-list">{issues.items.map((issue) => <li key={issue.id}><Link href="/schedule?tab=issues"><span className="row-title">{issue.title}</span><span className="row-meta">{SEVERITY_LABELS[issue.severity]}</span></Link></li>)}</ul>}
       </>}</DashSection>}</Slot></Suspense>
     </div>
+    </details>
     <Suspense fallback={null}><HiddenNote weddingId={id} /></Suspense>
   </div>;
 }

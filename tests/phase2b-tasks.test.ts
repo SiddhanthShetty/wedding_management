@@ -41,11 +41,11 @@ describe("one-line task add", () => {
 });
 
 describe("Decisions live under Tasks", () => {
-  it("has one Tasks menu entry with To do and To decide tabs", () => {
+  it("has one Plan menu entry with To do, To decide and Functions tabs", () => {
     const links = NAV_GROUPS.flatMap((group) => group.links.map((link) => link.href));
     expect(links).toContain("/tasks");
     expect(links).not.toContain("/decisions");
-    expect(AREAS.plan.map((tab) => tab.href)).toEqual(["/tasks", "/decisions"]);
+    expect(AREAS.plan.map((tab) => tab.href)).toEqual(["/tasks", "/decisions", "/functions"]);
     expect(areaForPath("/decisions")).toBe("plan");
     const tasksLink = NAV_GROUPS.flatMap((group) => group.links).find((link) => link.href === "/tasks")!;
     expect(isActiveLink("/decisions", tasksLink)).toBe(true);

@@ -14,7 +14,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const response=responses.find((value)=>value===params.response)??"all";
   const activeFunctions=(data.functions as Array<{ id: string; name: string; function_date: string | null; status: string; archived_at: string | null }>).filter((fn)=>!fn.archived_at&&fn.status!=="cancelled");
   return <>
-    <GuestManager data={data} initialView={view} initialFunctionId={typeof params.function==="string"?params.function:undefined} initialResponse={response}/>
+    <GuestManager data={data} initialView={view} initialFunctionId={typeof params.function==="string"?params.function:undefined} initialResponse={response} initialQuery={typeof params.q==="string"?params.q.slice(0,100):""} initialAdd={params.add==="household"||params.add==="guest"?params.add:undefined}/>
     {data.canEdit&&<div className="section-stack" style={{ marginTop: 16 }}><HouseholdInviteForm weddingId={workspace.wedding.id} households={data.households as Array<{ id: string; name: string }>} functions={activeFunctions}/></div>}
   </>;
 }

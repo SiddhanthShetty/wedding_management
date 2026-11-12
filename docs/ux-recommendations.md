@@ -125,6 +125,14 @@ Phase 2 is split into three slices, each its own commit: **2A Money** (vendors a
 - **Decisions under Tasks (#20).** One menu entry, Tasks, with **To do** and **To decide** tabs (the same way Guests and Wedding week work). The decisions data and links are unchanged; only the menu and wording moved.
 - The workspace now carries the wedding date, so pages can count back from it.
 
+### Phase 2C: Home and menu, done (2026-11-12)
+- **Five-item menu (#4):** Home, Plan, Guests, Money, Wedding week. Each opens an area with tabs: Plan (To do, To decide, Functions), Guests (People & RSVPs, Invitations, Messages), Money (Vendors, Budget), Wedding week (Run sheets, Day-of, Catering, Stays & travel). Phone tabs: Home, Plan, Guests, Money, More. "All files" moved to the account menu.
+- **"+ Add" (#5)** in the top bar: Task, Family, Guest, Venue or vendor, Cost, Payment, Function, File. Each opens the right form on its page (for example `/budget?add=cost`). Helpers only see what they can change; the server still checks every save.
+- **Search (#6):** a box in the top bar (a search icon on phones) opens `/search`, which looks up families, guests, vendors, tasks, decisions, functions and files by name, in the areas you can see. The term is cleaned to letters, numbers and a few name characters before it reaches the database. Results open the list filtered by the term, or jump to the record.
+- **First-visit line (#7)** on every menu page: one sentence on what the page is for, with "Got it" (remembered on that device).
+- **Simpler Home (#11–13):** countdown and next function, "What needs you today", the setup checklist until it's done, and "How it's going": one line each for tasks, money and guests. The detailed cards, CSV export and print are under "Everything at a glance".
+- **Functions as a timeline (#16):** grouped by day with time, place, guests and dress code, undated functions last.
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.
