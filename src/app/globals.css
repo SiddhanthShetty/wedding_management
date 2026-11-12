@@ -1167,3 +1167,22 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
   .function-item-time { display: flex; gap: 6px; align-items: baseline; }
   .function-day-list { padding-left: 10px; }
 }
+
+/* Guests: reply summary, add a family */
+.reply-summary { margin-bottom: 16px; }
+.reply-summary-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.reply-summary-list li { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr) auto; align-items: center; gap: 4px 14px; }
+.reply-summary-name { font-weight: 650; }
+.reply-summary-counts { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: 14px; }
+.reply-summary-counts .is-yes { color: #3f6948; font-weight: 650; }
+.reply-summary-counts .is-no { color: #a34f45; }
+.reply-summary-counts .is-waiting { color: #8a5a1f; }
+.reply-summary-list .dash-bar { grid-column: 1 / -1; }
+.reply-summary-link { justify-self: start; border: 0; background: none; padding: 0; cursor: pointer; font: inherit; font-size: 14px; }
+.family-invite-list { margin: 12px 0; }
+.guest-import-back { margin: 0 0 12px; }
+@media (max-width: 760px) {
+  .reply-summary-list li { grid-template-columns: 1fr; }
+  .guest-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .guest-header-actions .button { flex: 1 1 auto; white-space: nowrap; }
+}

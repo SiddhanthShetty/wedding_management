@@ -133,6 +133,13 @@ Phase 2 is split into three slices, each its own commit: **2A Money** (vendors a
 - **Simpler Home (#11–13):** countdown and next function, "What needs you today", the setup checklist until it's done, and "How it's going": one line each for tasks, money and guests. The detailed cards, CSV export and print are under "Everything at a glance".
 - **Functions as a timeline (#16):** grouped by day with time, place, guests and dress code, undated functions last.
 
+### Phase 3A: guests, done (2026-11-12)
+Phase 3 is split into **3A Guests**, **3B Save the Date in the simple studio** and **3C Settings**.
+- **Add a family (#29).** "Add a family" asks for the family name, whose side, everyone in it (one name per line, with a live count; repeats and blank lines are dropped; up to 30) and an optional phone. The first name becomes the contact. If any step fails, the family and anyone already added are removed again, so nothing is left half-saved. "Add one person" still adds a single guest to an existing family.
+- **Invite to all functions (#30).** In "Add a family", every function is ticked; untick the exceptions. On "Who's invited to what", **Invite everyone shown** ticks everyone not yet invited to that function (respecting the search and filters), and nothing is saved until "Save all invitation changes".
+- **Reply summary (#31)** at the top of Guests: families and guests, then one line per function with coming / not coming / maybe / waiting, a progress bar, and "See who hasn't replied".
+- **Import behind a button (#32).** The "Import / export" tab became an "Import or export a list" button, with "Back to guests". "Households" is now "Families".
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.

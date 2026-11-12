@@ -7,6 +7,8 @@ import { AuthorizationDeniedError } from "@/lib/auth/access";
 import { createGuestPlusOne, createGuestPortalLink, deleteGuest, deleteGuestHousehold, exportWeddingGuests, getGuestWorkspace, importGuestRows, recordGuestRsvp, resolveGuestImportDuplicate, revokeGuestPortalLink, saveGuest, saveGuestHousehold, setGuestInvitation, setGuestInvitationsBulk, setGuestPortalProxies, suggestGuestDuplicates, type GuestImportRecord } from "@/lib/data/guests";
 import { guestImportRows, guestInput, guestInvitationChangesInput, householdInput, invitationInput, isoTimestampInput, plusOneInput, rsvpInput } from "@/lib/planning/guest-inputs";
 import { recordPortalGuestProfile, recordPortalRsvps } from "@/lib/guest-portal/server";
+import { createGuestFamily } from "@/lib/data/guests";
+import { familyInput, parseFamilyMembers } from "@/lib/planning/family-input";
 import { z as portalZ } from "zod";
 import { guestPortalRsvpBatchInput } from "@/lib/planning/guest-inputs";
 
@@ -167,4 +169,23 @@ export async function saveGuestPortalProfileAction(_state:GuestActionState,form:
   const result=await recordPortalGuestProfile(parsed.data);
   if(result.status==="saved"||result.status==="duplicate"){revalidatePath("/guest");return {message:"Your information has been updated.",savedId:parsed.data.submissionKey};}
   return {error:portalResultError(result.status)};
+}
+
+/** "Add a family": the family, everyone in it (one name per line) and the functions they're invited to. */
+export async function createFamilyAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
+  const wedding=weddingId(form);
+  if(!wedding.success)return {error:"Something went wrong with this page. Refresh it and try again."};
+  const parsed=familyInput.safeParse({name:read(form,"name"),familySide:read(form,"familySide")||"unknown",contactPhone:read(form,"contactPhone"),members:read(form,"members"),functionIds:form.getAll("inviteTo").filter((value)=>typeof value==="string")});
+  if(!parsed.success)return {error:parsed.error.issues[0]?.message??"Check the family details."};
+  const members=parseFamilyMembers(parsed.data.members);
+  if(members.error)return {error:members.error};
+  try{
+    const result=await createGuestFamily(wedding.data,parsed.data,members.names,parsed.data.functionIds);
+    await revalidate();revalidatePath("/overview");
+    const who=`${result.people} ${result.people===1?"person":"people"}`;
+    return {message:`Added ${parsed.data.name}: ${who}${result.functions?`, invited to ${result.functions} function${result.functions===1?"":"s"}`:", not invited to anything yet"}.`,savedId:result.householdId};
+  }catch(error){
+    if(error instanceof AuthorizationDeniedError)return {error:"You can no longer change this. Refresh the page, and ask the couple if it keeps happening."};
+    return {error:error instanceof Error&&/family/.test(error.message)?error.message:"Couldn't add this family. Nothing was confirmed; refresh and try again."};
+  }
 }
