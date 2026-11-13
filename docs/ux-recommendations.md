@@ -161,6 +161,10 @@ Phase 4 is split into **4A Invite & track**, **4B Stays & travel in three steps*
 - The "Add a place" form asks for the name, phone and address; contact, check-in times and notes are under "More details".
 - Layout fix everywhere: a wide table inside a card now scrolls within that card instead of making every card on the page wider than a phone screen.
 
+### Phase 4C: food counts, done (2026-11-13)
+- **Meal choice (#38):** guests (on their invitation page, in English, Hindi, Kannada and Tulu) and the couple (in the guest form) now pick Veg, Non-veg, Jain, Vegan or "Something else" (with their own words). It is still saved as text, so no database change; older typed answers are recognised where clear (for example "vegetarian", "non veg", "शाकाहारी"). Hindi and Kannada wording should be checked by a native speaker; Tulu uses the Kannada words.
+- **Food counts from replies** on Wedding week → Catering: per function, guests who replied yes, split into Veg, Non-veg, Jain, Vegan, Other and "Not told us". Needs guest-list access.
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.

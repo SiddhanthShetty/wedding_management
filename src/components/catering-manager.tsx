@@ -1,7 +1,8 @@
 "use client";
+import type { MealCounts } from "@/lib/planning/meals";
 import type { LooseRow } from "@/lib/types/loose";
 import { useState, type ReactNode } from "react";
-import { PageHeading, Card, EmptyState } from "@/components/ui";
+import { PageHeading, Card, DataTable, EmptyState } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { formatMoney } from "@/lib/planning/money";
 import { fromMinorUnits, toMinorUnits } from "@/lib/planning/money";
@@ -17,12 +18,27 @@ function Select({label,name,children,defaultValue}: {label:string;name:string;ch
 function Textarea({label,name,placeholder}: {label:string;name:string;placeholder?:string}) {return <label className="field"><span className="field-label">{label}</span><textarea className="field-control" name={name} rows={3} placeholder={placeholder}/></label>;}
 function localDateTimeInput(value:string|null,timezone:string){if(!value)return "";const parts=new Intl.DateTimeFormat("en-CA",{timeZone:timezone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date(value));const get=(type:string)=>parts.find(part=>part.type===type)?.value??"";return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;}
 
-export function CateringManager({data}:{data:Data}) {
+/** Food counts per function from "yes" replies. null: no guest-list access; undefined: couldn't load. */
+function MealCountsCard({meals}:{meals:Array<MealCounts&{name:string;date:string|null}>|null|undefined}) {
+  if(meals===null) return <Card title="Food counts from replies"><p className="field-help">You need access to the guest list to see these.</p></Card>;
+  if(meals===undefined) return <Card title="Food counts from replies"><p className="field-error" role="alert">Couldn&apos;t load the counts. Refresh to try again.</p></Card>;
+  if(!meals.length) return null;
+  const anyComing=meals.some(row=>row.coming>0);
+  return <Card title="Food counts from replies" subtitle="Guests who replied yes, by what they eat. Use these for each caterer's numbers.">
+    {!anyComing?<p className="field-help">No replies yet. Counts appear here as guests reply yes.</p>:<DataTable label="Food counts per function" headers={["Function","Coming","Veg","Non-veg","Jain","Vegan","Other","Not told us"]}>
+      {meals.map(row=><tr key={row.functionId}><td><span className="table-primary">{row.name}</span>{row.date&&<span className="table-secondary">{row.date}</span>}</td><td><strong>{row.coming}</strong></td><td>{row.veg}</td><td>{row.nonveg}</td><td>{row.jain}</td><td>{row.vegan}</td><td>{row.other}</td><td>{row.notSaid>0?<span className="meal-missing">{row.notSaid}</span>:0}</td></tr>)}
+    </DataTable>}
+    {anyComing&&meals.some(row=>row.notSaid>0)&&<p className="field-help">“Not told us” are guests coming who haven&apos;t chosen. They can choose on their invitation page, or you can set it on Guests.</p>}
+  </Card>;
+}
+
+export function CateringManager({data,meals}:{data:Data;meals?:Array<MealCounts&{name:string;date:string|null}>|null}) {
   const [printService,setPrintService]=useState<string|null>(null);
   const onPrint=(id:string)=>{setPrintService(id);requestAnimationFrame(()=>{window.print();setPrintService(null);});};
   const functions=new Map(data.functions.map(fn=>[fn.id,fn.name]));
   return <main className="catering-page">
     <PageHeading eyebrow="Function logistics" title="Catering" description="Menus, dietary needs and headcounts for each meal. A final count you save for the caterer stays as it was, even if replies change later." action={<button className="button button-secondary" type="button" onClick={()=>window.print()}>Print all summaries</button>}/>
+    <MealCountsCard meals={meals}/>
     {data.canEdit&&<Card title="Add a meal service" subtitle="Choose a function and record only confirmed planning details." className="catering-create-card"><CateringActionForm action={createCateringServiceAction} label="Create meal service" className="catering-form"><input type="hidden" name="weddingId" value={data.wedding.id}/><Select label="Function" name="functionId"><option value="">Choose a function</option>{data.functions.map(fn=><option key={fn.id} value={fn.id}>{fn.name}</option>)}</Select><Field label="Meal service name" name="name" placeholder="Dinner service" required/><Field label="Service time" name="serviceTime" type="time"/><Field label="Catering rate currency (ISO 4217)" name="currency" defaultValue={data.wedding.currency} required/><Select label="Caterer" name="catererId"><option value="">Not linked</option>{data.suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</Select>{data.canLinkBookings&&<Select label="Existing agreed booking" name="bookingId"><option value="">Not linked</option>{data.bookings.map(b=><option key={b.id} value={b.id}>{b.label} · {formatMoney(String(b.agreed_total),b.currency)}</option>)}</Select>}<Field label={`Final-count deadline (${data.wedding.timezone})`} name="deadline" type="datetime-local"/></CateringActionForm></Card>}
     {!data.services.length?<Card><EmptyState title="No catering services yet" description="Add a meal for a function to plan its menu, headcount, tasting and the number agreed with the caterer."/></Card>:data.services.map((service:Row)=>{
       const distinct=countCateringGuests(service.guests.map((g:Row)=>({guestId:g.guest_id,invited:true,response:g.response})));

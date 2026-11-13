@@ -11,7 +11,7 @@ export type PortalStrings = {
   dateTbc: string; timeTbc: string; endsNextDay: string; dressCode: string; openMap: string; confirmed: string; tentative: string;
   responseFor: (name: string) => string; yes: string; no: string; maybe: string; addNote: string; noteLabel: string;
   yesToAll: (name: string) => string; saving: string; saveAll: string;
-  dietaryTitle: string; dietaryIntro: string; meal: string; allergies: string; assistance: string; savingInfo: string; saveInfo: string;
+  dietaryTitle: string; dietaryIntro: string; meal: string; mealChoose: string; mealVeg: string; mealNonVeg: string; mealJain: string; mealVegan: string; mealOther: string; mealOtherHint: string; allergies: string; assistance: string; savingInfo: string; saveInfo: string;
   replyEveryoneTitle: string; replyEveryoneButton: string; replyEveryoneConfirm: (count: number) => string; saveForEveryone: string; cancel: string;
   yourPlan: string; items: (count: number) => string; everyone: string; addToCalendar: string; map: string; timingTbc: string;
   stayAt: (place: string) => string; until: (date: string) => string; pickup: string; departureRide: string; ride: string;
@@ -44,7 +44,7 @@ const en: PortalStrings = {
   addNote: "Add a note for your hosts", noteLabel: "Note for your hosts (optional)",
   yesToAll: (name) => `Yes to all for ${name}`, saving: "Saving responses…", saveAll: "Save all responses",
   dietaryTitle: "Food and assistance", dietaryIntro: "Only your meal preference, allergies and assistance needs are shared with your hosts.",
-  meal: "Meal preference", allergies: "Allergies", assistance: "Assistance needs", savingInfo: "Saving…", saveInfo: "Save information",
+  meal: "Meal preference", mealChoose: "Choose…", mealVeg: "Veg", mealNonVeg: "Non-veg", mealJain: "Jain", mealVegan: "Vegan", mealOther: "Something else", mealOtherHint: "Tell us what you eat", allergies: "Allergies", assistance: "Assistance needs", savingInfo: "Saving…", saveInfo: "Save information",
   replyEveryoneTitle: "Replying for everyone?", replyEveryoneButton: "Yes, everyone is coming to everything",
   replyEveryoneConfirm: (n) => `This saves “Yes, attending” for every invitation you can reply to, for ${n} ${n === 1 ? "person" : "people"}. You can change any answer afterwards.`,
   saveForEveryone: "Yes, save for everyone", cancel: "Cancel",
@@ -82,7 +82,7 @@ const hi: PortalStrings = {
   addNote: "मेज़बानों के लिए संदेश जोड़ें", noteLabel: "मेज़बानों के लिए संदेश (वैकल्पिक)",
   yesToAll: (name) => `${name} के लिए सभी में हाँ`, saving: "उत्तर सहेजे जा रहे हैं…", saveAll: "सभी उत्तर सहेजें",
   dietaryTitle: "भोजन और सहायता", dietaryIntro: "केवल आपकी भोजन पसंद, एलर्जी और सहायता की ज़रूरतें मेज़बानों के साथ साझा होती हैं।",
-  meal: "भोजन पसंद", allergies: "एलर्जी", assistance: "सहायता की ज़रूरत", savingInfo: "सहेजा जा रहा है…", saveInfo: "जानकारी सहेजें",
+  meal: "भोजन पसंद", mealChoose: "चुनें…", mealVeg: "शाकाहारी", mealNonVeg: "मांसाहारी", mealJain: "जैन", mealVegan: "वीगन", mealOther: "कुछ और", mealOtherHint: "बताइए आप क्या खाते हैं", allergies: "एलर्जी", assistance: "सहायता की ज़रूरत", savingInfo: "सहेजा जा रहा है…", saveInfo: "जानकारी सहेजें",
   replyEveryoneTitle: "सबकी ओर से उत्तर देना है?", replyEveryoneButton: "हाँ, सभी सभी कार्यक्रमों में आएँगे",
   replyEveryoneConfirm: (n) => `इससे ${n} लोगों के हर निमंत्रण के लिए “हाँ” सहेजा जाएगा। आप बाद में कोई भी उत्तर बदल सकते हैं।`,
   saveForEveryone: "हाँ, सबके लिए सहेजें", cancel: "रद्द करें",
@@ -120,7 +120,7 @@ const kn: PortalStrings = {
   addNote: "ಆತಿಥೇಯರಿಗೆ ಸಂದೇಶ ಸೇರಿಸಿ", noteLabel: "ಆತಿಥೇಯರಿಗೆ ಸಂದೇಶ (ಐಚ್ಛಿಕ)",
   yesToAll: (name) => `${name} ಅವರಿಗೆ ಎಲ್ಲದಕ್ಕೂ ಹೌದು`, saving: "ಉತ್ತರಗಳನ್ನು ಉಳಿಸಲಾಗುತ್ತಿದೆ…", saveAll: "ಎಲ್ಲಾ ಉತ್ತರಗಳನ್ನು ಉಳಿಸಿ",
   dietaryTitle: "ಊಟ ಮತ್ತು ಸಹಾಯ", dietaryIntro: "ನಿಮ್ಮ ಊಟದ ಆಯ್ಕೆ, ಅಲರ್ಜಿ ಮತ್ತು ಸಹಾಯದ ಅಗತ್ಯಗಳನ್ನು ಮಾತ್ರ ಆತಿಥೇಯರೊಂದಿಗೆ ಹಂಚಿಕೊಳ್ಳಲಾಗುತ್ತದೆ.",
-  meal: "ಊಟದ ಆಯ್ಕೆ", allergies: "ಅಲರ್ಜಿ", assistance: "ಸಹಾಯದ ಅಗತ್ಯ", savingInfo: "ಉಳಿಸಲಾಗುತ್ತಿದೆ…", saveInfo: "ಮಾಹಿತಿ ಉಳಿಸಿ",
+  meal: "ಊಟದ ಆಯ್ಕೆ", mealChoose: "ಆಯ್ಕೆ ಮಾಡಿ…", mealVeg: "ಸಸ್ಯಾಹಾರಿ", mealNonVeg: "ಮಾಂಸಾಹಾರಿ", mealJain: "ಜೈನ", mealVegan: "ವೀಗನ್", mealOther: "ಬೇರೆ", mealOtherHint: "ನೀವು ಏನು ತಿನ್ನುತ್ತೀರಿ ಎಂದು ಬರೆಯಿರಿ", allergies: "ಅಲರ್ಜಿ", assistance: "ಸಹಾಯದ ಅಗತ್ಯ", savingInfo: "ಉಳಿಸಲಾಗುತ್ತಿದೆ…", saveInfo: "ಮಾಹಿತಿ ಉಳಿಸಿ",
   replyEveryoneTitle: "ಎಲ್ಲರ ಪರವಾಗಿ ಉತ್ತರಿಸುವಿರಾ?", replyEveryoneButton: "ಹೌದು, ಎಲ್ಲರೂ ಎಲ್ಲಾ ಸಮಾರಂಭಗಳಿಗೆ ಬರುತ್ತಾರೆ",
   replyEveryoneConfirm: (n) => `${n} ಜನರ ಪ್ರತಿಯೊಂದು ಆಹ್ವಾನಕ್ಕೂ “ಹೌದು” ಉಳಿಸಲಾಗುತ್ತದೆ. ನಂತರ ಯಾವುದೇ ಉತ್ತರವನ್ನು ಬದಲಿಸಬಹುದು.`,
   saveForEveryone: "ಹೌದು, ಎಲ್ಲರಿಗೂ ಉಳಿಸಿ", cancel: "ರದ್ದುಮಾಡಿ",

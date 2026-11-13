@@ -1,4 +1,5 @@
 "use client";
+import { MealChoice } from "@/components/meal-choice";
 
 import { createContext, useActionState, useContext, useEffect, useRef, useState } from "react";
 import { PORTAL_LOCALES, PORTAL_STRINGS, translateResult, type PortalStrings } from "@/lib/guest-portal/i18n";
@@ -182,7 +183,7 @@ function GuestProfileForm({person}:{person:PortalGuest}) {
   return <details className="guest-portal-dietary"><summary>{t.dietaryTitle}</summary><p>{t.dietaryIntro}</p>
     <form key={person.updated_at} action={action} className="guest-portal-form">
       <input type="hidden" name="guestId" value={person.id}/><input type="hidden" name="expectedUpdatedAt" value={person.updated_at}/><input type="hidden" name="submissionKey" value={submissionKey}/>
-      <label className="guest-portal-label" htmlFor={`meal-${person.id}`}>{t.meal}</label><textarea id={`meal-${person.id}`} className="guest-portal-input" name="mealPreference" rows={2} maxLength={500} defaultValue={person.meal_preference}/>
+      <MealChoice name="mealPreference" defaultValue={person.meal_preference??""} labelClass="guest-portal-label" controlClass="guest-portal-input" labels={{meal:t.meal,choose:t.mealChoose,other:t.mealOther,otherHint:t.mealOtherHint,veg:t.mealVeg,nonveg:t.mealNonVeg,jain:t.mealJain,vegan:t.mealVegan}}/>
       <label className="guest-portal-label" htmlFor={`allergies-${person.id}`}>{t.allergies}</label><textarea id={`allergies-${person.id}`} className="guest-portal-input" name="allergies" rows={2} maxLength={2000} defaultValue={person.allergies}/>
       <label className="guest-portal-label" htmlFor={`assistance-${person.id}`}>{t.assistance}</label><textarea id={`assistance-${person.id}`} className="guest-portal-input" name="assistanceNeeds" rows={2} maxLength={2000} defaultValue={person.assistance_needs}/>
       {shown.error&&<p className="guest-portal-error" role="alert">{shown.error}</p>}{shown.message&&<p className="guest-portal-success" role="status">{shown.message}</p>}

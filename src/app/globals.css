@@ -1247,3 +1247,6 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 @media (max-width: 760px) { .travel-steps ol { grid-template-columns: 1fr; } .travel-next { justify-content: stretch; } .travel-next .button { width: 100%; } }
 /* Grid stacks: a wide table inside one card scrolls within it instead of widening every card. */
 .section-stack > * { min-width: 0; }
+
+/* Catering: food counts */
+.meal-missing { color: #8a5a1f; font-weight: 650; }

@@ -9,6 +9,7 @@ import { Dialog } from "@/components/dialog";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { createFamilyAction } from "@/app/actions/guests";
 import { parseFamilyMembers } from "@/lib/planning/family-input";
+import { MealChoice } from "@/components/meal-choice";
 import { createGuestPortalLinkAction, createPlusOneAction, deleteGuestAction, deleteGuestHouseholdAction, exportGuestsAction, importGuestsAction, previewGuestDuplicatesAction, recordGuestRsvpAction, resolveGuestImportDuplicateAction, revokeGuestPortalLinkAction, saveGuestAction, saveGuestInvitationsBulkAction, saveHouseholdAction, setGuestPortalProxiesAction, type GuestActionState } from "@/app/actions/guests";
 import { parseCsv } from "@/lib/planning/guest-csv";
 
@@ -56,7 +57,7 @@ function GuestEditor({open,onClose,weddingId,households,owners,familySideLabels,
         <Field label="Email" name="email" type="email" maxLength={320} defaultValue={guest?.email??""}/><Field label="Phone" name="phone" type="tel" maxLength={80} defaultValue={guest?.phone??""}/>
         <div className="field"><span className="field-label">Family side</span><span className="field-control" aria-live="polite">{selectedHousehold?familySideLabels[selectedHousehold.family_side]??familySideLabels.unknown:"Choose a household to inherit its family side."}</span><span className="field-help">Set this value on the household.</span></div>
         <SelectField label="Follow-up owner" name="followUpOwnerUserId" defaultValue={guest?.follow_up_owner_user_id??""}><option value="">Unassigned</option>{owners.map((owner)=><option key={owner.userId} value={owner.userId}>{owner.name}</option>)}</SelectField>
-        <TextAreaField label="Meal preference" name="mealPreference" rows={2} maxLength={500} defaultValue={guest?.meal_preference??""}/>
+        <div className="field"><MealChoice name="mealPreference" defaultValue={guest?.meal_preference??""} labels={{meal:"Meal preference",choose:"Not told us yet",other:"Something else",otherHint:"What they eat",veg:"Veg",nonveg:"Non-veg",jain:"Jain",vegan:"Vegan"}}/></div>
         <TextAreaField label="Allergies" name="allergies" rows={2} maxLength={2000} defaultValue={guest?.allergies??""}/>
         <TextAreaField label="Assistance needs" name="assistanceNeeds" rows={2} maxLength={2000} defaultValue={guest?.assistance_needs??""}/>
         <TextAreaField label="Private planning notes" name="notes" rows={2} maxLength={4000} defaultValue={guest?.notes??""}/>
