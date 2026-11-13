@@ -8,7 +8,7 @@ describe("email links and passwords", () => {
   it("only sends people on to known pages after an email link", () => {
     expect(safeNextPath("/reset-password")).toBe("/reset-password");
     expect(safeNextPath("/setup")).toBe("/setup");
-    for (const bad of ["https://evil.example", "//evil.example", "/reset-password/../admin", "/budget", "", null, undefined]) expect(safeNextPath(bad)).toBe("/overview");
+    for (const bad of ["https://evil.example", "//evil.example", "/reset-password/../admin", "/budget", "", null, undefined]) expect(safeNextPath(bad)).toBe("/");
   });
   it("accepts only Supabase's email link types", () => {
     expect(emailLinkType("recovery")).toBe("recovery");

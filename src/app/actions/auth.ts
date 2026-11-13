@@ -26,7 +26,8 @@ export async function signInAction(_previous: AuthFormState, formData: FormData)
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: signInErrorMessage(error.code) };
-  redirect("/overview");
+  // "/" picks Day-of on a function day, Home otherwise.
+  redirect("/");
 }
 
 export async function signUpAction(_previous: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -89,7 +90,7 @@ export async function updatePasswordAction(_previous: AuthFormState, formData: F
     if (error.code === "weak_password") return { error: "Choose a longer or less common password." };
     return { error: "Could not save your new password. Ask for a new reset link and try again." };
   }
-  redirect("/overview");
+  redirect("/");
 }
 
 export async function signOutAction() {

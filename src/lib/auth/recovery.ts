@@ -3,11 +3,11 @@
  * Kept free of server imports so they can be unit-tested.
  */
 
-/** Where an email link may send someone after it signs them in. Anything else goes to Home. */
-const NEXT_PATHS = ["/reset-password", "/overview", "/setup"] as const;
+/** Where an email link may send someone after it signs them in. Anything else goes to "/" (Day-of or Home). */
+const NEXT_PATHS = ["/reset-password", "/overview", "/setup", "/"] as const;
 
 export function safeNextPath(value: string | null | undefined): string {
-  return NEXT_PATHS.find((path) => path === value) ?? "/overview";
+  return NEXT_PATHS.find((path) => path === value) ?? "/";
 }
 
 /** Email link types this app accepts on /auth/confirm. */

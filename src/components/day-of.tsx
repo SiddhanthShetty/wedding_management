@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
@@ -38,6 +39,7 @@ export function DayOf({ data }: { data: Data }) {
       <div className="dayof-controls">
         <Select label="Function" value={functionId} onChange={(event) => setFunctionId(event.target.value)}>{data.functions.map((fn) => <option key={fn.id} value={fn.id}>{fn.name}</option>)}</Select>
         <button type="button" className="button button-secondary" onClick={() => router.refresh()}><RefreshCw size={15} aria-hidden="true" /> Refresh</button>
+        <Link className="button button-quiet" href="/overview">Go to Home</Link>
       </div>
     </header>
     <p className="generated-note">Updated {formatTime(data.generatedAt, tz)}. Refreshes every minute while open; needs a connection.</p>

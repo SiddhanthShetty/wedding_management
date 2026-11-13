@@ -171,6 +171,9 @@ Phase 5 is split into **5A Run sheet** and **5B Day-of first on wedding days**.
 - **Two tabs (#40):** Run sheet and Things to arrange (Day-of is already its own tab in Wedding week). Vendor arrivals now live inside the run sheet; the coordinator view is a "Show by who's responsible" switch; problems are a short "Report a problem" form (what's wrong, how urgent, who) and a list, folded under the run sheet and open while any are unresolved. Old links (`tab=issues`, `tab=vendors`, `tab=coordinators`) open the run sheet. The printable operational pack is unchanged.
 - **Who's responsible (#41):** one box replaces "Owner (member)" and "Owner name". Typing a member's name links it to their account; anything else (for example "Venue coordinator") is kept as typed.
 
+### Phase 5B: Day-of first, done (2026-11-13)
+- **Day-of first on wedding days (#14):** signing in, opening the site address, or following an email link now goes to `/`, which opens **Day-of** on any day with a function (not cancelled or archived) for anyone who can see Wedding week, and **Home** otherwise. The Home link in the menu always shows Home, and Day-of has a "Go to Home" button. Function days use the wedding's time zone.
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.
