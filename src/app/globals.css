@@ -1250,3 +1250,12 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 
 /* Catering: food counts */
 .meal-missing { color: #8a5a1f; font-weight: 650; }
+
+/* Run sheet: who and vendor lines */
+.ops-who { margin: 2px 0 0; font-size: 14px; }
+.ops-vendor { margin: 2px 0 0; color: #8a5a1f; font-size: 14px; }
+.ops-view-toggle { display: flex; justify-content: flex-end; }
+.ops-issues-wrap { margin-top: 8px; }
+.ops-issues-wrap > summary { font-size: 15px; }
+.ops-late { flex-basis: 100%; }
+.ops-late > summary { cursor: pointer; color: #8a5a1f; font-size: 14px; font-weight: 650; }
