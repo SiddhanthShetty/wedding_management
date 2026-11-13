@@ -10,7 +10,9 @@ import { formatDateTime } from "@/lib/format";
 import { createCsv } from "@/lib/planning/guest-csv";
 import { CHANNEL_LABELS, KIND_LABELS, MESSAGE_STATE_LABELS, PLACEHOLDERS, renderTemplate, selectRecipients, unknownPlaceholders, type MessageKind, type Placeholder } from "@/lib/planning/communications";
 import type { CommunicationsWorkspace } from "@/lib/data/communications";
-import { addStarterReminderAction } from "@/app/actions/setup";
+import { addReadyMessageAction, addStarterReminderAction } from "@/app/actions/setup";
+import { READY_MESSAGES, reminderPlan } from "@/lib/planning/reminder-plan";
+import { instantToLocalDate } from "@/lib/planning/local-time";
 import { archiveTemplateAction, recordMessagesAction, saveTemplateAction, setRecordStateAction } from "@/app/actions/communications";
 
 type Data = CommunicationsWorkspace;
@@ -39,6 +41,36 @@ function TemplateForm({ data, template }: { data: Data; template?: Template }) {
       hint={`Placeholders: ${PLACEHOLDERS.map((name) => `{{${name}}}`).join(" ")}. Private invitation links cannot be inserted: they are shown once when created and are not stored.`} />
     {unknown.length > 0 && <p className="field-error field-full" role="alert">Unknown placeholder(s): {unknown.map((name) => `{{${name}}}`).join(", ")}</p>}
   </ActionForm>;
+}
+
+/** A suggested schedule counted back from the wedding date. It only suggests; nothing is sent. */
+function ReminderPlan({ data }: { data: Data }) {
+  const weddingDate = data.wedding.wedding_date ?? data.functions.map((fn) => fn.function_date).filter((date): date is string => Boolean(date)).sort().at(-1) ?? null;
+  const today = instantToLocalDate(new Date(), data.wedding.timezone);
+  const mainFunction = data.functions.find((fn) => fn.function_date === weddingDate && fn.status !== "cancelled") ?? data.functions.find((fn) => fn.status !== "cancelled");
+  const steps = reminderPlan(weddingDate, today, mainFunction?.id ?? null);
+  if (!steps.length) return <Card title="Reminder plan"><p className="field-help">Set your wedding date in Settings to see when to send invitations and reminders.</p></Card>;
+  const day = (date: string) => new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
+  return <Card title="Reminder plan" subtitle="Suggested dates, counted back from your wedding. Nothing is sent automatically.">
+    <ol className="plan-steps">{steps.map((step) => <li key={step.key} className={`plan-step is-${step.state}`}>
+      <span className="plan-date">{day(step.date)}</span>
+      <span className="plan-body"><strong>{step.title}</strong>{step.state === "now" && <span className="status status-pending">Now</span>}<span className="row-meta">{step.detail}</span></span>
+      {step.state !== "upcoming" && <a className="button button-secondary" href={step.href}>{step.action}</a>}
+    </li>)}</ol>
+  </Card>;
+}
+
+/** Ready-made messages you can add with one tap, then edit. */
+function ReadyMessages({ data }: { data: Data }) {
+  const have = new Set(data.templates.filter((row) => !row.archived_at).map((row) => row.name.trim().toLowerCase()));
+  const missing = READY_MESSAGES.filter((item) => !have.has(item.name.toLowerCase()));
+  if (!missing.length) return null;
+  return <Card title="Ready-made messages" subtitle="Add any of these, then edit the words if you like.">
+    <ul className="doc-list">{missing.map((item) => <li key={item.key} className="reference-row">
+      <span><span className="row-title">{item.name}</span><span className="row-meta">{item.description}</span></span>
+      <ActionForm action={addReadyMessageAction} submitLabel="Add" className="inline-action-form"><input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="key" value={item.key} /></ActionForm>
+    </li>)}</ul>
+  </Card>;
 }
 
 export function MessagesManager({ data, initialFunctionId, initialKind }: { data: Data; initialFunctionId?: string; initialKind?: MessageKind }) {
@@ -79,29 +111,31 @@ export function MessagesManager({ data, initialFunctionId, initialKind }: { data
   };
   const tz = data.wedding.timezone;
   return <div className="section-stack">
-    <PageHeading eyebrow="Guest communication" title="Messages" description="Prepare reminders and updates to send from your own WhatsApp or email. Nothing is sent automatically." />
-    <p className="demo-note" role="note"><Info size={15} aria-hidden="true" /> <span><Term term="manualSent">Marked sent manually</Term> does not confirm delivery.</span></p>
+    <PageHeading eyebrow="Guests" title="Messages" description="Reminders and updates you send from your own WhatsApp or email. Nothing is sent automatically." />
+    <p className="demo-note" role="note"><Info size={15} aria-hidden="true" /> <span><Term term="manualSent">“Sent by you”</Term> means you sent it yourself. The app can&apos;t see whether it arrived.</span></p>
+    <ReminderPlan data={data} />
+    {data.canEdit && <ReadyMessages data={data} />}
     {data.canEdit && missingReminder && data.templates.length > 0 && <Card title="No reminder template yet"><ActionForm action={addStarterReminderAction} submitLabel="Add a ready-made RSVP reminder"><input type="hidden" name="weddingId" value={data.wedding.id} /></ActionForm></Card>}
-    {data.canEdit && <details className="travel-edit"><summary>Create a new template</summary><TemplateForm data={data} /></details>}
-    {!data.templates.length ? <Card><EmptyState title="No templates yet" description="Create an invitation or reminder template to preview recipients and prepare messages." />{data.canEdit && <ActionForm action={addStarterReminderAction} submitLabel="Add a ready-made RSVP reminder"><input type="hidden" name="weddingId" value={data.wedding.id} /></ActionForm>}</Card> : <>
-      <Card title="Prepare messages" subtitle="Choose a template and function to see who needs the message and why others are excluded.">
+    {data.canEdit && <details className="travel-edit"><summary>Write your own message</summary><TemplateForm data={data} /></details>}
+    {!data.templates.length ? <Card><EmptyState title="No messages yet" description="Add one of the ready-made messages above, or write your own." />{data.canEdit && <ActionForm action={addStarterReminderAction} submitLabel="Add a ready-made RSVP reminder"><input type="hidden" name="weddingId" value={data.wedding.id} /></ActionForm>}</Card> : <>
+      <Card title="Prepare messages" subtitle="Pick a message and a function to see who needs it. Then copy each one into WhatsApp or email.">
         <div className="field-grid">
-          <Select label="Template" value={templateId} onChange={(event) => { setTemplateId(event.target.value); const next = data.templates.find((row) => row.id === event.target.value); if (next?.function_id) setFunctionId(next.function_id); }}>
+          <Select label="Message" value={templateId} onChange={(event) => { setTemplateId(event.target.value); const next = data.templates.find((row) => row.id === event.target.value); if (next?.function_id) setFunctionId(next.function_id); }}>
             {active.map((row) => <option key={row.id} value={row.id}>{row.name} · {KIND_LABELS[row.kind]}</option>)}
           </Select>
           <Select label="Function" value={functionId} onChange={(event) => setFunctionId(event.target.value)}>{data.functions.map((row) => <option key={row.id} value={row.id}>{row.name}{row.status === "cancelled" ? " (cancelled)" : ""}</option>)}</Select>
         </div>
         {!template || !fn ? <EmptyState title="Choose a template and function" description="Both are needed to preview recipients." /> : <>
-          <p className="row-meta" role="status">{included.length} need this message · {recipients.length - included.length} excluded</p>
+          <p className="row-meta" role="status">{included.length} {included.length === 1 ? "person needs" : "people need"} this · {recipients.length - included.length} left out</p>
           <div className="doc-actions">
             <button type="button" className="button button-secondary" onClick={exportDrafts} disabled={!included.length}><Download size={15} aria-hidden="true" /> Export drafts (CSV)</button>
-            <button type="button" className={`chip ${showExcluded ? "is-active" : ""}`} aria-pressed={showExcluded} onClick={() => setShowExcluded(!showExcluded)}>Show excluded</button>
+            <button type="button" className={`chip ${showExcluded ? "is-active" : ""}`} aria-pressed={showExcluded} onClick={() => setShowExcluded(!showExcluded)}>Show who&apos;s left out and why</button>
           </div>
-          {data.canEdit && included.length > 0 && <ActionForm action={recordMessagesAction} submitLabel="Record for selected recipients" className="field-grid">
+          {data.canEdit && included.length > 0 && <ActionForm action={recordMessagesAction} submitLabel="Save to the log" className="field-grid">
             <input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="templateId" value={template.id} /><input type="hidden" name="functionId" value={fn.id} />
             {included.map((row) => <input key={row.guestId} type="hidden" name="guestIds" value={row.guestId} />)}
-            <Select label="What happened" name="state" defaultValue="drafted"><option value="drafted">Save as drafts</option><option value="sent">I sent these myself (mark sent manually)</option></Select>
-            <Select label="Channel" name="channel" defaultValue="email">{Object.entries(CHANNEL_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
+            <Select label="Have you sent them?" name="state" defaultValue="drafted"><option value="drafted">Not yet, keep as drafts</option><option value="sent">Yes, I sent these myself</option></Select>
+            <Select label="How?" name="channel" defaultValue="whatsapp">{Object.entries(CHANNEL_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
             <TextInput label="Notes" name="notes" maxLength={2000} className="field-full" />
           </ActionForm>}
           <ul className="doc-list">{pagedRecipients.visible.map((row) => {
@@ -116,7 +150,7 @@ export function MessagesManager({ data, initialFunctionId, initialKind }: { data
           {pagedRecipients.remaining > 0 && <button type="button" className="button button-secondary show-more" onClick={pagedRecipients.showMore}>Show more ({pagedRecipients.remaining} left)</button>}
         </>}
       </Card>
-      <Card title="Templates">
+      <Card title="Your messages">
         <ul className="doc-list">{data.templates.map((row) => <li key={row.id} className={`travel-guest ${row.archived_at ? "is-muted" : ""}`}>
           <div className="ops-head"><h3 className="row-title">{row.name}</h3><span className="status status-neutral">{KIND_LABELS[row.kind]}</span>{row.archived_at && <span className="status status-cancelled">Archived</span>}</div>
           {data.canEdit && <details className="travel-edit"><summary>Edit or archive</summary>
@@ -128,8 +162,8 @@ export function MessagesManager({ data, initialFunctionId, initialKind }: { data
         </li>)}</ul>
       </Card>
     </>}
-    <Card title="Message log" subtitle={`States: ${Object.values(MESSAGE_STATE_LABELS).join(" · ")}. Loaded ${formatDateTime(data.loadedAt, tz)}.`}>
-      {!data.records.length ? <EmptyState title="No messages recorded" description="Drafts and manually sent messages appear here." /> :
+    <Card title="Message log" subtitle={`What you've drafted or sent. Updated ${formatDateTime(data.loadedAt, tz)}.`}>
+      {!data.records.length ? <EmptyState title="Nothing logged yet" description="Messages you save as drafts or mark as sent appear here." /> :
         <div className="table-scroll"><table className="data-table"><caption className="sr-only">Message log</caption>
           <thead><tr><th scope="col">Guest</th><th scope="col">Function</th><th scope="col">Channel</th><th scope="col">State</th><th scope="col">When</th>{data.canEdit && <th scope="col">Update</th>}</tr></thead>
           <tbody>{data.records.slice(0, 300).map((record) => <tr key={record.id}>
@@ -139,9 +173,9 @@ export function MessagesManager({ data, initialFunctionId, initialKind }: { data
             <td>{MESSAGE_STATE_LABELS[record.state]}{record.failure_reason && <span className="table-secondary">{record.failure_reason}</span>}</td>
             <td>{formatDateTime(record.sent_at ?? record.updated_at, tz)}</td>
             {data.canEdit && <td>{record.state === "drafted" ? <div className="doc-actions">
-              <ActionForm action={setRecordStateAction} submitLabel="Mark sent manually" variant="quiet" className="inline-action-form"><input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="recordId" value={record.id} /><input type="hidden" name="to" value="sent" /></ActionForm>
-              <ActionForm action={setRecordStateAction} submitLabel="Mark failed" variant="quiet" className="inline-action-form"><input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="recordId" value={record.id} /><input type="hidden" name="to" value="failed" /><TextInput label="Why it failed" name="failureReason" required maxLength={1000} /></ActionForm>
-            </div> : record.state === "failed" ? <ActionForm action={setRecordStateAction} submitLabel="Back to draft" variant="quiet" className="inline-action-form"><input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="recordId" value={record.id} /><input type="hidden" name="to" value="drafted" /></ActionForm> : "—"}</td>}
+              <ActionForm action={setRecordStateAction} submitLabel="I sent this" variant="quiet" className="inline-action-form"><input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="recordId" value={record.id} /><input type="hidden" name="to" value="sent" /></ActionForm>
+              <ActionForm action={setRecordStateAction} submitLabel="Didn't go through" variant="quiet" className="inline-action-form"><input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="recordId" value={record.id} /><input type="hidden" name="to" value="failed" /><TextInput label="What went wrong?" name="failureReason" required maxLength={1000} placeholder="e.g. wrong number" /></ActionForm>
+            </div> : record.state === "failed" ? <ActionForm action={setRecordStateAction} submitLabel="Try again" variant="quiet" className="inline-action-form"><input type="hidden" name="weddingId" value={data.wedding.id} /><input type="hidden" name="recordId" value={record.id} /><input type="hidden" name="to" value="drafted" /></ActionForm> : "—"}</td>}
           </tr>)}</tbody></table></div>}
     </Card>
   </div>;

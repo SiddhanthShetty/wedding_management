@@ -1,3 +1,4 @@
+import { READY_MESSAGES } from "@/lib/planning/reminder-plan";
 import "server-only";
 import { authorizeWeddingOperation, type WeddingModule, type WorkspaceContext } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -90,4 +91,17 @@ export async function addStarterReminderTemplate(weddingId: string) {
     kind: "reminder", name: "Friendly RSVP reminder", function_id: null, subject: "A gentle reminder from {{couple_names}}",
     body: "Hi {{first_name}}, a gentle reminder to let {{couple_names}} know whether you can join us for {{function_name}} on {{function_date}}. You can reply using your private invitation link. Thank you!",
   });
+}
+
+/** Adds one of the ready-made messages, unless a template with that name already exists. */
+export async function addReadyTemplate(weddingId: string, key: string): Promise<"added" | "exists"> {
+  const ready = READY_MESSAGES.find((item) => item.key === key);
+  if (!ready) throw new Error("Unknown ready-made message.");
+  const context = await authorizeWeddingOperation(weddingId, "guests", "edit");
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("message_templates").select("name").eq("wedding_id", context.wedding.id).is("archived_at", null);
+  if (error) throw new Error("Could not load templates.");
+  if ((data ?? []).some((row) => String(row.name).trim().toLowerCase() === ready.name.toLowerCase())) return "exists";
+  await saveTemplate(weddingId, null, null, { kind: ready.kind, name: ready.name, function_id: null, subject: ready.subject, body: ready.body });
+  return "added";
 }

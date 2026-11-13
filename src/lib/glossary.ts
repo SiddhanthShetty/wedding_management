@@ -7,6 +7,6 @@ export const GLOSSARY = {
   notAssigned: "The guest needs this, but nothing has been arranged yet.",
   unknown: "Nobody has recorded whether the guest needs this.",
   heldNights: "Rooms the hotel is holding for you on each night. Guests can only be placed on held nights.",
-  manualSent: "Someone on your team says they sent it. The app cannot confirm it was delivered.",
+  manualSent: "You or a helper sent it from your own phone or email and noted it here. The app can't confirm it arrived.",
 } as const;
 export type GlossaryKey = keyof typeof GLOSSARY;

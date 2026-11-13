@@ -24,16 +24,17 @@ export async function getInvitationWorkspace(weddingId: string) {
     supabase.from("invitation_designs").select("id,name,theme,accent,texts,site,photo_data,show_monogram,is_default,version,updated_at").eq("wedding_id", weddingId).order("created_at"),
     supabase.from("guest_households").select("id,name,contact_name,contact_email,contact_phone,preferred_language").eq("wedding_id", weddingId).order("name"),
     supabase.from("guests").select("id,household_id,full_name,email,phone").eq("wedding_id", weddingId).order("full_name"),
-    supabase.from("guest_invitations").select("guest_id,function_id,status").eq("wedding_id", weddingId).eq("status", "invited"),
+    supabase.from("guest_invitations").select("id,guest_id,function_id,status").eq("wedding_id", weddingId).eq("status", "invited"),
     supabase.rpc("get_guest_function_references", { p_wedding_id: weddingId }),
     supabase.from("weddings").select("partner_one_display_name,partner_two_display_name,wedding_date").eq("id", weddingId).maybeSingle(),
     supabase.from("communication_records").select("guest_id,channel,state,sent_at,dedupe_key").eq("wedding_id", weddingId).like("dedupe_key", "invite:%"),
     supabase.from("guest_blessings").select("id,guest_id,message,status,created_at,approved_at").eq("wedding_id", weddingId).order("created_at", { ascending: false }).limit(300),
     supabase.rpc("list_guest_portal_links", { p_wedding_id: weddingId, p_household_id: null }),
     supabase.from("invitation_media").select("id,design_id,kind,position,mime,byte_size,caption,created_at").eq("wedding_id", weddingId).order("position"),
+    supabase.from("guest_rsvps").select("invitation_id").eq("wedding_id", weddingId),
   ]);
   for (const result of results) if (result.error) throw new Error("Could not load invitations.");
-  const [designs, households, guests, invitations, functions, wedding, records, blessings, links, media] = results;
+  const [designs, households, guests, invitations, functions, wedding, records, blessings, links, media, rsvps] = results;
   return {
     wedding: context.wedding,
     canEdit: context.membership.role === "owner" || context.membership.role === "co_owner" || context.moduleAccess.guests === "edit",
@@ -44,7 +45,8 @@ export async function getInvitationWorkspace(weddingId: string) {
     designs: (designs.data ?? []) as Array<{ id: string; name: string; theme: ThemeId; accent: string | null; texts: TextOverrides; site: unknown; photo_data: string | null; show_monogram: boolean; is_default: boolean; version: number; updated_at: string }>,
     households: (households.data ?? []) as Array<{ id: string; name: string; contact_name: string; contact_email: string; contact_phone: string; preferred_language: LanguageCode }>,
     guests: (guests.data ?? []) as Array<{ id: string; household_id: string | null; full_name: string; email: string; phone: string }>,
-    invitations: (invitations.data ?? []) as Array<{ guest_id: string; function_id: string }>,
+    invitations: (invitations.data ?? []) as Array<{ id: string; guest_id: string; function_id: string }>,
+    respondedInvitationIds: (rsvps.data ?? []).map((row) => String((row as { invitation_id: string }).invitation_id)),
     functions: ((functions.data ?? []) as Array<{ id: string; name: string; function_date: string | null; start_time: string | null; venue_name: string | null; status: string; archived_at: string | null }>).filter((fn) => !fn.archived_at && fn.status !== "cancelled"),
     sent: (records.data ?? []) as Array<{ guest_id: string; channel: string; state: string; sent_at: string | null; dedupe_key: string }>,
     linkActivity: linkActivity((links.data ?? []) as Array<{ guest_id: string | null; active: boolean; last_opened_at: string | null }>),

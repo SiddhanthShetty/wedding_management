@@ -150,6 +150,12 @@ Phase 3 is split into **3A Guests**, **3B Save the Date in the simple studio** a
 - **Invite your partner (#46):** a card on People (owner only, until a second partner is active) with three steps: copy a ready message with the sign-up link or open WhatsApp with it (nothing is sent by the app), they create and confirm their account without setting up a new wedding, then add them by email as a Partner. Only the owner can add a partner, matching the database rule. The Home setup step links straight to it.
 - **Appearance:** the Soft look switch (the same as in the account menu, applied straight away on that device) and a pointer to the invitation theme for colours.
 
+### Phase 4A: invite and track, done (2026-11-13)
+Phase 4 is split into **4A Invite & track**, **4B Stays & travel in three steps** and **4C meal counts per function**.
+- **How it's going (#34)** on Invitations → Send & track: invited, then sent, opened and replied (a guest counts as replied once they've answered for every function they're invited to), each with a progress bar. **Remind people who haven't replied** lists each function with its waiting count and opens Messages ready to remind them. New filter: "Sent, no reply yet".
+- **Plain Messages wording (#35):** states are Draft, Sent by you, Didn't go through, Waiting to send and Delivered. Buttons read "I sent this", "Didn't go through" (asks "What went wrong?") and "Try again". Recording asks "Have you sent them?" and "How?" (WhatsApp first), then "Save to the log". "Templates" became "Your messages".
+- **Ready-made messages and a reminder plan (#36):** three ready-made messages (Friendly RSVP reminder, Last call before final numbers, Directions and timings), each added with one tap unless you already have one with that name. The **Reminder plan** counts back from the wedding date: invitations about 8 weeks before, a gentle reminder at 4 weeks, a last call at 2 weeks (before final catering numbers), and directions 3 days before. It marks the current step "Now" and links to the right place. It only suggests dates; nothing is sent automatically.
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.

@@ -8,7 +8,7 @@ export type MessageState = "drafted" | "queued" | "sent" | "failed" | "provider_
 export type MessageChannel = "email" | "sms" | "whatsapp" | "phone" | "in_person" | "post" | "other";
 
 export const MESSAGE_STATE_LABELS: Record<MessageState, string> = {
-  drafted: "Drafted", queued: "Queued (provider)", sent: "Marked sent manually", failed: "Failed", provider_confirmed: "Delivery confirmed by provider",
+  drafted: "Draft", queued: "Waiting to send", sent: "Sent by you", failed: "Didn't go through", provider_confirmed: "Delivered",
 };
 export const CHANNEL_LABELS: Record<MessageChannel, string> = { email: "Email", sms: "SMS", whatsapp: "WhatsApp", phone: "Phone call", in_person: "In person", post: "Post", other: "Other" };
 export const KIND_LABELS: Record<MessageKind, string> = { invitation: "Invitation", reminder: "RSVP reminder", update: "Update" };

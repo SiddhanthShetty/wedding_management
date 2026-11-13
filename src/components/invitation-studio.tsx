@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useMemo, useRef, useState, useEffect } from "react";
 import { Copy, Download, Mail, MessageCircle, Palette, Send, Share2, Image as ImageIcon, Clapperboard, FileText, Sparkles, RotateCcw, Smartphone, Link2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
@@ -15,6 +16,7 @@ import { PortalPreview } from "@/components/guest-portal";
 import { Card, EmptyState, PageHeading } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { artworkOf, buildCardProps, saveTheDateOf } from "@/lib/invitations/card-data";
+import { percent, trackInvites } from "@/lib/invitations/tracking";
 import { buildPreviewData, previewFunction } from "@/lib/invitations/preview";
 import { EFFECTS, OPENING_STYLES, readSite, TEMPLATES, type InvitationSite } from "@/lib/invitations/site";
 import { ArtworkUploader, GalleryEditor, MusicUploader, studioArtworkUrl, studioMedia } from "@/components/invitation-media-editor";
@@ -521,7 +523,7 @@ function guestCard(data: Data, design: CardDesign, guest: Guest, language: Langu
 }
 const kindOf = (design: { site?: unknown }) => readSite(design.site).kind;
 
-type SendFilter = "all" | "unsent" | "unopened" | "opened";
+type SendFilter = "all" | "unsent" | "unopened" | "opened" | "noreply";
 function timeAgo(value: string) {
   const minutes = Math.round((Date.now() - new Date(value).getTime()) / 60_000);
   if (minutes < 60) return `${Math.max(1, minutes)} min ago`;
@@ -536,7 +538,8 @@ function SendPanel({ data, design, guests, full }: { data: Data; design: Design;
   const [queue, setQueue] = useState(false);
   const sentFor = (guest: Guest) => data.sent.filter((row) => row.guest_id === guest.id && row.dedupe_key.startsWith(`invite:${design.id}:`));
   const openedAt = (guest: Guest) => data.linkActivity[guest.id]?.lastOpenedAt ?? null;
-  const matchesFilter = (guest: Guest) => filter === "all" ? true : filter === "unsent" ? !sentFor(guest).length : filter === "unopened" ? sentFor(guest).length > 0 && !openedAt(guest) : Boolean(openedAt(guest));
+  const track = trackInvites(guests.map((guest) => guest.id), new Set(guests.filter((guest) => sentFor(guest).length > 0).map((guest) => guest.id)), new Set(guests.filter((guest) => openedAt(guest)).map((guest) => guest.id)), data.invitations, new Set(data.respondedInvitationIds));
+  const matchesFilter = (guest: Guest) => filter === "all" ? true : filter === "unsent" ? !sentFor(guest).length : filter === "unopened" ? sentFor(guest).length > 0 && !openedAt(guest) : filter === "noreply" ? sentFor(guest).length > 0 && !track.repliedGuestIds.has(guest.id) : Boolean(openedAt(guest));
   const shown = guests.filter((guest) => `${guest.full_name} ${guest.email} ${guest.phone}`.toLowerCase().includes(query.toLowerCase()) && matchesFilter(guest));
   const unsent = guests.filter((guest) => !sentFor(guest).length);
   // Send queue: work through unsent guests in order; recording a share moves to the next one.
@@ -544,11 +547,23 @@ function SendPanel({ data, design, guests, full }: { data: Data; design: Design;
   const next = (afterId: string) => { const rest = unsent.filter((guest) => guest.id !== afterId); setOpen(rest[0]?.id ?? null); if (!rest.length) setQueue(false); };
   if (!guests.length) return <Card><EmptyState title="Nobody is invited yet" description="Invite people to a function on the Guest list page before preparing their private links." /></Card>;
   const done = guests.filter((guest) => sentFor(guest).length > 0).length;
-  return <>{data.canEdit && <BulkLinks data={data} design={design} />}<Card title={`Share “${design.name}”`} subtitle={`${done} of ${guests.length} guests recorded as sent. Each person has a separate card and private link.`}>
+  const fnName = (id: string) => data.functions.find((fn) => fn.id === id)?.name ?? "A function";
+  const waiting = track.waiting.filter((row) => row.waiting > 0 && data.functions.some((fn) => fn.id === row.functionId));
+  return <>
+    <Card title="How it's going" subtitle={`${track.invited} invited`} className="track-card">
+      <ol className="track-steps">{([["Sent", track.sent], ["Opened", track.opened], ["Replied", track.replied]] as Array<[string, number]>).map(([label, value]) => <li key={label}>
+        <span className="track-label">{label}</span><strong>{value}</strong><span className="track-of">of {track.invited}</span>
+        <span className="dash-bar" aria-hidden="true"><span style={{ width: `${percent(value, track.invited)}%` }} /></span>
+      </li>)}</ol>
+      {waiting.length > 0 && <div className="track-remind"><p><strong>Remind people who haven&apos;t replied</strong> <span className="row-meta">Opens Messages with everyone still waiting for that function.</span></p>
+        <div className="doc-actions">{waiting.map((row) => <Link key={row.functionId} className="button button-secondary" href={`/messages?function=${row.functionId}&kind=reminder`}>{fnName(row.functionId)} ({row.waiting})</Link>)}</div>
+      </div>}
+    </Card>
+    {data.canEdit && <BulkLinks data={data} design={design} />}<Card title={`Share “${design.name}”`} subtitle={`${done} of ${guests.length} guests recorded as sent. Each person has a separate card and private link.`}>
     <div className="table-toolbar">
       <TextInput label="Find an individual guest" type="search" value={query} onChange={(event) => setQuery(event.target.value)} />
       <div className="filter-group" role="group" aria-label="Filter guests">
-        {([["all", "All"], ["unsent", `Not sent (${unsent.length})`], ["unopened", "Sent, not opened"], ["opened", "Opened"]] as Array<[SendFilter, string]>).map(([value, label]) => <button key={value} type="button" className={`chip ${filter === value ? "is-active" : ""}`} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}
+        {([["all", "All"], ["unsent", `Not sent (${unsent.length})`], ["unopened", "Sent, not opened"], ["opened", "Opened"], ["noreply", "Sent, no reply yet"]] as Array<[SendFilter, string]>).map(([value, label]) => <button key={value} type="button" className={`chip ${filter === value ? "is-active" : ""}`} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}
       </div>
       {data.canEdit && unsent.length > 0 && !queue && <button type="button" className="button button-primary" onClick={startQueue}><Send size={15} aria-hidden="true" /> Send in order ({unsent.length} left)</button>}
       {queue && <button type="button" className="button button-quiet" onClick={() => { setQueue(false); setOpen(null); }}>Stop sending in order</button>}

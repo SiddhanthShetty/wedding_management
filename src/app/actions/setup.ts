@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
 import { CommunicationRuleError } from "@/lib/data/communications";
-import { addStarterReminderTemplate, applyFunctionSet, applyTaskChecklist } from "@/lib/data/setup";
+import { addReadyTemplate, addStarterReminderTemplate, applyFunctionSet, applyTaskChecklist } from "@/lib/data/setup";
 
 export type SetupActionState = { error?: string; message?: string; at?: number };
 const text = (form: FormData, key: string) => { const value = form.get(key); return typeof value === "string" ? value : ""; };
@@ -46,4 +46,10 @@ export async function applyTaskChecklistAction(_state: SetupActionState, form: F
 
 export async function addStarterReminderAction(_state: SetupActionState, form: FormData): Promise<SetupActionState> {
   return run(form, async (weddingId) => { await addStarterReminderTemplate(weddingId); return "Starter reminder template added."; }, ["/messages"]);
+}
+
+/** Adds a ready-made message from Messages (gentle reminder, last call, directions). */
+export async function addReadyMessageAction(_state: SetupActionState, form: FormData): Promise<SetupActionState> {
+  const key = text(form, "key");
+  return run(form, async (weddingId) => (await addReadyTemplate(weddingId, key)) === "added" ? "Added. Choose it under “Prepare messages”." : "You already have this message.", ["/messages"]);
 }
