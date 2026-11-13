@@ -1186,3 +1186,6 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
   .guest-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .guest-header-actions .button { flex: 1 1 auto; white-space: nowrap; }
 }
+
+/* Simple studio: Save the Date details under the choice */
+.std-simple-fields { margin-top: 14px; }

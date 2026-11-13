@@ -70,7 +70,7 @@ export function InvitationStudio({ data }: { data: Data }) {
     <StudioWorkspace key={designId} data={data} design={design} designId={designId} setDesignId={setDesignId} step={!full && step === "extras" ? "design" : step} setStep={setStep} guests={invitedGuests} defaultDesign={defaultDesign} full={full} />
     {data.canEdit && <label className="studio-mode-switch">
       <input type="checkbox" checked={full} onChange={(event) => setStudioMode(event.target.checked ? "full" : "simple")} />
-      <span><strong>Show the full design studio</strong><span className="row-meta">Templates, opening styles, effects, music, gallery, story, FAQ, Save the Date, sample formats and video. Remembered on this device.</span></span>
+      <span><strong>Show the full design studio</strong><span className="row-meta">Templates, opening styles, effects, music, gallery, story, FAQ, sample formats and video. Remembered on this device.</span></span>
     </label>}
   </div>;
 }
@@ -153,17 +153,22 @@ function DesignStep({ data, design, draft, set, updateSite, onPhoto, readOnly, f
   // Simple studio: own artwork needs only the upload and the name band; a drawn card needs its theme, photo and wording.
   const drawn = !draft.site.artwork.enabled;
   return <>
-    {full && <Card title="What are you sending?" subtitle="You can change this any time. To send a Save the Date first and the invitation later, make two designs and switch which one guests see.">
+    <Card title="What are you sending?" subtitle={full ? "You can change this any time. To send a Save the Date first and the invitation later, make two designs and switch which one guests see." : "Sending a Save the Date months ahead? Make it its own design, then later choose “+ New design” for the invitation and switch which one guests see."}>
       <fieldset className="choice-cards" disabled={readOnly}>
         <legend className="sr-only">What are you sending?</legend>
-        {([["invitation", "Full invitation", "Every function with its date, time and place, your story, photos and replies."], ["save_the_date", "Save the Date", "Sent months ahead: your names, the wedding date and place, with a countdown. No replies; the invitation follows later."]] as const).map(([id, name, description]) => <label key={id} className={`choice-card ${draft.site.kind === id ? "is-selected" : ""}`}>
+        {([["invitation", "Invitation", "Every function with its date, time and place, and replies."], ["save_the_date", "Save the Date", "Sent months ahead: your names, the wedding date and place, with a countdown. No replies; the invitation follows later."]] as const).map(([id, name, description]) => <label key={id} className={`choice-card ${draft.site.kind === id ? "is-selected" : ""}`}>
           <input type="radio" name="kind-choice" value={id} checked={draft.site.kind === id} onChange={() => { updateSite("kind", id); if (id === "save_the_date" && !draft.site.save_the_date.date && data.weddingDate) updateSite("save_the_date", { ...draft.site.save_the_date, date: data.weddingDate }); }} />
           <strong>{name}</strong><span className="row-meta">{description}</span>
         </label>)}
       </fieldset>
-      {draft.site.kind === "save_the_date" && !draft.site.save_the_date.date && <p className="travel-warning">Choose the wedding date in Content before saving.</p>}
+      {!full && draft.site.kind === "save_the_date" && <div className="field-grid std-simple-fields">
+        <TextInput label="Wedding date" type="date" required value={draft.site.save_the_date.date} onChange={(event) => updateSite("save_the_date", { ...draft.site.save_the_date, date: event.target.value })} disabled={readOnly} hint="Shown large on the card, with a countdown and an add-to-calendar button." />
+        <TextInput label="City or place" maxLength={60} value={draft.site.save_the_date.city} onChange={(event) => updateSite("save_the_date", { ...draft.site.save_the_date, city: event.target.value })} disabled={readOnly} placeholder="Udupi" />
+        <TextInput label="Design name" required maxLength={80} value={draft.name} onChange={(event) => set("name", event.target.value)} disabled={readOnly} hint="Only you see this, for example “Save the Date”." />
+      </div>}
+      {draft.site.kind === "save_the_date" && !draft.site.save_the_date.date && <p className="travel-warning">{full ? "Choose the wedding date in Content before saving." : "Choose the wedding date above before saving."}</p>}
       {draft.site.kind === "save_the_date" && design?.is_default && data.sent.length > 0 && <p className="travel-warning">Guests see this design. As a Save the Date it has no reply section, so guests who already have links will not be able to reply until you show a full invitation again.</p>}
-    </Card>}
+    </Card>
     <Card title="Card artwork" subtitle="Design the card here, or use a finished invitation made elsewhere. Either way, each guest gets their own private link and replies here.">
       <fieldset className="choice-cards" disabled={readOnly}>
         <legend className="sr-only">Card artwork</legend>

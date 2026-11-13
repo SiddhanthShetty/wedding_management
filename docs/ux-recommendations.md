@@ -140,6 +140,10 @@ Phase 3 is split into **3A Guests**, **3B Save the Date in the simple studio** a
 - **Reply summary (#31)** at the top of Guests: families and guests, then one line per function with coming / not coming / maybe / waiting, a progress bar, and "See who hasn't replied".
 - **Import behind a button (#32).** The "Import / export" tab became an "Import or export a list" button, with "Back to guests". "Households" is now "Families".
 
+### Phase 3B: Save the Date, done (2026-11-13)
+- **Save the Date in the simple studio (#33).** The Card step now starts with "What are you sending?": Invitation or Save the Date, without switching on the full studio. Choosing Save the Date shows the wedding date (filled in from Settings), the city or place, and a design name right there. The tip explains the usual path: make the Save the Date its own design, then later choose "+ New design" for the invitation and "Show this design to guests".
+- The guest page already showed a Save the Date in the simple reply page style, so no guest-side change was needed. The full studio keeps its own Save the Date fields under Content.
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.
