@@ -5,6 +5,8 @@
 import { contrastRatio, darkenToContrast } from "@/lib/invitations/content";
 
 export const LOOK_COOKIE = "wedding-look";
+/** Sent by Settings → Appearance so the open page switches look straight away. */
+export const LOOK_EVENT = "wedding-desk:look";
 export type Look = "classic" | "soft";
 
 function mix(a: string, b: string, amount: number) {

@@ -24,7 +24,7 @@ export async function addMemberAction(_previous: MemberFormState, formData: Form
     guests: formData.get("guests"),
     logistics: formData.get("logistics"),
   });
-  if (!parsed.success) return { error: "Check the email, role and what they can access." };
+  if (!parsed.success) return { error: "Enter their email address and choose what they can do." };
 
   const { weddingId, email, role, ...levels } = parsed.data;
   if (role === "read_only_collaborator" && Object.values(levels).some((level) => level === "edit")) {
@@ -36,9 +36,9 @@ export async function addMemberAction(_previous: MemberFormState, formData: Form
   try {
     await addVerifiedMemberByEmail({ weddingId, email, role, moduleAccess });
     revalidatePath("/settings");
-    return { message: "Saved. Their access is updated." };
+    return { message: role === "owner" || role === "co_owner" ? `Added ${email} as a partner. They can sign in now and see everything.` : `Saved. ${email} can sign in now.` };
   } catch {
-    return { error: "Could not update membership. Only an owner or co-owner can manage members; owner roles require an owner account." };
+    return { error: "Couldn't add them. Check it's the email they signed up with and that they've confirmed it from the email we sent them." };
   }
 }
 
@@ -47,12 +47,12 @@ export async function revokeMemberAction(_previous: MemberFormState, formData: F
     weddingId: formData.get("weddingId"),
     targetUserId: formData.get("targetUserId"),
   });
-  if (!parsed.success) return { error: "Invalid membership selection." };
+  if (!parsed.success) return { error: "Something went wrong with this page. Refresh it and try again." };
   try {
     await revokeWeddingMember(parsed.data);
     revalidatePath("/settings");
-    return { message: "Membership revoked. Access is removed for future requests." };
+    return { message: "Removed. They can no longer open your wedding." };
   } catch {
-    return { error: "Could not revoke membership. An active owner must remain on the wedding." };
+    return { error: "Couldn't remove them. The wedding always needs at least one partner." };
   }
 }

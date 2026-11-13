@@ -70,7 +70,7 @@ export function setupSteps(counts: SetupCounts, isOwner: boolean): SetupStep[] {
   const steps: Array<SetupStep | null> = [
     isOwner ? { id: "details", label: "Add your names, wedding date and budget", done: counts.weddingDetails, href: "/settings", hint: "Used on invitations and for due dates." } : null,
     counts.functions === null ? null : { id: "functions", label: "Add your functions", done: counts.functions > 0, href: "/functions", hint: "Or use a starter set below." },
-    isOwner ? { id: "partner", label: "Invite your partner or a family helper", done: counts.members > 1, href: "/settings", hint: "They need their own account first." } : null,
+    isOwner ? { id: "partner", label: "Invite your partner or a family helper", done: counts.members > 1, href: "/settings?tab=people", hint: "Send them the sign-up link, then add their email." } : null,
     counts.guests === null ? null : { id: "guests", label: "Add guests", done: counts.guests > 0, href: "/guests", hint: "Households first, then each person, or import a CSV." },
     counts.suppliers === null ? null : { id: "vendors", label: "Shortlist a venue or vendor", done: counts.suppliers > 0, href: "/venues-vendors", hint: "Record quotes as they arrive." },
     counts.tasks === null ? null : { id: "tasks", label: "Plan your tasks", done: counts.tasks > 0, href: "/tasks", hint: "Or add the starter checklist below." },

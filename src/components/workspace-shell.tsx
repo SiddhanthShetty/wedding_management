@@ -5,19 +5,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, FileText, Heart, LogOut, Menu, Plus, Search, Settings, Sparkles, X } from "lucide-react";
 import { signOutAction } from "@/app/actions/auth";
-import { LOOK_COOKIE, softStyleVars, type Look } from "@/lib/soft-look";
+import { LOOK_COOKIE, LOOK_EVENT, softStyleVars, type Look } from "@/lib/soft-look";
 import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
 import type { WorkspaceBranding } from "@/lib/data/branding";
 import { AREAS, areaForPath, currentSectionLabel, isActiveLink, visibleNavGroups } from "@/lib/navigation";
 import { addItemsFor, type AddItem } from "@/lib/add-menu";
 import { PageIntro } from "@/components/page-intro";
+import { ROLE_NAMES } from "@/lib/roles";
 
 const COLLAPSED_KEY = "wedding-desk:nav-collapsed";
 function readCollapsed(): string[] {
   try { const value = JSON.parse(window.localStorage.getItem(COLLAPSED_KEY) ?? "[]"); return Array.isArray(value) ? value.filter((item) => typeof item === "string") : []; } catch { return []; }
 }
 
-const ROLE_LABELS: Record<MemberRole, string> = { owner: "Owner", co_owner: "Co-owner", scoped_collaborator: "Family helper", read_only_collaborator: "View only" };
+const ROLE_LABELS: Record<MemberRole, string> = ROLE_NAMES;
 const initialsOf = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => Array.from(part)[0]!.toLocaleUpperCase()).join("") || "?";
 
 /** The avatar in the top bar: who is signed in, Settings (owners) and Sign out (everyone). */
@@ -43,7 +44,7 @@ function AccountMenu({ displayName, roleLabel, weddingName, isOwner, pathname, l
         <span className="account-menu-who"><span className="profile-name">{displayName}</span><span className="profile-role">{roleLabel} · {weddingName}</span></span>
       </div>
       <ul>
-        {isOwner && <li><Link href="/settings" className="account-menu-item" aria-current={pathname === "/settings" ? "page" : undefined}><Settings size={16} aria-hidden="true" /><span>Settings<small>Wedding details and members</small></span></Link></li>}
+        {isOwner && <li><Link href="/settings" className="account-menu-item" aria-current={pathname === "/settings" ? "page" : undefined}><Settings size={16} aria-hidden="true" /><span>Settings<small>Wedding details, people and appearance</small></span></Link></li>}
         <li><Link href="/documents" className="account-menu-item" aria-current={pathname === "/documents" ? "page" : undefined}><FileText size={16} aria-hidden="true" /><span>All files<small>Contracts, quotes and photos</small></span></Link></li>
         <li><label className="account-menu-item account-menu-switch"><Sparkles size={16} aria-hidden="true" /><span>Soft look<small>Softer cards and buttons on this device</small></span>
           <input type="checkbox" role="switch" checked={look === "soft"} onChange={(event) => onLook(event.target.checked ? "soft" : "classic")} /></label></li>
@@ -117,6 +118,11 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
     // A display preference only; kept for a year on this device.
     document.cookie = `${LOOK_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax${window.location.protocol === "https:" ? "; secure" : ""}`;
   };
+  useEffect(() => {
+    const onLook = (event: Event) => { const next = (event as CustomEvent<Look>).detail; if (next === "soft" || next === "classic") changeLook(next); };
+    window.addEventListener(LOOK_EVENT, onLook);
+    return () => window.removeEventListener(LOOK_EVENT, onLook);
+  });
   const brandStyle = { ...(branding ? { ["--brand-accent" as string]: branding.accent, ["--brand-accent-text" as string]: branding.accentText, ["--brand-bg" as string]: branding.background } : {}), ...softStyleVars(branding?.accent) } as React.CSSProperties;
   // Phone tab bar: the main destinations this member can open, plus "More" for the full menu.
   const tabFor = (href: string) => groups.flatMap((group) => group.links).find((link) => link.href === href);

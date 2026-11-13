@@ -1189,3 +1189,23 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 
 /* Simple studio: Save the Date details under the choice */
 .std-simple-fields { margin-top: 14px; }
+
+/* Settings: tabs, people, invite your partner */
+.tab-dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: #c0843a; }
+.member-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.member-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; border-top: 1px solid #f0f0ec; padding: 12px 0; }
+.member-list li:first-child { border-top: 0; padding-top: 0; }
+.member-list li.is-inactive { opacity: .6; }
+.member-main { display: grid; flex: 1 1 220px; gap: 2px; min-width: 0; }
+.member-remove { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.partner-invite { border-color: #e9dfc8; background: #fffaf0; }
+.partner-steps { display: grid; gap: 14px; margin: 0; padding-left: 20px; }
+.partner-steps li { display: block; }
+.partner-steps li > :is(.partner-actions, .partner-add-form, p) { margin-top: 8px; }
+.partner-actions, .partner-add-form { display: flex; flex-wrap: wrap; gap: 8px; }
+.partner-add-form .field-control { flex: 1 1 220px; }
+.button.is-disabled { pointer-events: none; opacity: .55; }
+.add-person-form { display: grid; gap: 14px; }
+.add-person-form fieldset { margin: 0; border: 0; padding: 0; }
+.add-person-form legend { margin-bottom: 8px; }
+.appearance-switch { align-items: flex-start; }

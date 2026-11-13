@@ -144,6 +144,12 @@ Phase 3 is split into **3A Guests**, **3B Save the Date in the simple studio** a
 - **Save the Date in the simple studio (#33).** The Card step now starts with "What are you sending?": Invitation or Save the Date, without switching on the full studio. Choosing Save the Date shows the wedding date (filled in from Settings), the city or place, and a design name right there. The tip explains the usual path: make the Save the Date its own design, then later choose "+ New design" for the invitation and "Show this design to guests".
 - The guest page already showed a Save the Date in the simple reply page style, so no guest-side change was needed. The full studio keeps its own Save the Date fields under Content.
 
+### Phase 3C: Settings, done (2026-11-13)
+- **Settings tabs (#44):** Wedding, People and Appearance (`/settings?tab=…`). The People tab shows a dot while there's only one partner. The account menu's Sign out replaces the old button at the bottom of Settings.
+- **Plain roles (#45):** owners and co-owners are shown as **Partner**, scoped collaborators as **Family helper**, read-only collaborators as **View only** (`src/lib/roles.ts`); the database roles are unchanged. "Add someone" offers those three choices, and helpers get a plain choice per area (Plan, Guests and invitations, Money, Wedding week): can't see it, can see it, or can change it. View-only people can't be given change access. The member list reads, for example, "Family helper · Can change: Guests · Can see: Wedding week". Removing someone asks for confirmation.
+- **Invite your partner (#46):** a card on People (owner only, until a second partner is active) with three steps: copy a ready message with the sign-up link or open WhatsApp with it (nothing is sent by the app), they create and confirm their account without setting up a new wedding, then add them by email as a Partner. Only the owner can add a partner, matching the database rule. The Home setup step links straight to it.
+- **Appearance:** the Soft look switch (the same as in the account menu, applied straight away on that device) and a pointer to the invitation theme for colours.
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.
