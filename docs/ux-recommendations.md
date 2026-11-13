@@ -156,6 +156,11 @@ Phase 4 is split into **4A Invite & track**, **4B Stays & travel in three steps*
 - **Plain Messages wording (#35):** states are Draft, Sent by you, Didn't go through, Waiting to send and Delivered. Buttons read "I sent this", "Didn't go through" (asks "What went wrong?") and "Try again". Recording asks "Have you sent them?" and "How?" (WhatsApp first), then "Save to the log". "Templates" became "Your messages".
 - **Ready-made messages and a reminder plan (#36):** three ready-made messages (Friendly RSVP reminder, Last call before final numbers, Directions and timings), each added with one tap unless you already have one with that name. The **Reminder plan** counts back from the wedding date: invitations about 8 weeks before, a gentle reminder at 4 weeks, a last call at 2 weeks (before final catering numbers), and directions 3 days before. It marks the current step "Now" and links to the right place. It only suggests dates; nothing is sent automatically.
 
+### Phase 4B: Stays & travel in three steps, done (2026-11-13)
+- **Three steps (#37):** **1 Add the hotel** (places, rooms and the nights you've booked), **2 Assign families** ("Give a family their rooms" first, "Place one person instead" folded away, then who's staying where), **3 Arrange pickups** (vehicles, pickup suggestions and journeys). Each step shows its status and a tick when done: the hotel once it has rooms, families once everyone who needs a room has one, pickups once no rides are left to arrange. "Next" buttons move along. "Guests' travel details" and "Print hotel & driver lists" sit under the steps. The four count chips were removed; the step statuses say the same. Old links (`tab=accommodation`, `tab=transport`, `tab=needs&filter=…`) still work.
+- The "Add a place" form asks for the name, phone and address; contact, check-in times and notes are under "More details".
+- Layout fix everywhere: a wide table inside a card now scrolls within that card instead of making every card on the page wider than a phone screen.
+
 ## Soft look (2026-11-08)
 
 An optional soft (neumorphism-inspired) look for the planning workspace. Turn it on from the initials menu, top right: **Soft look**. It's off by default and remembered per device by a cookie, read on the server so there's no flash.
