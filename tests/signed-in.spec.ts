@@ -101,10 +101,14 @@ test("guest desk: paste two families, reply from a family link, see it replied",
   const rao = `TEST Desk Rao ${stamp}`;
   const pai = `TEST Desk Pai ${stamp}`;
   await page.goto("/guests/simple");
-  await page.getByLabel("Families").fill(`${rao}, , 3\n${pai}, +91 98765 43210`);
-  await page.getByRole("button", { name: "Add families" }).click();
+  await page.locator("#family-name-0").fill(rao);
+  await page.locator("#family-guests-0").fill("3");
+  await page.getByRole("button", { name: "Add another family" }).click();
+  await page.locator("#family-name-1").fill(pai);
+  await page.locator("#family-phone-1").fill("98765 43210");
+  await page.getByRole("button", { name: "Add 2 families" }).click();
   await expect(page.getByText(/Added 2 families/)).toBeVisible();
-  await expect(page.getByLabel("Families")).toHaveValue("");
+  await expect(page.locator("#family-name-0")).toHaveValue("");
   const row = page.getByRole("row", { name: new RegExp(rao) });
   await expect(row).toContainText("Not yet");
   await expect(page.getByRole("row", { name: new RegExp(pai) })).toBeVisible();
@@ -123,6 +127,10 @@ test("guest desk: paste two families, reply from a family link, see it replied",
   for (const box of await guest.locator('input[name="events"]').all()) await box.check();
   await guest.getByRole("button", { name: "Send our response" }).click();
   await expect(guest.getByText(/Your response is saved/)).toBeVisible();
+  // Only the family's name is shown: never its guest limit or a phone number.
+  await guest.reload();
+  await expect(guest.getByText("+91 90000 00000")).toHaveCount(0);
+  await expect(guest.getByText(/up to \d+ guests?/)).toHaveCount(0);
   await guest.close();
 
   await page.reload();

@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
 import { addFamilies, deleteFamily, familyCode, FamilyInviteRuleError, recordFamilyReply, recordFamilySend, setFamilyRemoved, updateFamily } from "@/lib/data/family-invites";
-import { databaseProblem, parseFamilyLines, problemText } from "@/lib/planning/family-paste";
+import { checkFamilyEntries, databaseProblem, MAX_FAMILIES_AT_ONCE, type EntryError, type FamilyEntry } from "@/lib/planning/family-entries";
 
-export type AddFamiliesState = { problems?: string[]; error?: string; message?: string; at?: number };
+export type AddFamiliesState = { errors?: EntryError[]; error?: string; message?: string; at?: number };
 type Result = { message?: string; error?: string };
 
 const id = z.uuid();
@@ -21,30 +21,32 @@ function failure(error: unknown, fallback: string) {
 
 async function refresh() { for (const path of ["/guests/simple", "/guests", "/messages", "/overview", "/logistics"]) revalidatePath(path); }
 
-/** The paste box. All or nothing: any problem means nothing is added, and every problem is listed. */
+/**
+ * The "Add families" form: one row per family (name, phone, most guests). All or nothing: any
+ * problem means nothing is added, and each problem is returned against its own box.
+ */
 export async function addFamiliesAction(_state: AddFamiliesState, form: FormData): Promise<AddFamiliesState> {
+  const text = (key: string) => form.getAll(key).map((value) => (typeof value === "string" ? value : ""));
+  const [names, phones, guests] = [text("familyName"), text("familyPhone"), text("familyGuests")];
   const parsed = z.object({
     weddingId: id,
-    text: z.string().max(40_000),
     functionIds: z.array(id).max(50),
     familySide: z.enum(["couple_one", "couple_two", "shared", "unknown"]),
-  }).safeParse({
-    weddingId: form.get("weddingId"), text: form.get("families") ?? "",
-    functionIds: form.getAll("inviteTo").filter((value) => typeof value === "string"),
-    familySide: form.get("familySide") || "unknown",
-  });
-  if (!parsed.success) return { error: parsed.error.issues.some((issue) => issue.path[0] === "text") ? "That's too much text at once. Paste up to 100 families." : BROKEN, at: Date.now() };
-  const { families, problems } = parseFamilyLines(parsed.data.text);
-  const listed = problems.map(problemText);
-  if (!parsed.data.functionIds.length) listed.push("Choose at least one event to invite them to.");
-  if (listed.length) return { problems: listed, at: Date.now() };
+  }).safeParse({ weddingId: form.get("weddingId"), functionIds: form.getAll("inviteTo").filter((value) => typeof value === "string"), familySide: form.get("familySide") || "unknown" });
+  if (!parsed.success || names.length !== phones.length || names.length !== guests.length || names.length > MAX_FAMILIES_AT_ONCE + 1 || [...names, ...phones, ...guests].some((value) => value.length > 200)) {
+    return { error: BROKEN, at: Date.now() };
+  }
+  const entries: FamilyEntry[] = names.map((name, row) => ({ name, phone: phones[row]!, guests: guests[row]! }));
+  const { families, errors } = checkFamilyEntries(entries);
+  if (errors.length) return { errors, at: Date.now() };
+  if (!parsed.data.functionIds.length) return { error: "Choose at least one event to invite them to.", at: Date.now() };
   try {
     const result = await addFamilies(parsed.data.weddingId, families, parsed.data);
-    if (result.status === "invalid") return { problems: result.errors.map((row) => problemText({ line: families[row.index]!.line, name: families[row.index]!.name, message: databaseProblem(row.code) })), at: Date.now() };
+    if (result.status === "invalid") return { errors: result.errors.map((row) => ({ row: families[row.index]!.row, field: "name" as const, message: databaseProblem(row.code) })), at: Date.now() };
     await refresh();
     return { message: `Added ${result.added} ${result.added === 1 ? "family" : "families"}. Tap “Invite” next to each one to send their link.`, at: Date.now() };
   } catch (error) {
-    if (error instanceof FamilyInviteRuleError && /still on/.test(error.message)) return { problems: ["An event you chose was cancelled or archived. Refresh the page and choose again."], at: Date.now() };
+    if (error instanceof FamilyInviteRuleError && /still on/.test(error.message)) return { error: "An event you chose was cancelled or archived. Refresh the page and choose again.", at: Date.now() };
     return { error: failure(error, "Couldn't add these families. Nothing was saved; refresh and try again."), at: Date.now() };
   }
 }

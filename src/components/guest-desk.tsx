@@ -2,16 +2,15 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { Check, Copy, Download, MessageCircle, Trash2, Users } from "lucide-react";
+import { Check, Copy, Download, MessageCircle, Plus, Trash2, Users } from "lucide-react";
 import { addFamiliesAction, deleteFamilyAction, familyCodeAction, recordFamilyReplyAction, recordFamilySendAction, setFamilyRemovedAction, updateFamilyAction, type AddFamiliesState } from "@/app/actions/family-invites";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { Button, Card, DataTable, EmptyState } from "@/components/ui";
 import type { InviteDesk } from "@/lib/data/family-invites";
 import { deleteText, DIETARY_OPTIONS, inviteLink, inviteMessage, reminderMessage, replyLabel, repliesCsv, whatsappLink, type FamilyRow } from "@/lib/family-invites/rules";
-import { MAX_FAMILIES_PER_PASTE } from "@/lib/planning/family-paste";
+import { checkFamilyEntries, emptyEntry, MAX_FAMILIES_AT_ONCE, MAX_FAMILY_NAME, MAX_GUESTS_PER_FAMILY, phoneProblem, tidyPhone, type EntryError, type EntryField, type FamilyEntry } from "@/lib/planning/family-entries";
 import { formatDate } from "@/lib/format";
 
-const EXAMPLE = "Rao family, +91 98765 43210, 4\nPai family, , 2\nAsha Aunty & Uncle";
 type Status = { message?: string; error?: string };
 
 export function GuestDesk({ desk }: { desk: InviteDesk }) {
@@ -53,36 +52,73 @@ function Tile({ label, value }: { label: string; value: number }) {
   return <div className="card stat-card"><p className="stat-label">{label}</p><p className="stat-value">{value}</p></div>;
 }
 
-/** The paste box. The text stays after a problem (React would otherwise reset the form) and clears once added. */
+/**
+ * "Add families": one row per family with its own boxes for the name, phone and most guests. The
+ * rows are kept in state, so what was typed stays after a problem (React would otherwise reset the
+ * form), and they clear once the families are added. The same checks run here and on the server.
+ */
 function AddFamilies({ desk }: { desk: InviteDesk }) {
-  const [text, setText] = useState("");
+  const [entries, setEntries] = useState<FamilyEntry[]>(() => [emptyEntry()]);
+  const [shown, setShown] = useState<EntryError[]>([]);
   const [chosen, setChosen] = useState<string[]>(() => desk.functions.map((fn) => fn.id));
   const [side, setSide] = useState("unknown");
   const [state, action, pending] = useActionState(async (previous: AddFamiliesState, form: FormData) => {
     const result = await addFamiliesAction(previous, form);
-    if (result.message) setText("");
+    setShown(result.errors ?? []);
+    if (result.message) setEntries([emptyEntry()]);
     return result;
   }, {});
-  const lines = text.split(/\r?\n/).filter((line) => line.trim()).length;
+  const errorFor = (row: number, field: EntryField) => shown.find((error) => error.row === row && error.field === field)?.message;
+  const change = (row: number, field: EntryField, value: string) => {
+    setEntries((current) => current.map((entry, index) => (index === row ? { ...entry, [field]: value } : entry)));
+    setShown((current) => current.filter((error) => !(error.row === row && error.field === field)));
+  };
+  const removeRow = (row: number) => {
+    setEntries((current) => current.filter((_, index) => index !== row));
+    setShown((current) => current.filter((error) => error.row !== row).map((error) => (error.row > row ? { ...error, row: error.row - 1 } : error)));
+  };
+  /** Checks in the browser first; the form is only sent when every box is fine. */
+  const check = (event: React.FormEvent<HTMLFormElement>) => {
+    const { errors } = checkFamilyEntries(entries);
+    if (!errors.length) return;
+    event.preventDefault();
+    setShown(errors);
+    const first = errors[0]!;
+    event.currentTarget.querySelector<HTMLElement>(`#family-${first.field}-${first.row}`)?.focus();
+  };
+  const filled = entries.some((entry) => entry.name.trim() || entry.phone.trim() || entry.guests.trim());
   return <Card title="Add families" subtitle="Each family gets its own link. It greets them by name, and their reply shows up against their name below.">
-    {!desk.functions.length ? <p className="field-help">Add your events first on <Link href="/functions">Plan → Functions</Link>, then come back to invite families to them.</p> : <form action={action} className="section-stack desk-add-form">
+    {!desk.functions.length ? <p className="field-help">Add your events first on <Link href="/functions">Plan → Functions</Link>, then come back to invite families to them.</p> : <form action={action} onSubmit={check} noValidate className="section-stack desk-add-form">
       <input type="hidden" name="weddingId" value={desk.weddingId} />
-      <div className="field">
-        <label className="field-label" htmlFor="desk-families">Families</label>
-        <textarea id="desk-families" name="families" className="field-control" rows={6} value={text} onChange={(event) => setText(event.target.value)} placeholder={EXAMPLE} aria-describedby="desk-families-help" aria-invalid={Boolean(state.problems?.length)} spellCheck={false} />
-        <span className="field-help" id="desk-families-help">One family per line: the name they&apos;ll be greeted by, then optionally a <strong>phone</strong> and the <strong>most guests</strong> they may bring, separated by commas. Leave commas out of names. Up to {MAX_FAMILIES_PER_PASTE} at a time. Numbers like 98765 43210 get +91 added.{lines ? ` ${lines} line${lines === 1 ? "" : "s"}.` : ""}</span>
-      </div>
+      <ol className="family-entries">{entries.map((entry, row) => {
+        const tidy = tidyPhone(entry.phone);
+        const box = (field: EntryField, label: string, input: React.ReactNode, hint?: string) => {
+          const error = errorFor(row, field);
+          return <div className="field"><label className="field-label" htmlFor={`family-${field}-${row}`}>{label}</label>{input}
+            {error ? <span className="field-error" id={`family-${field}-${row}-error`} role="alert">{error}</span> : hint ? <span className="field-help">{hint}</span> : null}</div>;
+        };
+        const describe = (field: EntryField) => errorFor(row, field) ? { "aria-invalid": true as const, "aria-describedby": `family-${field}-${row}-error` } : {};
+        return <li key={row} className="family-entry">
+          <span className="family-entry-number" aria-hidden="true">{row + 1}</span>
+          {box("name", "Family name", <input id={`family-name-${row}`} name="familyName" className="field-control" value={entry.name} onChange={(event) => change(row, "name", event.target.value)} maxLength={MAX_FAMILY_NAME} autoComplete="off" placeholder="Rao family" {...describe("name")} />, "As they'll be greeted: “Dear Rao family”.")}
+          {box("phone", "WhatsApp number (optional)", <input id={`family-phone-${row}`} name="familyPhone" className="field-control" type="tel" inputMode="tel" value={entry.phone} onChange={(event) => change(row, "phone", event.target.value)} maxLength={20} autoComplete="off" placeholder="98765 43210" {...describe("phone")} />, entry.phone.trim() && tidy !== entry.phone.trim() && !phoneProblem(tidy) ? `Saved as ${tidy}` : "So Invite opens their chat.")}
+          {box("guests", "Most guests (optional)", <input id={`family-guests-${row}`} name="familyGuests" className="field-control" inputMode="numeric" value={entry.guests} onChange={(event) => change(row, "guests", event.target.value.replace(/[^0-9]/g, ""))} maxLength={2} autoComplete="off" placeholder="4" {...describe("guests")} />, `1 to ${MAX_GUESTS_PER_FAMILY}. Leave empty for any number.`)}
+          {entries.length > 1 && <Button type="button" variant="quiet" className="family-entry-remove" onClick={() => removeRow(row)} aria-label={`Remove row ${row + 1}`}><Trash2 size={15} aria-hidden="true" /></Button>}
+        </li>;
+      })}</ol>
+      {entries.length < MAX_FAMILIES_AT_ONCE && <div><Button type="button" variant="secondary" onClick={() => setEntries((current) => [...current, emptyEntry()])}><Plus size={15} aria-hidden="true" /> Add another family</Button></div>}
       <fieldset className="starter-list family-invite-list"><legend className="field-label">Invite them to</legend>
         {desk.functions.map((fn) => <label key={fn.id} className="checkbox-row"><input type="checkbox" name="inviteTo" value={fn.id} checked={chosen.includes(fn.id)} onChange={(event) => setChosen((current) => event.target.checked ? [...current, fn.id] : current.filter((value) => value !== fn.id))} /><span>{fn.name}{fn.date ? ` · ${formatDate(fn.date, desk.timezone)}` : ""}</span></label>)}
+        {!chosen.length && <span className="field-error" role="alert">Choose at least one event.</span>}
       </fieldset>
       <div className="field desk-side"><label className="field-label" htmlFor="desk-side">Whose side</label>
         <select id="desk-side" name="familySide" className="field-control" value={side} onChange={(event) => setSide(event.target.value)}>
           {(["couple_one", "couple_two", "shared", "unknown"] as const).map((value) => <option key={value} value={value}>{desk.familySideLabels[value]}</option>)}
         </select></div>
-      {state.problems?.length ? <div className="auth-alert" role="alert"><p><strong>Nothing was added.</strong> Fix {state.problems.length === 1 ? "this" : `these ${state.problems.length} problems`} and try again:</p><ul>{state.problems.map((problem) => <li key={problem}>{problem}</li>)}</ul></div> : null}
+      {shown.length > 0 && <p className="auth-alert" role="alert"><strong>Nothing was added.</strong> Fix the {shown.length === 1 ? "box" : "boxes"} marked in red and try again.</p>}
       {state.error && <p className="auth-alert" role="alert">{state.error}</p>}
-      {state.message && <p className="auth-success" role="status">{state.message}</p>}
-      <div className="form-actions"><Button type="submit" disabled={pending || !lines || !chosen.length}>{pending ? "Adding…" : "Add families"}</Button></div>
+      {state.message && !shown.length && <p className="auth-success" role="status">{state.message}</p>}
+      <div className="form-actions"><Button type="submit" disabled={pending || !filled || !chosen.length}>{pending ? "Adding…" : entries.length > 1 ? `Add ${entries.length} families` : "Add family"}</Button></div>
     </form>}
   </Card>;
 }

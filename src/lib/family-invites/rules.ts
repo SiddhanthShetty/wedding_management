@@ -72,7 +72,7 @@ export function replySchema(maxGuests: number | null, functionIds: string[] | nu
     fullName: z.string().transform(clean).pipe(z.string().min(2, "Please enter your full name.").max(120)),
     phone: z.string().transform(clean).pipe(z.string().regex(/^\+?[0-9][0-9 ()-]{6,19}$/, "Please enter a valid phone number.")),
     attending: z.enum(["accept", "decline"], "Please let us know if you can come."),
-    guestCount: z.coerce.number().int().min(0).max(max, `This invitation is for up to ${max} ${max === 1 ? "guest" : "guests"}.`).default(0),
+    guestCount: z.coerce.number().int().min(0).max(max, "Please choose how many of you are coming from the list.").default(0),
     events: z.array(z.string()).max(50).default([]),
     dietary: z.enum(DIETARY).default("none"),
     dietaryNotes: line(300).default(""),
@@ -100,7 +100,7 @@ export function replyErrors(error: z.ZodError): Partial<Record<ReplyFields, stri
 
 /** What the database says when it refuses a field. */
 export function databaseFieldMessage(field: string | undefined, maxGuests: number | null): Partial<Record<ReplyFields, string>> {
-  if (field === "guestCount") return { guestCount: maxGuests ? `This invitation is for up to ${maxGuests} ${maxGuests === 1 ? "guest" : "guests"}.` : "Please tell us how many of you are coming." };
+  if (field === "guestCount") return { guestCount: maxGuests ? "Please choose how many of you are coming from the list." : "Please tell us how many of you are coming." };
   if (field === "events") return { events: "Please choose from the events listed." };
   if (field === "fullName") return { fullName: "Please enter your full name." };
   if (field === "phone") return { phone: "Please enter a valid phone number." };

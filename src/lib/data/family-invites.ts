@@ -4,7 +4,7 @@ import { AuthorizationDeniedError, authorizeWeddingOperation } from "@/lib/auth/
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDuplicateSubmission } from "@/lib/data/travel";
 import { deskTotals, familyRows, functionHeadcounts, newInviteCode, sortFamilies, withoutLink, type DeskFamily, type DeskInvite, type DeskMessage, type DeskReply } from "@/lib/family-invites/rules";
-import type { PastedFamily } from "@/lib/planning/family-paste";
+import type { CheckedFamily } from "@/lib/planning/family-entries";
 
 /** A rule the planner can fix (shown as written). */
 export class FamilyInviteRuleError extends Error { constructor(message: string) { super(message); this.name = "FamilyInviteRuleError"; } }
@@ -69,8 +69,8 @@ export async function getInviteDesk(weddingId: string) {
 }
 export type InviteDesk = Awaited<ReturnType<typeof getInviteDesk>>;
 
-/** Adds every pasted family in one database transaction, each with its own link code. */
-export async function addFamilies(weddingId: string, families: PastedFamily[], input: { functionIds: string[]; familySide: string }):
+/** Adds every family from the form in one database transaction, each with its own link code. */
+export async function addFamilies(weddingId: string, families: CheckedFamily[], input: { functionIds: string[]; familySide: string }):
   Promise<{ status: "invalid"; errors: Array<{ index: number; code: string }> } | { status: "saved"; added: number }> {
   const { supabase } = await editor(weddingId);
   const { data, error } = await supabase.rpc("create_family_invites_bulk", {

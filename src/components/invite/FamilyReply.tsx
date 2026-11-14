@@ -8,7 +8,8 @@ import type { FamilyInvitation } from "@/lib/family-invites/public";
 import { SectionHeading } from "./Section";
 
 type Status = { kind: "idle" } | { kind: "sending" } | { kind: "error"; message: string } | { kind: "done"; attending: boolean; name: string };
-type Saved = NonNullable<FamilyInvitation["reply"]>;
+/** The family's saved answers. Who replied, and their phone, are never sent to the page. */
+export type SavedReply = Pick<NonNullable<FamilyInvitation["reply"]>, "attending" | "guest_count" | "function_ids" | "dietary" | "dietary_notes" | "message">;
 
 function Err({ id, message }: { id: string; message?: string }) {
   return message ? <p id={id} className="mt-1.5 text-[1rem] text-[#8E1B16]">{message}</p> : null;
@@ -18,8 +19,8 @@ function Err({ id, message }: { id: string; message?: string }) {
  * One reply for the whole family, as on the invitation site. Replying again, from any phone,
  * updates the same reply.
  */
-export function FamilyReply({ code, family, maxGuests, events, saved, respondBy }: { code: string; family: string; maxGuests: number | null; events: Array<{ id: string; name: string }>; saved: Saved | null; respondBy: string | null }) {
-  const [status, setStatus] = useState<Status>(saved ? { kind: "done", attending: saved.attending, name: saved.name.split(" ")[0] ?? "" } : { kind: "idle" });
+export function FamilyReply({ code, family, maxGuests, events, saved, respondBy }: { code: string; family: string; maxGuests: number | null; events: Array<{ id: string; name: string }>; saved: SavedReply | null; respondBy: string | null }) {
+  const [status, setStatus] = useState<Status>(saved ? { kind: "done", attending: saved.attending, name: "" } : { kind: "idle" });
   const [attending, setAttending] = useState<"accept" | "decline" | "">(saved ? (saved.attending ? "accept" : "decline") : "");
   const [errors, setErrors] = useState<Partial<Record<ReplyFields, string>>>({});
   const form = useRef<HTMLFormElement>(null);
@@ -90,7 +91,7 @@ export function FamilyReply({ code, family, maxGuests, events, saved, respondBy 
         {status.kind === "done" ? (
           <div ref={result} tabIndex={-1} role="status" className="py-6 text-center outline-none">
             <CircleCheck className="mx-auto size-12 text-leaf" aria-hidden="true" />
-            <h3 className="mt-4 font-display text-[2rem] leading-tight font-medium">Thank you{status.name ? `, ${status.name}` : ""}. Your response is saved.</h3>
+            <h3 className="mt-4 font-display text-[2rem] leading-tight font-medium">Thank you{status.name ? `, ${status.name}` : ""}. {status.name ? "Your response is saved." : "Your family\u2019s response is saved."}</h3>
             <p className="mx-auto mt-3 max-w-md text-maroon/85">
               {status.attending ? "We are so glad you can come, and we look forward to celebrating with you." : "We will miss you, and we are grateful for your blessings."}
             </p>
@@ -99,18 +100,18 @@ export function FamilyReply({ code, family, maxGuests, events, saved, respondBy 
         ) : (
           <form ref={form} onSubmit={onSubmit} onInput={clearError} onChange={clearError} noValidate className="space-y-6">
             <p className="border-l-2 border-gold bg-parchment/60 px-3 py-2">
-              Replying for <span className="font-semibold">{family}</span>{maxGuests ? ` (up to ${maxGuests} ${maxGuests === 1 ? "guest" : "guests"})` : ""}. Anyone in the family can reply; the latest reply counts.
+              Replying for <span className="font-semibold">{family}</span>. Anyone in the family can reply; the latest reply counts.
             </p>
             <p className="text-[1rem] text-maroon/75">Fields marked with * are needed.</p>
             <div className="grid gap-6 sm:grid-cols-2">
               <div>
                 <label htmlFor="fullName" className="inv-label">Your name *</label>
-                <input id="fullName" name="fullName" className="inv-field" autoComplete="name" maxLength={120} required defaultValue={saved?.name ?? ""} {...describe("fullName")} />
+                <input id="fullName" name="fullName" className="inv-field" autoComplete="name" maxLength={120} required {...describe("fullName")} />
                 <Err id="err-fullName" message={errors.fullName} />
               </div>
               <div>
                 <label htmlFor="phone" className="inv-label">Phone number *</label>
-                <input id="phone" name="phone" type="tel" inputMode="tel" className="inv-field" autoComplete="tel" maxLength={20} required placeholder="+91 98765 43210" defaultValue={saved?.phone ?? ""} {...describe("phone")} />
+                <input id="phone" name="phone" type="tel" inputMode="tel" className="inv-field" autoComplete="tel" maxLength={20} required placeholder="+91 98765 43210" {...describe("phone")} />
                 <Err id="err-phone" message={errors.phone} />
               </div>
             </div>

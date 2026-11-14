@@ -3,7 +3,7 @@ import { COVER_SCRIPT, Cover, PetalShower } from "@/components/invite/Cover";
 import { Countdown } from "@/components/invite/Countdown";
 import { Events } from "@/components/invite/Events";
 import { Families } from "@/components/invite/Families";
-import { FamilyReply } from "@/components/invite/FamilyReply";
+import { FamilyReply, type SavedReply } from "@/components/invite/FamilyReply";
 import { Footer } from "@/components/invite/Footer";
 import { GoodToKnow, hasGoodToKnow } from "@/components/invite/GoodToKnow";
 import { Hero } from "@/components/invite/Hero";
@@ -19,6 +19,13 @@ function weddingInstant(date: string | null, timezone: string, functions: Array<
   if (!date) return null;
   const sameDay = functions.filter((fn) => fn.date === date && fn.start_time).map((fn) => fn.start_time!.slice(0, 5)).sort()[0];
   try { return zonedDateTimeToUtc(date, invitationConfig.weddingTime ?? sameDay ?? "00:00", timezone); } catch { return null; }
+}
+
+/** Only the answers go to the page: who replied and their phone number are never shown or sent. */
+function savedReply(reply: FamilyInvitation["reply"]): SavedReply | null {
+  if (!reply) return null;
+  const { attending, guest_count, function_ids, dietary, dietary_notes, message } = reply;
+  return { attending, guest_count, function_ids, dietary, dietary_notes, message };
 }
 
 /** The couple's invitation for one family: their name on the cover, their events and their reply. */
@@ -39,7 +46,7 @@ export function InvitationView({ code, invitation }: { code: string; invitation:
         <Families />
         <Events events={invitation.functions} />
         <GoodToKnow notes={invitationConfig.goodToKnow} />
-        <FamilyReply code={code} family={invitation.family} maxGuests={invitation.max_guests} events={invitation.functions.map((fn) => ({ id: fn.id, name: fn.name }))} saved={invitation.reply} respondBy={respondBy} />
+        <FamilyReply code={code} family={invitation.family} maxGuests={invitation.max_guests} events={invitation.functions.map((fn) => ({ id: fn.id, name: fn.name }))} saved={savedReply(invitation.reply)} respondBy={respondBy} />
         <Countdown targetMs={target ? target.getTime() : null} dateLabel={date ? `${date.weekday}, ${date.long} (${invitation.wedding.timezone === "Asia/Kolkata" ? "India time" : invitation.wedding.timezone})` : null} />
       </main>
       <Footer weddingDate={weddingDate} />

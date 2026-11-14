@@ -4,7 +4,7 @@ import {
   CODE_PATTERN, databaseFieldMessage, deleteText, deskTotals, familyRows, functionHeadcounts, inviteLink, inviteMessage, mealsByFunction, newInviteCode, reminderMessage,
   repliesCsv, replyErrors, replyLabel, replySchema, sortFamilies, whatsappLink, withoutLink, type DeskFamily, type DeskReply,
 } from "../src/lib/family-invites/rules";
-import { databaseProblem, familyNameKey, parseFamilyLines, problemText, tidyPhone } from "../src/lib/planning/family-paste";
+import { checkFamilyEntries, databaseProblem, familyNameKey, phoneProblem, tidyPhone } from "../src/lib/planning/family-entries";
 import { eventArtFor, invitationConfig } from "../src/config/invitation";
 import { familyRecipients } from "../src/lib/data/communications";
 
@@ -48,19 +48,21 @@ describe("the family's reply", () => {
 
   it("explains each problem in plain words", () => {
     const errors = (value: object, max: number | null = 4) => { const result = replySchema(max, events).safeParse({ ...base, ...value }); return result.success ? {} : replyErrors(result.error); };
-    expect(errors({ guestCount: "5" })).toEqual({ guestCount: "This invitation is for up to 4 guests." });
+    expect(errors({ guestCount: "5" })).toEqual({ guestCount: "Please choose how many of you are coming from the list." });
     expect(errors({ guestCount: "0" })).toEqual({ guestCount: "Please tell us how many of you are coming." });
     expect(errors({ events: [] })).toEqual({ events: "Please choose at least one event." });
     expect(errors({ events: ["other"] })).toEqual({ events: "Please choose from the events listed." });
     expect(errors({ fullName: "R" })).toEqual({ fullName: "Please enter your full name." });
     expect(errors({ phone: "call me" })).toEqual({ phone: "Please enter a valid phone number." });
     expect(errors({ attending: "" })).toEqual({ attending: "Please let us know if you can come." });
-    expect(errors({ guestCount: "21" }, null)).toEqual({ guestCount: "This invitation is for up to 20 guests." });
+    expect(errors({ guestCount: "21" }, null)).toEqual({ guestCount: "Please choose how many of you are coming from the list." });
+    // The family's guest limit is never written out on the invitation.
+    for (const message of Object.values(errors({ guestCount: "5" }))) expect(message).not.toMatch(/\d/);
   });
 
   it("leaves the event check to the database on the server", () => {
     expect(replySchema(null, null).safeParse({ ...base, events: ["anything"] }).success).toBe(true);
-    expect(databaseFieldMessage("guestCount", 2)).toEqual({ guestCount: "This invitation is for up to 2 guests." });
+    expect(databaseFieldMessage("guestCount", 2)).toEqual({ guestCount: "Please choose how many of you are coming from the list." });
     expect(databaseFieldMessage("events", null)).toEqual({ events: "Please choose from the events listed." });
     expect(databaseFieldMessage(undefined, null)).toEqual({});
   });
@@ -123,34 +125,53 @@ describe("the Guest desk", () => {
   });
 });
 
-describe("pasting families", () => {
-  it("reads name, phone and the most guests, ignoring blank lines", () => {
-    const { families, problems } = parseFamilyLines("Rao family, +91 98765 43210, 4\n\n  Pai   family , , 2 \nAsha Aunty & Uncle\r\nBhat family, 3");
-    expect(problems).toEqual([]);
-    expect(families).toEqual([
-      { line: 1, name: "Rao family", phone: "+91 98765 43210", maxGuests: 4 },
-      { line: 3, name: "Pai family", phone: "", maxGuests: 2 },
-      { line: 4, name: "Asha Aunty & Uncle", phone: "", maxGuests: null },
-      { line: 5, name: "Bhat family", phone: "", maxGuests: 3 },
-    ]);
+describe("adding families, one row each", () => {
+  const row = (name: string, phone = "", guests = "") => ({ name, phone, guests });
+
+  it("reads each row's name, phone and most guests, and skips empty rows", () => {
+    expect(checkFamilyEntries([row("  Rao   family ", "98765 43210", "4"), row(""), row("Asha Aunty & Uncle"), row("Pai family", "+44 7700 900123", "")])).toEqual({
+      families: [
+        { row: 0, name: "Rao family", phone: "+91 98765 43210", maxGuests: 4 },
+        { row: 2, name: "Asha Aunty & Uncle", phone: "", maxGuests: null },
+        { row: 3, name: "Pai family", phone: "+44 7700 900123", maxGuests: null },
+      ],
+      errors: [],
+    });
   });
 
-  it("adds +91 to bare Indian mobiles and keeps other numbers as typed", () => {
-    expect(tidyPhone("98765 43210")).toBe("+91 98765 43210");
+  it("tidies Indian mobiles however they are typed, and asks for a country code otherwise", () => {
+    for (const typed of ["98765 43210", "9876543210", "+91 98765-43210", "0091 98765 43210", "919876543210"]) expect(tidyPhone(typed)).toBe("+91 98765 43210");
     expect(tidyPhone("00353871234567")).toBe("+353871234567");
-    expect(tidyPhone("0824 222 3333")).toBe("0824 222 3333");
+    expect(phoneProblem(tidyPhone("0824 222 3333"))).toMatch(/10-digit mobile number, or \+ and the country code/);
+    expect(phoneProblem(tidyPhone("98765"))).toMatch(/10-digit/);
+    expect(phoneProblem(tidyPhone("+91 98"))).toMatch(/doesn't look right/);
+    expect(phoneProblem("call me")).toBe("Use digits only, for example 98765 43210.");
+    expect(phoneProblem("")).toBeNull();
   });
 
-  it("lists every problem with its line number", () => {
-    const { problems } = parseFamilyLines(["Rao family, , 25", "Shenoy, Ravi and Asha, +91 90000 00000, 2", ", +91 98765 43210", "Kini family, call me", "rao   FAMILY, , 21", "Rao family"].join("\n"));
-    expect(problems.map(problemText)).toEqual([
-      "Line 1 (Rao family): number of guests should be 1 to 20.",
-      "Line 2 (Shenoy): use at most two commas (name, phone, number of guests). Leave commas out of the name.",
-      "Line 3: add the family's name first, for example “Rao family”.",
-      "Line 4 (Kini family): that phone number doesn't look right. Use digits, starting with + and the country code, for example +91 98765 43210.",
-      "Line 5 (rao FAMILY): number of guests should be 1 to 20.",
+  it("reports each problem against its own box, and adds nothing", () => {
+    const result = checkFamilyEntries([row("Rao family", "", "25"), row("", "98765 43210"), row("R"), row("1234"), row("Kini family", "call me", "two"), row("Rao family"), row("rao   FAMILY"), row("<b>Bad</b> family")]);
+    expect(result.errors).toEqual([
+      { row: 0, field: "guests", message: "Enter a number from 1 to 20." },
+      { row: 1, field: "name", message: "Enter the family's name, for example “Rao family”." },
+      { row: 2, field: "name", message: "Use at least 2 letters." },
+      { row: 3, field: "name", message: "The name needs letters, not just numbers or symbols." },
+      { row: 4, field: "phone", message: "Use digits only, for example 98765 43210." },
+      { row: 4, field: "guests", message: "Enter a whole number, like 4." },
+      { row: 5, field: "name", message: "This family is already in row 1." },
+      { row: 6, field: "name", message: "This family is already in row 1." },
+      { row: 7, field: "name", message: "Leave out < and > and special characters." },
     ]);
-    expect(parseFamilyLines("Rao family\nRAO  family").problems.map(problemText)).toEqual(["Line 2 (RAO family): this family is already on line 1."]);
+  });
+
+  it("needs at least one family, at most 50, and names under 120 letters", () => {
+    expect(checkFamilyEntries([row(""), row("")]).errors).toEqual([{ row: 0, field: "name", message: "Enter at least one family." }]);
+    expect(checkFamilyEntries(Array.from({ length: 51 }, (_, i) => row(`Family ${i + 1}`))).errors).toEqual([{ row: 50, field: "name", message: "Add up to 50 families at a time." }]);
+    expect(checkFamilyEntries([row("x".repeat(121))]).errors[0]!.message).toBe("Keep the name under 120 characters.");
+    expect(checkFamilyEntries([row("Rao family", "", "0")]).errors[0]!.message).toBe("Enter a number from 1 to 20.");
+  });
+
+  it("compares names like the database does, and explains its refusals", () => {
     expect(familyNameKey(" Rao  Family ")).toBe("rao family");
     expect(databaseProblem("exists")).toMatch(/already on your list/);
   });

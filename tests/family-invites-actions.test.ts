@@ -25,9 +25,10 @@ import { submitFamilyReplyAction } from "../src/app/actions/family-reply";
 
 const weddingId = "a0000000-0000-4000-8000-000000000001";
 const fn = "a2000000-0000-4000-8000-000000000001";
-const form = (families: string, inviteTo: string[] = [fn]) => {
+const form = (rows: Array<[string, string?, string?]>, inviteTo: string[] = [fn]) => {
   const data = new FormData();
-  data.set("weddingId", weddingId); data.set("families", families); data.set("familySide", "couple_two");
+  data.set("weddingId", weddingId); data.set("familySide", "couple_two");
+  for (const [name, phone = "", guests = ""] of rows) { data.append("familyName", name); data.append("familyPhone", phone); data.append("familyGuests", guests); }
   for (const id of inviteTo) data.append("inviteTo", id);
   return data;
 };
@@ -36,15 +37,21 @@ const reply = { fullName: "Ravi Rao", phone: "+91 98765 43210", attending: "acce
 beforeEach(() => { state.calls = []; state.result = null; state.error = null; state.denied = false; state.limited = false; });
 
 describe("Add families", () => {
-  it("lists line problems and never calls the database when any line is wrong", async () => {
-    expect((await addFamiliesAction({}, form("Rao family, +91 98765 43210, 4\nPai family, , 25"))).problems).toEqual(["Line 2 (Pai family): number of guests should be 1 to 20."]);
-    expect((await addFamiliesAction({}, form("Rao family", []))).problems).toEqual(["Choose at least one event to invite them to."]);
+  it("returns each problem against its box and never calls the database when any box is wrong", async () => {
+    expect((await addFamiliesAction({}, form([["Rao family", "+91 98765 43210", "4"], ["Pai family", "", "25"]]))).errors).toEqual([{ row: 1, field: "guests", message: "Enter a number from 1 to 20." }]);
+    expect((await addFamiliesAction({}, form([["Rao family"]], []))).error).toBe("Choose at least one event to invite them to.");
+    expect(state.calls).toEqual([]);
+  });
+
+  it("refuses a tampered form", async () => {
+    const data = form([["Rao family"]]); data.append("familyName", "Extra");
+    expect((await addFamiliesAction({}, data)).error).toMatch(/Refresh it/);
     expect(state.calls).toEqual([]);
   });
 
   it("sends every family in one call, each with its own code", async () => {
     state.result = { status: "saved", families: [{}, {}] };
-    const result = await addFamiliesAction({}, form("Rao family, 98765 43210, 4\nPai family"));
+    const result = await addFamiliesAction({}, form([["Rao family", "98765 43210", "4"], ["", "", ""], ["Pai family"]]));
     expect(state.calls).toHaveLength(1);
     const { name, args } = state.calls[0]!;
     expect(name).toBe("create_family_invites_bulk");
@@ -56,13 +63,13 @@ describe("Add families", () => {
     expect(result.message).toMatch(/^Added 2 families\./);
   });
 
-  it("shows names already on the list as line problems, and refuses without permission", async () => {
+  it("shows names already on the list on that row's name box, and refuses without permission", async () => {
     state.result = { status: "invalid", errors: [{ index: 1, code: "exists" }] };
-    expect((await addFamiliesAction({}, form("Rao family\n\nShetty family, , 3"))).problems).toEqual(["Line 3 (Shetty family): a family with this name is already on your list. Give this one a different name, or edit the existing family."]);
+    expect((await addFamiliesAction({}, form([["Rao family"], ["", "", ""], ["Shetty family", "", "3"]]))).errors).toEqual([{ row: 2, field: "name", message: "A family with this name is already on your list. Use a different name, or edit the existing family." }]);
     state.denied = true;
-    expect((await addFamiliesAction({}, form("Rao family"))).error).toMatch(/no longer change this/);
+    expect((await addFamiliesAction({}, form([["Rao family"]]))).error).toMatch(/no longer change this/);
     state.denied = false; state.error = { message: "boom" };
-    expect((await addFamiliesAction({}, form("Rao family"))).error).toBe("Couldn't add these families. Nothing was saved; refresh and try again.");
+    expect((await addFamiliesAction({}, form([["Rao family"]]))).error).toBe("Couldn't add these families. Nothing was saved; refresh and try again.");
   });
 });
 

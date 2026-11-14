@@ -1400,3 +1400,17 @@ html[data-cover] .invite-site #cover { position: fixed; inset: 0; z-index: 60; d
 .invite-site .inv-btn-maroon { color: var(--color-ivory); }
 .invite-site .inv-btn-gold { color: var(--color-maroon-deep); }
 .guest-desk .desk-danger { color: #a3211b; }
+/* Add families: one row of boxes per family */
+.family-entries { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.family-entry { position: relative; display: grid; grid-template-columns: 28px minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1fr) 44px; gap: 12px; align-items: start; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--white); }
+.family-entry > .field { min-width: 0; }
+.family-entry-number { display: grid; place-items: center; width: 28px; height: 28px; margin-top: 26px; border-radius: 50%; background: var(--sage-soft); color: var(--sage); font-weight: 650; font-size: 13px; }
+.family-entry-remove { margin-top: 22px; min-height: 44px; min-width: 44px; }
+@media (max-width: 760px) {
+  .family-entry { grid-template-columns: 1fr; padding: 12px 12px 8px; }
+  .family-entry-number { position: absolute; top: 10px; right: 10px; margin: 0; }
+  .family-entry > .field:first-of-type { padding-right: 36px; }
+  .family-entry-remove { margin-top: 0; justify-self: start; }
+}
+.guest-desk .guest-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 760px) { .guest-desk .guest-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

@@ -10,12 +10,15 @@ the per-person guest links are gone.
 
 ## For the couple: the Guest desk
 
-- **Add families.** Paste one family per line: `name, phone (optional), most guests (optional)`, for
-  example `Rao family, +91 98765 43210, 4`. Choose the events they're invited to and whose side they're on.
-  All or nothing: any problem lists every bad line and adds nothing; the text stays in the box. Names already
-  on the list (ignoring case and spacing) and repeats in the same paste are refused. A bare 10-digit Indian
-  mobile (starting 6–9) gets `+91`, so WhatsApp opens that chat. Each family also gets one contact person,
-  named after the family, so messages and stays have someone to attach to.
+- **Add families.** One row per family, with three boxes: **Family name** (how they're greeted: "Dear
+  Rao family"), **WhatsApp number** (optional) and **Most guests** (optional, 1–20). "Add another family"
+  adds rows (up to 50 at once). Choose the events they're invited to and whose side they're on.
+  Each box is checked in the browser and again on the server, and problems show under the box:
+  a name needs 2–120 characters with letters and no < or >; a phone must be a 10-digit Indian mobile
+  (saved as +91 98765 43210, the box shows "Saved as …") or + and a country code; most guests is a whole
+  number from 1 to 20; a name already on the list, or repeated in another row, is refused. All or
+  nothing: if any box has a problem, nothing is added and everything typed stays. Each family also gets
+  one contact person, named after the family, so messages and stays have someone to attach to.
 - **Each row:** Invite (opens WhatsApp with the message and link; records "sent by you" in Messages),
   Remind (families who haven't replied), Copy link, and under More: change events and most guests, record a
   reply that came by phone, make a new link (the old one stops working), the family's people, and
@@ -33,10 +36,11 @@ the per-person guest links are gone.
 
 ## For the family: `/i/<code>`
 
-The invitation site's page, with the events read from **Plan → Functions** (date, time, venue, map link,
+The invitation site's page, greeting the family by name only: the family's phone number and guest
+limit are never shown, and the page is never sent who replied before or their phone. The events are read from **Plan → Functions** (date, time, venue, map link,
 dress code) and only the events this family is invited to. Wording, family lines, notes and music are in
-`src/config/invitation.ts`. The reply form asks: name, phone, coming or not, how many (up to the family's
-limit), which events, food choice and notes, a message. Anyone in the family can reply, from any phone; the
+`src/config/invitation.ts`. The reply form asks: name, phone, coming or not, how many (a list that stops at
+the family's limit, without stating it), which events, food choice and notes, a message. Anyone in the family can reply, from any phone; the
 latest reply counts and every version is kept in `family_reply_history`.
 
 English only for now (as on the invitation site). The music is the invitation site's own track, "A Sacred
