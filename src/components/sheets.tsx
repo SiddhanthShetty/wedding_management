@@ -42,6 +42,12 @@ export function SheetImporter({ weddingId, drive = null }: { weddingId: string; 
   const [error, setError] = useState("");
 
   async function read(next: File, sheetIndex = 0, headerRow = true) {
+    // Google Drive for desktop shows Google Sheets as small .gsheet shortcut files: a link, no rows.
+    if (/\.gsheet$/i.test(next.name)) {
+      setError(`"${next.name}" is a shortcut to a Google Sheet, not the sheet itself.${drive ? " Use From Google Drive instead, or" : " In Google Sheets,"} choose File → Download → Microsoft Excel (.xlsx) and upload that file.`);
+      if (input.current) input.current.value = "";
+      return;
+    }
     if (next.size > SHEET_LIMITS.bytes) { setError("Files can be up to 5 MB."); return; }
     const form = new FormData();
     form.set("weddingId", weddingId); form.set("file", next); form.set("sheetIndex", String(sheetIndex)); form.set("headerRow", String(headerRow));
@@ -84,7 +90,7 @@ export function SheetImporter({ weddingId, drive = null }: { weddingId: string; 
 
   const empty = preview && preview.columns.length === 0;
   return <Card title="Add a table from a file" subtitle="Excel (.xlsx) or CSV, up to 5 MB, 2,000 rows and 50 columns. You'll check it before anything is saved.">
-    <input ref={input} id="sheet-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" className="sr-only" onChange={(event) => { const next = event.target.files?.[0]; if (next) void read(next); }} />
+    <input ref={input} id="sheet-file" type="file" accept=".xlsx,.csv,.gsheet,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" className="sr-only" onChange={(event) => { const next = event.target.files?.[0]; if (next) void read(next); }} />
     {!preview && <div className="sheet-upload">
       <div className="sheet-sources">
         <Button type="button" onClick={() => input.current?.click()} disabled={pending !== ""}><Upload size={15} aria-hidden="true" /> {pending === "reading" ? "Reading the file…" : "Choose a file"}</Button>

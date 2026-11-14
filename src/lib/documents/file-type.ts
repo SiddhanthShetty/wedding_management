@@ -4,6 +4,8 @@
  * sanitised display text. Files are NOT malware-scanned.
  */
 
+import { unzipSync } from "fflate";
+
 export const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024;
 
 export type DetectedType = {
@@ -15,6 +17,17 @@ export type DetectedType = {
   /** Whether a browser may display it inline. Everything else is always downloaded. */
   inline: boolean;
 };
+
+/** Names of the files inside a ZIP, from its directory; nothing is unpacked. Null if it isn't a valid ZIP. */
+function zipEntryNames(bytes: Uint8Array): Set<string> | null {
+  const names = new Set<string>();
+  try {
+    unzipSync(bytes, { filter: (file) => { if (names.size < 5000) names.add(file.name); return false; } });
+    return names;
+  } catch {
+    return null;
+  }
+}
 
 const startsWith = (bytes: Uint8Array, signature: number[], offset = 0) => signature.every((value, index) => bytes[offset + index] === value);
 const ascii = (bytes: Uint8Array, start: number, end: number) => String.fromCharCode(...bytes.slice(start, end));
@@ -37,13 +50,14 @@ export function detectFileType(bytes: Uint8Array, filename: string): DetectedTyp
   if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return { mime: "image/png", extension: "png", label: "PNG image", inline: true };
   if (startsWith(bytes, [0xff, 0xd8, 0xff])) return { mime: "image/jpeg", extension: "jpg", label: "JPEG image", inline: true };
   if (ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 12) === "WEBP") return { mime: "image/webp", extension: "webp", label: "WebP image", inline: true };
-  // Office Open XML files are ZIP archives; require the matching extension and the
-  // package's content-type part so arbitrary ZIPs are rejected.
+  // Office Open XML files are ZIP archives; require the matching extension and the package's parts
+  // (read from the zip's directory, which is at the end) so arbitrary ZIPs are rejected. The parts
+  // can be in any order: Google Sheets and Docs exports put [Content_Types].xml last.
   if (startsWith(bytes, [0x50, 0x4b, 0x03, 0x04])) {
-    const head = new TextDecoder("latin1").decode(bytes.slice(0, Math.min(bytes.length, 8192)));
-    if (!head.includes("[Content_Types].xml")) return null;
-    if (extension === "docx" && head.includes("word/")) return { mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx", label: "Word document", inline: false };
-    if (extension === "xlsx" && head.includes("xl/")) return { mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", extension: "xlsx", label: "Excel workbook", inline: false };
+    const names = zipEntryNames(bytes);
+    if (!names?.has("[Content_Types].xml")) return null;
+    if (extension === "docx" && names.has("word/document.xml")) return { mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx", label: "Word document", inline: false };
+    if (extension === "xlsx" && names.has("xl/workbook.xml")) return { mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", extension: "xlsx", label: "Excel workbook", inline: false };
     return null;
   }
   // Text is only accepted with a text extension and valid UTF-8 without NUL bytes. Markup is not

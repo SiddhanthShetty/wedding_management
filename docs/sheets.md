@@ -6,7 +6,10 @@
 ## Adding a table
 
 1. **Choose a file**: Excel (`.xlsx`) or CSV, up to 5 MB. Older `.xls` files are refused with a note
-   to re-save them as `.xlsx`.
+   to re-save them as `.xlsx`. Google Drive for desktop shows Google Sheets as `.gsheet` files: these
+   are shortcuts (a link, no rows), so choosing one explains how to get the sheet instead (From Google
+   Drive, or File → Download → Microsoft Excel in Google Sheets). Workbooks exported by Google Sheets
+   are read like any other `.xlsx`.
 2. **Preview** (nothing is saved yet): pick the sheet if the workbook has several, say whether the first
    row has the column names, name the table, and rename each column or change its type (Text, Number,
    Date, Yes / no, Link). Types are guessed from the values; the first 20 rows are shown.

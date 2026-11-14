@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { assumeUser, createTestDatabase, testHousehold, expectDenied, FUNCTION_A, FUNCTION_B, OWNER_A, OWNER_A_PARTNER, OWNER_B, READ_ONLY, SCOPED, WEDDING_A, WEDDING_B } from "./support/database";
+import { zipSync } from "fflate";
 import { detectFileType, sanitizeFilename } from "../src/lib/documents/file-type";
 import { canTransition, dedupeKey, renderTemplate, selectRecipients, unknownPlaceholders } from "../src/lib/planning/communications";
 
 const bytes = (...parts: Array<string | number[]>) => new Uint8Array(parts.flatMap((part) => typeof part === "string" ? [...new TextEncoder().encode(part)] : part));
-const zip = (entries: string) => bytes([0x50, 0x4b, 0x03, 0x04], "\u0000".repeat(26), "[Content_Types].xml", entries);
+/** A real ZIP with these (empty) parts, in this order. */
+const zip = (...entries: string[]) => zipSync(Object.fromEntries(entries.map((name) => [name, new Uint8Array([60])])));
 
 describe("file type checks (pure)", () => {
   it("detects permitted types from content, not from the name", () => {
@@ -13,15 +15,19 @@ describe("file type checks (pure)", () => {
     expect(detectFileType(bytes([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]), "photo.pdf")?.mime).toBe("image/png");
     expect(detectFileType(bytes([0xff, 0xd8, 0xff, 0xe0]), "x")?.mime).toBe("image/jpeg");
     expect(detectFileType(bytes("RIFF\u0000\u0000\u0000\u0000WEBPVP8 "), "x.webp")?.mime).toBe("image/webp");
-    expect(detectFileType(zip("word/document.xml"), "menu.docx")?.extension).toBe("docx");
-    expect(detectFileType(zip("xl/workbook.xml"), "budget.xlsx")?.extension).toBe("xlsx");
+    expect(detectFileType(zip("[Content_Types].xml", "word/document.xml"), "menu.docx")?.extension).toBe("docx");
+    expect(detectFileType(zip("[Content_Types].xml", "xl/workbook.xml"), "budget.xlsx")?.extension).toBe("xlsx");
+    // Google Sheets and Docs exports put [Content_Types].xml last, after more than 8 KB of other parts.
+    expect(detectFileType(zipSync({ "xl/worksheets/sheet1.xml": new Uint8Array(60_000).fill(65), "xl/workbook.xml": new Uint8Array([60]), "[Content_Types].xml": new Uint8Array([60]) }, { level: 0 }), "Guest list.xlsx")?.extension).toBe("xlsx");
     expect(detectFileType(bytes("name,count\nTEST,2\n"), "list.csv")?.mime).toBe("text/csv");
   });
 
   it("rejects executables, arbitrary archives, markup disguised as text and binary text files", () => {
     expect(detectFileType(bytes("MZ\u0090\u0000"), "invoice.pdf")).toBeNull();
-    expect(detectFileType(zip("word/document.xml"), "menu.zip")).toBeNull();
-    expect(detectFileType(bytes([0x50, 0x4b, 0x03, 0x04], "evil/payload.js"), "menu.docx")).toBeNull();
+    expect(detectFileType(zip("[Content_Types].xml", "word/document.xml"), "menu.zip")).toBeNull();
+    expect(detectFileType(zip("evil/payload.js"), "menu.docx")).toBeNull();
+    expect(detectFileType(zip("[Content_Types].xml", "word/document.xml"), "menu.xlsx")).toBeNull();
+    expect(detectFileType(bytes([0x50, 0x4b, 0x03, 0x04], "[Content_Types].xml xl/workbook.xml"), "budget.xlsx")).toBeNull();
     expect(detectFileType(bytes("<svg onload=alert(1)>"), "notes.txt")).toBeNull();
     expect(detectFileType(bytes("  <html><script>"), "notes.csv")).toBeNull();
     expect(detectFileType(bytes("abc", [0], "def"), "notes.txt")).toBeNull();

@@ -118,6 +118,14 @@ describe("reading files", () => {
     expect(sheets[1]!.rows[1]).toEqual(["=1+1"]);
   });
 
+  it("reads a workbook exported by Google Sheets ([Content_Types].xml last in the zip)", async () => {
+    const parts = unzipSync(new Uint8Array(await writeExcelFile([{ sheet: "Family", data: [["Family", "Guests"], ["Rao family", 4], ["Pai family", 2]] }]).toBuffer()));
+    const { "[Content_Types].xml": types, ...rest } = parts;
+    const google = zipSync({ ...rest, "xl/padding.xml": new Uint8Array(20_000).fill(32), "[Content_Types].xml": types! }, { level: 0 });
+    const sheets = await readSpreadsheet(google, "Guest_List_Family.xlsx");
+    expect(buildTable(sheets, choice({ name: "Family", columns: [{ name: "Family", type: "text" }, { name: "Guests", type: "number" }] })).rows).toEqual([{ c1: "Rao family", c2: 4 }, { c1: "Pai family", c2: 2 }]);
+  });
+
   it("reads CSV with quotes and commas, named after the file", async () => {
     const sheets = await readSpreadsheet(bytes('﻿Name,Note\r\n"Rao, Ravi","said ""hi"""\r\n'), "families.csv");
     expect(sheets).toEqual([{ name: "families", rows: [["Name", "Note"], ["Rao, Ravi", 'said "hi"']] }]);
@@ -130,7 +138,7 @@ describe("reading files", () => {
     await expect(readSpreadsheet(new Uint8Array(), "x.csv")).rejects.toThrow(/empty/);
     await expect(readSpreadsheet(new Uint8Array(SHEET_LIMITS.bytes + 1), "x.csv")).rejects.toThrow(/5 MB/);
     await expect(readSpreadsheet(bytes('a,"b\n'), "x.csv")).rejects.toThrow(/never closed/);
-    const bomb = zipSync({ "[Content_Types].xml": bytes("<Types/>"), "xl/big.xml": new Uint8Array(SHEET_LIMITS.unzippedBytes + 1) }, { level: 9 });
+    const bomb = zipSync({ "[Content_Types].xml": bytes("<Types/>"), "xl/workbook.xml": bytes("<workbook/>"), "xl/big.xml": new Uint8Array(SHEET_LIMITS.unzippedBytes + 1) }, { level: 9 });
     expect(bomb.byteLength).toBeLessThan(SHEET_LIMITS.bytes);
     await expect(readSpreadsheet(bomb, "bomb.xlsx")).rejects.toThrow(/too large to open/);
     const broken = zipSync({ "[Content_Types].xml": bytes("<Types/>"), "xl/workbook.xml": bytes("not xml") });
