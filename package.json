@@ -23,11 +23,14 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
+    "fflate": "0.8.3",
     "lucide-react": "^1.68.0",
     "next": "^16.4.5",
     "qrcode-generator": "1.4.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "read-excel-file": "9.3.14",
+    "write-excel-file": "4.1.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {

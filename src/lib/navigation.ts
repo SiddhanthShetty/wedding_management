@@ -1,4 +1,4 @@
-import { CalendarHeart, CheckSquare2, LayoutDashboard, UsersRound, Wallet, type LucideIcon } from "lucide-react";
+import { CalendarHeart, CheckSquare2, LayoutDashboard, Sheet, UsersRound, Wallet, type LucideIcon } from "lucide-react";
 import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
 
 export type NavLink = { href: string; label: string; icon: LucideIcon; module?: WeddingModule; area?: AreaId };
@@ -13,7 +13,7 @@ export const AREAS: Record<AreaId, Array<{ href: string; label: string }>> = {
 };
 
 /**
- * Five menu entries, by what people are trying to do. Each opens an area with tabs.
+ * Six menu entries, by what people are trying to do (Sheets holds uploaded spreadsheets). Each opens an area with tabs.
  * Files live on the records they belong to; "All files" is in the account menu.
  */
 export const NAV_GROUPS: NavGroup[] = [
@@ -22,6 +22,7 @@ export const NAV_GROUPS: NavGroup[] = [
   { id: "guests", label: null, links: [{ href: "/guests/simple", label: "Guests", icon: UsersRound, module: "guests" }] },
   { id: "money", label: null, links: [{ href: "/venues-vendors", label: "Money", icon: Wallet, module: "suppliers_finance", area: "money" }] },
   { id: "week", label: null, links: [{ href: "/schedule", label: "Wedding week", icon: CalendarHeart, module: "logistics", area: "week" }] },
+  { id: "sheets", label: null, links: [{ href: "/sheets", label: "Sheets", icon: Sheet, module: "planning" }] },
 ];
 
 /** Groups and links this member can open. Groups with no visible links are dropped. Hiding is a convenience; the server still enforces access. */

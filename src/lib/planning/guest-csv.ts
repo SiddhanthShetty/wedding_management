@@ -1,6 +1,7 @@
 export type ParsedCsv = { headers: string[]; rows: Array<{ rowNumber: number; values: Record<string,string>; errors: string[] }> };
 
-export function parseCsv(input: string): ParsedCsv {
+/** Splits CSV text into records (RFC 4180 quoting, any line ending, leading BOM removed). */
+export function csvRecords(input: string): string[][] {
   const text = input.replace(/^\uFEFF/, "");
   const records: string[][] = [];
   let row: string[] = []; let cell = ""; let quoted = false;
@@ -19,6 +20,11 @@ export function parseCsv(input: string): ParsedCsv {
   }
   if (quoted) throw new Error("This CSV has an unclosed quoted cell.");
   if (cell.length || row.length || (text.length > 0 && !/[\r\n]$/.test(text))) { row.push(cell); records.push(row); }
+  return records;
+}
+
+export function parseCsv(input: string): ParsedCsv {
+  const records = csvRecords(input);
   const nonempty = records.filter((record) => record.some((value) => value.trim() !== ""));
   const headers = (nonempty.shift() ?? []).map((value) => value.trim());
   if (!headers.length || headers.some((value) => value === "")) throw new Error("CSV needs a header row with a name for every column.");

@@ -5,9 +5,9 @@ import { describeStatus, statusOptions } from "../src/lib/planning/status-vocabu
 
 describe("grouped navigation", () => {
   it("shows owners every group and hides groups a collaborator cannot open", () => {
-    expect(visibleNavGroups("owner", {}).map((group) => group.id)).toEqual(["home", "plan", "guests", "money", "week"]);
+    expect(visibleNavGroups("owner", {}).map((group) => group.id)).toEqual(["home", "plan", "guests", "money", "week", "sheets"]);
     const scoped = visibleNavGroups("scoped_collaborator", { planning: "edit", logistics: "read" });
-    expect(scoped.map((group) => group.id)).toEqual(["home", "plan", "week"]);
+    expect(scoped.map((group) => group.id)).toEqual(["home", "plan", "week", "sheets"]);
     const readOnly = visibleNavGroups("read_only_collaborator", { guests: "read" });
     expect(readOnly.find((group) => group.id === "guests")?.links.map((link) => link.label)).toEqual(["Guests"]);
     expect(readOnly.some((group) => group.id === "money")).toBe(false);

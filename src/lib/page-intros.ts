@@ -4,6 +4,7 @@ export const PAGE_INTROS: Record<string, string> = {
   "/tasks": "Everything to do, grouped by month. Type a task in the box at the top to add it, and tap Done when it's done.",
   "/decisions": "Questions you're deciding together, like the menu or the decorator, with the options and what each of you prefers.",
   "/functions": "Your wedding events, from Haldi to Reception, with their dates, times and places.",
+  "/sheets": "Add a spreadsheet (Excel or CSV) and it becomes a table here: search it, sort it and download it again. You check the columns before anything is saved, and the original file stays in All files.",
   "/guests/simple": "Add your families, send each one its invitation link on WhatsApp, and see who has replied. Each family has one link that never changes; Send an update reaches families before an event.",
   "/venues-vendors": "Everyone you're considering or have booked. Call or WhatsApp them, keep their quotes and files, and add them to the budget once booked.",
   "/budget": "What you've booked, what you've paid and who you still owe. Use “Add a cost” and “Record a payment” at the top.",

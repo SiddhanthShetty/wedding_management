@@ -1309,6 +1309,49 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 .guest-portal-name-form { display: grid; gap: 8px; margin: 4px 0 12px; }
 .guest-portal-name-form input { min-height: 44px; font-size: 16px; }
 
+/* ── Sheets: uploaded spreadsheets as tables ───────────────────────────────────────────────── */
+.sheet-upload { display: grid; justify-items: start; gap: 8px; }
+.sheet-preview { display: grid; gap: 14px; }
+.sheet-file { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; }
+.text-button { border: 0; background: none; padding: 0; color: var(--brand); font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.text-button:disabled { opacity: .5; cursor: default; }
+.sheet-options { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.sheet-options .field { min-width: 200px; }
+.sheet-columns { display: grid; gap: 6px; border: 0; margin: 0; padding: 0; }
+.sheet-columns ol { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin: 4px 0 0; padding: 0; list-style: none; }
+.sheet-columns li { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 6px; }
+.sheet-columns .field-control { width: 100%; }
+.sheet-grid th, .sheet-grid td { white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.sheet-grid .num { text-align: right; font-variant-numeric: tabular-nums; }
+.sheet-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.sheet-list-item { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--white); padding: 13px 14px; color: var(--ink); text-decoration: none; }
+.sheet-list-item:hover { background: var(--hover); }
+.sheet-list-item > svg { flex: none; color: var(--brand); }
+.sheet-list-item span { display: grid; gap: 2px; min-width: 0; }
+.sheet-list-item strong { overflow-wrap: anywhere; }
+.muted { color: var(--muted); font-size: 13px; }
+.sheet-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.sheet-search { flex: 1 1 260px; max-width: 420px; min-height: 42px; }
+.sheet-search input { width: 100%; }
+.sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sheet-actions .button { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.sheet-count { margin: 0 0 10px; }
+.sheet-notice { margin-bottom: 12px; }
+.sort-button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+.sort-button svg { opacity: .55; }
+th[aria-sort="ascending"] .sort-button svg, th[aria-sort="descending"] .sort-button svg { opacity: 1; color: var(--brand); }
+.sheet-pages { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; color: var(--ink-soft); font-size: 13px; }
+/* Phones: each row becomes a card, each cell labelled with its column. */
+@media (max-width: 640px) {
+  .sheet-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .sheet-cards, .sheet-cards tbody, .sheet-cards tr, .sheet-cards td { display: block; width: 100%; }
+  .sheet-cards tr { margin-bottom: 10px; border: 1px solid var(--line); border-radius: 11px; background: var(--white); padding: 8px 12px; }
+  .sheet-cards td { display: grid; grid-template-columns: minmax(90px, 40%) 1fr; gap: 10px; max-width: none; border: 0; padding: 5px 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+  .sheet-cards td::before { content: attr(data-label); color: var(--muted); font-size: 12px; font-weight: 600; }
+  .sheet-cards td.num { text-align: left; }
+  .sheet-columns li { grid-template-columns: minmax(0, 1fr) 104px; }
+}
+
 /* ── Family invitation pages (/i/<code>): the couple's invitation site ─────────────────────── */
 @theme {
   /* Taken from the couple's emblem. */

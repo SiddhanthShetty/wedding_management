@@ -6,10 +6,10 @@ import { guestLine, moneyLine } from "../src/lib/planning/home-lines";
 import { functionsByDay } from "../src/lib/planning/function-timeline";
 import { PAGE_INTROS } from "../src/lib/page-intros";
 
-describe("five-item menu", () => {
-  it("has Home, Plan, Guests, Money and Wedding week, each opening an area", () => {
+describe("menu", () => {
+  it("has Home, Plan, Guests, Money, Wedding week and Sheets", () => {
     const links = NAV_GROUPS.flatMap((group) => group.links);
-    expect(links.map((link) => link.label)).toEqual(["Home", "Plan", "Guests", "Money", "Wedding week"]);
+    expect(links.map((link) => link.label)).toEqual(["Home", "Plan", "Guests", "Money", "Wedding week", "Sheets"]);
     expect(AREAS.money.map((tab) => tab.href)).toEqual(["/venues-vendors", "/budget"]);
     const money = links.find((link) => link.label === "Money")!;
     expect(isActiveLink("/budget", money)).toBe(true);
