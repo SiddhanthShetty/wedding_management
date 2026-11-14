@@ -23,6 +23,38 @@ Links must start with `http://` or `https://`.
 Limits: 2,000 rows, 50 columns, 2,000 characters a cell, 3 million characters a table, 30 sheets a
 workbook, 60 MB once an `.xlsx` is unzipped (guards against "zip bombs").
 
+## From Google Drive
+
+With the three Google settings in place, the upload card also shows **From Google Drive**. It asks
+Google for access (a Google window; the first time, a consent screen), opens Google's own file
+chooser (Google Sheets, Excel and CSV files only), then downloads the chosen file in the browser,
+straight from Google. A Google Sheet comes as `.xlsx`. From there it's the same preview and checks as
+a file from the device.
+
+- Access uses the `drive.file` scope: the app can open only files the person picks in the chooser,
+  never the rest of their Drive. The access token stays in the browser tab's memory (about 50 minutes)
+  and is never sent to this app's server or stored.
+- The button is hidden, and the security headers don't allow Google's addresses, until all three
+  settings are present. The headers are fixed at build time, so redeploy after adding them.
+
+### One-time setup (Google Cloud and Vercel)
+
+1. In Google Cloud Console (console.cloud.google.com), create a project (e.g. "Wedding Desk").
+2. **APIs & Services → Library**: enable **Google Picker API** and **Google Drive API**.
+3. **Google Auth Platform** (called "OAuth consent screen" in older consoles): app name and support
+   email; Audience **External**, left in **Testing**; add both your Google accounts as **Test users**;
+   under Data Access add the scope `https://www.googleapis.com/auth/drive.file`. In Testing mode Google
+   shows "Google hasn't verified this app": choose Continue. Only test users can connect.
+4. **Clients → Create client → Web application**. Authorized JavaScript origins: your site's address
+   (e.g. `https://your-app.vercel.app` and any custom domain), plus `http://localhost:3000` for local
+   use. No redirect URIs are needed. Copy the **Client ID**.
+5. **Credentials → Create credentials → API key**. Restrict it: Application restrictions **Websites**
+   with your site's address (`https://your-app.vercel.app/*`); API restrictions **Google Picker API**.
+6. **IAM & Admin → Settings**: copy the **Project number** (digits, not the project ID).
+7. In Vercel → the project → Settings → Environment Variables (Production), add
+   `GOOGLE_PICKER_CLIENT_ID`, `GOOGLE_PICKER_API_KEY` and `GOOGLE_CLOUD_PROJECT_NUMBER`, then redeploy.
+   For local use, add the same three to `.env.local`.
+
 ## Using a table
 
 Search any column, sort by any column (tap the heading: up, down, file order), 50 rows a page. On a
@@ -51,4 +83,4 @@ Apply it before deploying this code, or the Sheets page will fail to load.
 ## Checks
 
 Rules and file reading: `tests/sheets-rules.test.ts`. Database and access: `tests/sheets-db.test.ts`.
-Upload routes and actions: `tests/sheets-actions.test.ts`.
+Upload routes and actions: `tests/sheets-actions.test.ts`. Google Drive rules: `tests/sheets-drive.test.ts`.

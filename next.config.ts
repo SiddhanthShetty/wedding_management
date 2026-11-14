@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { DRIVE_CSP, driveConfigFrom } from "./src/lib/sheets/drive";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -8,14 +9,19 @@ const isDev = process.env.NODE_ENV === "development";
  * called from the server, and external links (maps, WhatsApp, Instagram) are plain navigation.
  * blob:/data: images and media are the card export, PDF pages and the video made on the device.
  */
+// Sheets → "From Google Drive": Google's chooser and sign-in are allowed only when its settings are
+// present at build time (add them in Vercel, then redeploy).
+const drive = driveConfigFrom(process.env) ? DRIVE_CSP : null;
+const extra = (key: keyof typeof DRIVE_CSP) => (drive ? ` ${drive[key].join(" ")}` : "");
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' blob: data:",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${extra("script")}`,
+  `style-src 'self' 'unsafe-inline'${extra("style")}`,
+  `img-src 'self' blob: data:${extra("img")}`,
   "media-src 'self' blob:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  `connect-src 'self'${extra("connect")}`,
+  ...(drive ? [`frame-src 'self'${extra("frame")}`] : []),
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

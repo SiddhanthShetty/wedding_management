@@ -1311,6 +1311,8 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 
 /* ── Sheets: uploaded spreadsheets as tables ───────────────────────────────────────────────── */
 .sheet-upload { display: grid; justify-items: start; gap: 8px; }
+.sheet-sources { display: flex; flex-wrap: wrap; gap: 8px; }
+.sheet-sources .button { display: inline-flex; align-items: center; gap: 6px; }
 .sheet-preview { display: grid; gap: 14px; }
 .sheet-file { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; }
 .text-button { border: 0; background: none; padding: 0; color: var(--brand); font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
