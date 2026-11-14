@@ -18,9 +18,14 @@ the per-person guest links are gone.
   named after the family, so messages and stays have someone to attach to.
 - **Each row:** Invite (opens WhatsApp with the message and link; records "sent by you" in Messages),
   Remind (families who haven't replied), Copy link, and under More: change events and most guests, record a
-  reply that came by phone, make a new link (the old one stops working), the family's people, Remove.
-- **Remove from list** stops the link working and leaves the family out of the counts. The reply is kept;
-  Put back makes the same link work again. Deleting a family completely is on the People page.
+  reply that came by phone, make a new link (the old one stops working), the family's people, and
+  **Delete family**.
+- **Delete family** (after a confirmation) permanently deletes the family and everyone in it, with their
+  reply, link, events and message records. Nothing is deleted while someone has a room or an upcoming ride
+  booked, or the family has files attached; the message says what to cancel first. A deleted family is gone
+  from the People tab too: both tabs read the same families and people, and changes on either refresh both.
+  Families whose link was turned off with the earlier "Remove from list" stay listed, marked "Link turned
+  off", with **Turn their link back on**.
 - **Counts:** families invited / replied / not yet / guests coming; per event, people coming, families not
   coming, families yet to reply. **Download CSV** exports families and replies (formulas defused).
 - Families added before this change have no link yet: tap **Make their link**. Their events were copied from
@@ -34,8 +39,10 @@ dress code) and only the events this family is invited to. Wording, family lines
 limit), which events, food choice and notes, a message. Anyone in the family can reply, from any phone; the
 latest reply counts and every version is kept in `family_reply_history`.
 
-English only for now (as on the invitation site). The music is the original Hamsadhwani piece; the
-NirvanaSutra track from the old site was not copied because its permission was never confirmed.
+English only for now (as on the invitation site). The music is the invitation site's own track, "A Sacred
+Carnatic Wedding Melody" by NirvanaSutra Music (credited in the footer). It is marked "All rights reserved"
+and permission to use it hasn't been confirmed; if they say no, switch `music` in `src/config/invitation.ts`
+to the original Hamsadhwani piece (`/audio/hamsadhwani.mp3`), which is already included.
 
 ## Elsewhere
 

@@ -1,7 +1,7 @@
 /** Family invitations: links, messages, the reply form, the Guest desk's counts and the paste box. */
 import { describe, expect, it } from "vitest";
 import {
-  CODE_PATTERN, databaseFieldMessage, deskTotals, familyRows, functionHeadcounts, inviteLink, inviteMessage, mealsByFunction, newInviteCode, reminderMessage,
+  CODE_PATTERN, databaseFieldMessage, deleteText, deskTotals, familyRows, functionHeadcounts, inviteLink, inviteMessage, mealsByFunction, newInviteCode, reminderMessage,
   repliesCsv, replyErrors, replyLabel, replySchema, sortFamilies, whatsappLink, withoutLink, type DeskFamily, type DeskReply,
 } from "../src/lib/family-invites/rules";
 import { databaseProblem, familyNameKey, parseFamilyLines, problemText, tidyPhone } from "../src/lib/planning/family-paste";
@@ -85,8 +85,18 @@ describe("the Guest desk", () => {
     expect(byName("Bhat family")).toMatchObject({ invitedAt: "2026-11-02T00:00:00Z", remindedAt: "2026-11-09T00:00:00Z", reminders: 1 });
   });
 
+  it("says plainly what deleting a family removes", () => {
+    expect(deleteText({ people: 3, reply: byName("Rao family").reply })).toBe("This permanently deletes the 3 people in it, their reply, their link and their message records. It can't be undone. If someone has a room or an upcoming ride booked, cancel that first.");
+    expect(deleteText({ people: 1, reply: null })).toMatch(/^This permanently deletes the person in it, their link/);
+    expect(deleteText({ people: 0, reply: null })).toMatch(/^This permanently deletes the family, their link/);
+    expect(familyRows({ families: [fam("9", "X family")], invites: [], replies: [], messages: [], people: { "9": 2 } })[0]!.people).toBe(2);
+  });
+
   it("lists families who haven't replied first, then by name", () => {
-    expect(sortFamilies(rows).map((row) => row.name)).toEqual(["Bhat family", "Alva family", "Kini family", "Pai family", "Rao family"]);
+    expect(sortFamilies(rows).map((row) => row.name)).toEqual(["Bhat family", "Alva family", "Pai family", "Rao family", "Kini family"]);
+    // A family whose link was turned off earlier says so until it replies.
+    expect(replyLabel({ ...byName("Kini family"), reply: null })).toBe("Link turned off");
+    expect(replyLabel(byName("Kini family"))).toBe("Coming, 2");
   });
 
   it("counts families and guests, leaving out removed families and those with no events", () => {
@@ -149,7 +159,7 @@ describe("pasting families", () => {
 describe("the invitation page", () => {
   it("loads the couple's config and gives each function an illustration", () => {
     expect(invitationConfig.brideName).toBe("Sweekruti");
-    expect(invitationConfig.music.src).toBe("/invite/hamsadhwani.mp3");
+    expect(invitationConfig.music).toEqual({ title: "A Sacred Carnatic Wedding Melody", src: "/audio/wedding-music.mp3", credit: "NirvanaSutra Music" });
     expect(eventArtFor("Haldi", "Haldi")).toBe("haldi");
     expect(eventArtFor("Wedding", "Muhurtham")).toBe("muhuratham");
     expect(eventArtFor("Other", "Mehndi night")).toBe("mehendi");

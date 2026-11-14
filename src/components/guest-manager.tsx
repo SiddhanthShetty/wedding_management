@@ -28,7 +28,7 @@ function GuestDeleteButton({weddingId,id,name,kind,updatedAt,memberCount=0,membe
   const [open,setOpen]=useState(false);const [result,setResult]=useState<GuestActionState>({});const [pending,startTransition]=useTransition();
   const household=kind==="household";
   const description=household
-    ? `${memberCount?`This permanently deletes “${name}” and all ${memberCount} individual guest record${memberCount===1?"":"s"}${memberNames.length?` (${memberNames.join(", ")})`:""}, including their replies and linked personal planning records.`:`This permanently deletes the empty household “${name}”.`} Active stays, upcoming rides, or attached documents will block deletion. This cannot be undone.`
+    ? `${memberCount?`This permanently deletes “${name}” and the ${memberCount===1?"person":`${memberCount} people`} in it${memberNames.length?` (${memberNames.join(", ")})`:""}, with their reply, link and planning records.`:`This permanently deletes “${name}”, with its reply and link.`} Active stays, upcoming rides, or attached documents will block deletion. This cannot be undone.`
     : `This permanently deletes “${name}”, their linked personal guest records. Active stays, upcoming rides, or a named plus-one will block deletion. This cannot be undone.`;
   function confirm(){
     if(!updatedAt&&!household)return;
@@ -38,7 +38,7 @@ function GuestDeleteButton({weddingId,id,name,kind,updatedAt,memberCount=0,membe
       if(!response.error){setOpen(false);router.refresh();}
     });
   }
-  return <span className="guest-delete-control"><button type="button" className="table-action guest-delete-action" onClick={()=>{setResult({});setOpen(true)}}>Delete</button>{result.error&&<span className="field-error" role="alert">{result.error}</span>}{result.message&&<span className="field-help" role="status">{result.message}</span>}<ConfirmationDialog open={open} title={household?"Delete household?":"Delete guest?"} description={description} confirmLabel={pending?"Deleting…":household?"Delete household":"Delete guest"} confirmDisabled={pending} onCancel={()=>{if(!pending)setOpen(false)}} onConfirm={confirm}/></span>;
+  return <span className="guest-delete-control"><button type="button" className="table-action guest-delete-action" onClick={()=>{setResult({});setOpen(true)}}>Delete</button>{result.error&&<span className="field-error" role="alert">{result.error}</span>}{result.message&&<span className="field-help" role="status">{result.message}</span>}<ConfirmationDialog open={open} title={household?"Delete family?":"Delete person?"} description={description} confirmLabel={pending?"Deleting…":household?"Delete family":"Delete person"} confirmDisabled={pending} onCancel={()=>{if(!pending)setOpen(false)}} onConfirm={confirm}/></span>;
 }
 
 function GuestEditor({open,onClose,weddingId,households,owners,familySideLabels,guest}:{open:boolean;onClose:()=>void;weddingId:string;households:GuestData["households"];owners:Owner[];familySideLabels:Record<string,string>;guest?:GuestRecord}){

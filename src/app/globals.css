@@ -1399,3 +1399,4 @@ html[data-cover] .invite-site #cover { position: fixed; inset: 0; z-index: 60; d
    invitation's button colours are repeated here, outside the layers too. */
 .invite-site .inv-btn-maroon { color: var(--color-ivory); }
 .invite-site .inv-btn-gold { color: var(--color-maroon-deep); }
+.guest-desk .desk-danger { color: #a3211b; }

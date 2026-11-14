@@ -144,3 +144,22 @@ describe("backfill", () => {
     expect(await peek("select household_id,function_id from public.family_function_invites")).toEqual([{ household_id: household, function_id: FUNCTION_A }]);
   });
 });
+
+describe("deleting a family", () => {
+  it("deletes the family, everyone in it, its events, reply and messages together", async () => {
+    const result = await bulk([family("Rao family", 1, 4)], [FUNCTION_A]);
+    const household = result.families![0]!.household_id;
+    await db.query("select public.save_guest($1,null,$2::jsonb,null)", [WEDDING_A, JSON.stringify({ household_id: household, full_name: "Meera Rao", email: "", phone: "", meal_preference: "", allergies: "", assistance_needs: "", notes: "" })]);
+    await db.query("insert into public.communication_records(wedding_id,guest_id,channel,body_snapshot,dedupe_key,recorded_by_user_id,state,sent_at) values($1,$2,'whatsapp','Hi','family-invite:x:1',$3,'sent',now())", [WEDDING_A, result.families![0]!.contact_guest_id, OWNER_A]);
+    await asGuest();
+    await reply(code(1), { attending: true, count: 2, functions: [FUNCTION_A] });
+    await assumeUser(db, SCOPED);
+    await expectDenied(db.query("select public.delete_guest_household($1,$2,true)", [WEDDING_A, household]), /permission/);
+    await assumeUser(db, OWNER_A);
+    expect((await db.query<{ n: number }>("select public.delete_guest_household($1,$2,true) n", [WEDDING_A, household])).rows[0]!.n).toBe(2);
+    expect([await count("guest_households"), await count("guests"), await count("family_function_invites"), await count("family_replies"), await count("family_reply_history"), await count("communication_records")]).toEqual([0, 0, 0, 0, 0, 0]);
+    await asGuest();
+    expect(await open(code(1))).toBeNull();
+  });
+
+});

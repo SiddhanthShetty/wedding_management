@@ -89,7 +89,7 @@ export const loadRsvpSection = cache(async (weddingId: string) => {
     const desk = await getInviteDesk(weddingId);
     const dates = new Map(desk.functions.map((fn) => [fn.id, fn.date]));
     return {
-      families: desk.families.length + desk.removed.length, invited: desk.totals.invited, replied: desk.totals.replied, coming: desk.totals.coming,
+      families: desk.families.length, invited: desk.totals.invited, replied: desk.totals.replied, coming: desk.totals.coming,
       functions: desk.headcounts.filter((fn) => fn.families > 0).map((fn) => ({ id: fn.id, name: fn.name, date: dates.get(fn.id) ?? null, invited: fn.families, yes: fn.people, no: fn.notComing, pending: fn.waiting })),
     };
   });

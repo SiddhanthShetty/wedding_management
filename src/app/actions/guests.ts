@@ -19,7 +19,8 @@ function weddingId(form:FormData){return z.uuid().safeParse(read(form,"weddingId
 function values<T extends z.ZodType>(form:FormData,schema:T){
   return schema.safeParse(Object.fromEntries([...form.entries()].filter(([key])=>!key.startsWith("$ACTION_")&&key!=="weddingId")));
 }
-async function revalidate(){revalidatePath("/guests");}
+/** Families and people show on both Guest tabs (Invitations and People) and in Home's counts. */
+async function revalidate(){revalidatePath("/guests");revalidatePath("/guests/simple");revalidatePath("/overview");}
 
 export async function deleteGuestAction(wedding:string,guest:string,expectedUpdatedAt:string):Promise<GuestActionState>{
   const weddingResult=z.uuid().safeParse(wedding);const guestResult=z.uuid().safeParse(guest);const expected=isoTimestampInput.safeParse(expectedUpdatedAt);

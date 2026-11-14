@@ -15,7 +15,8 @@ const canEditGuests = (context: Awaited<ReturnType<typeof authorizeWeddingOperat
 function check(error: { code?: string; message?: string } | null, message: string) {
   if (!error) return;
   if (error.code === "42501") throw new AuthorizationDeniedError();
-  if (error.code === "22023" && error.message) throw new FamilyInviteRuleError(error.message);
+  // Rule refusals (bad input, or a deletion blocked by stays, rides or files) are written for people.
+  if ((error.code === "22023" || error.code === "23514" || error.code === "23503") && error.message) throw new FamilyInviteRuleError(error.message);
   throw new Error(message);
 }
 
@@ -46,7 +47,9 @@ export async function getInviteDesk(weddingId: string) {
     const household = householdOf.get(String(row.guest_id));
     return prefix && household ? [{ household_id: household, sent_at: row.sent_at as string | null, kind: KINDS[prefix] }] : [];
   });
-  const rows = sortFamilies(familyRows({ families: (families.data ?? []) as DeskFamily[], invites: (invites.data ?? []) as DeskInvite[], replies: (replies.data ?? []) as DeskReply[], messages }));
+  const people: Record<string, number> = {};
+  for (const household of householdOf.values()) people[household] = (people[household] ?? 0) + 1;
+  const rows = sortFamilies(familyRows({ families: (families.data ?? []) as DeskFamily[], invites: (invites.data ?? []) as DeskInvite[], replies: (replies.data ?? []) as DeskReply[], messages, people }));
   const active = ((functions.data ?? []) as Array<{ id: string; name: string; function_date: string | null; status: string; archived_at: string | null }>)
     .filter((fn) => !fn.archived_at && fn.status !== "cancelled")
     .sort((a, b) => (a.function_date ?? "9999").localeCompare(b.function_date ?? "9999"));
@@ -57,8 +60,9 @@ export async function getInviteDesk(weddingId: string) {
     coupleNames: [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean).join(" & ") || context.wedding.name,
     familySideLabels: { couple_one: context.wedding.partner_one_display_name.trim() || "Couple one", couple_two: context.wedding.partner_two_display_name.trim() || "Couple two", shared: "Both sides", unknown: "Not sure" },
     functions: active.map((fn) => ({ id: fn.id, name: fn.name, date: fn.function_date })),
-    families: rows.filter((row) => !row.removed),
-    removed: rows.filter((row) => row.removed),
+    // Every family on the list, as on the People tab. A family whose link was turned off earlier
+    // (the old "Remove from list") stays listed so it can be turned back on or deleted.
+    families: rows,
     totals: deskTotals(rows),
     headcounts: functionHeadcounts(active, rows),
   };
@@ -91,6 +95,18 @@ export async function updateFamily(weddingId: string, householdId: string, maxGu
   const { supabase } = await editor(weddingId);
   const { error } = await supabase.rpc("update_family_invite", { p_wedding_id: weddingId, p_household_id: householdId, p_max_guests: maxGuests, p_function_ids: functionIds });
   check(error, "Couldn't save these changes. Nothing was changed; refresh and try again.");
+}
+
+/**
+ * Deletes the family and everyone in it, with their reply, messages and history. The database
+ * refuses (and deletes nothing) while someone has an active stay, an upcoming ride, a plus-one in
+ * another family, or the family has files attached.
+ */
+export async function deleteFamily(weddingId: string, householdId: string) {
+  const { supabase } = await editor(weddingId);
+  const { data, error } = await supabase.rpc("delete_guest_household", { p_wedding_id: weddingId, p_household_id: householdId, p_delete_members: true });
+  check(error, "Couldn't delete this family. Nothing was deleted; refresh and try again.");
+  return Number(data ?? 0);
 }
 
 export async function setFamilyRemoved(weddingId: string, householdId: string, removed: boolean) {

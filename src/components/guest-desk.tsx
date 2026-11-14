@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { Check, Copy, Download, MessageCircle, Users } from "lucide-react";
-import { addFamiliesAction, familyCodeAction, recordFamilyReplyAction, recordFamilySendAction, setFamilyRemovedAction, updateFamilyAction, type AddFamiliesState } from "@/app/actions/family-invites";
+import { Check, Copy, Download, MessageCircle, Trash2, Users } from "lucide-react";
+import { addFamiliesAction, deleteFamilyAction, familyCodeAction, recordFamilyReplyAction, recordFamilySendAction, setFamilyRemovedAction, updateFamilyAction, type AddFamiliesState } from "@/app/actions/family-invites";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { Button, Card, DataTable, EmptyState } from "@/components/ui";
 import type { InviteDesk } from "@/lib/data/family-invites";
-import { DIETARY_OPTIONS, inviteLink, inviteMessage, reminderMessage, replyLabel, repliesCsv, whatsappLink, type FamilyRow } from "@/lib/family-invites/rules";
+import { deleteText, DIETARY_OPTIONS, inviteLink, inviteMessage, reminderMessage, replyLabel, repliesCsv, whatsappLink, type FamilyRow } from "@/lib/family-invites/rules";
 import { MAX_FAMILIES_PER_PASTE } from "@/lib/planning/family-paste";
 import { formatDate } from "@/lib/format";
 
@@ -15,8 +15,10 @@ const EXAMPLE = "Rao family, +91 98765 43210, 4\nPai family, , 2\nAsha Aunty & U
 type Status = { message?: string; error?: string };
 
 export function GuestDesk({ desk }: { desk: InviteDesk }) {
+  // A deleted family's row disappears, so its confirmation is shown above the list instead.
+  const [notice, setNotice] = useState("");
   const download = () => {
-    const blob = new Blob([`﻿${repliesCsv([...desk.families, ...desk.removed], desk.functions)}`], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([`﻿${repliesCsv(desk.families, desk.functions)}`], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url; anchor.download = "guest-replies.csv"; anchor.click();
@@ -32,14 +34,11 @@ export function GuestDesk({ desk }: { desk: InviteDesk }) {
     {desk.canEdit ? <AddFamilies desk={desk} /> : <p className="field-help" role="note">You can see the list. To add families or send invitations, ask the couple to let you change guests.</p>}
     <Card title="Families" subtitle="Each family has one link that never changes. Families who haven't replied are at the top."
       action={desk.families.length ? <Button type="button" variant="secondary" onClick={download}><Download size={15} aria-hidden="true" /> Download CSV</Button> : undefined}>
+      {notice && <p className="auth-success" role="status">{notice}</p>}
       {!desk.families.length ? <EmptyState icon={<Users size={20} aria-hidden="true" />} title="No families yet" description={desk.canEdit ? "Paste your families above, one per line." : "Families appear here once the couple adds them."} />
         : <DataTable label="Families and their replies" className="stack-on-phone guest-desk-table" headers={["Family", "Phone", "Most guests", "Reply", "Sent", ""]}>
-          {desk.families.map((row) => <FamilyLine key={row.id} desk={desk} row={row} />)}
+          {desk.families.map((row) => <FamilyLine key={row.id} desk={desk} row={row} onDeleted={setNotice} />)}
         </DataTable>}
-      {desk.removed.length > 0 && <details className="more-details"><summary>Removed from the list ({desk.removed.length})</summary>
-        <ul className="doc-list">{desk.removed.map((row) => <li key={row.id} className="reference-row"><span className="row-title">{row.name}</span><span className="row-meta">{replyLabel(row)}. Their link doesn&apos;t work while removed.</span>
-          {desk.canEdit && <PutBack desk={desk} row={row} />}</li>)}</ul>
-      </details>}
     </Card>
     <Card title="Guests per event" subtitle="People coming, from each family's reply. Families who haven't replied are counted as families.">
       {!desk.headcounts.length ? <p className="field-help">Add your events on <Link href="/functions">Plan → Functions</Link> to see counts.</p>
@@ -90,7 +89,8 @@ function AddFamilies({ desk }: { desk: InviteDesk }) {
 
 const day = (value: string | null, timezone: string) => (value ? formatDate(value, timezone) : null);
 
-function FamilyLine({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
+
+function FamilyLine({ desk, row, onDeleted }: { desk: InviteDesk; row: FamilyRow; onDeleted: (message: string) => void }) {
   const invited = day(row.invitedAt, desk.timezone);
   const reminded = day(row.remindedAt, desk.timezone);
   return <tr>
@@ -100,13 +100,13 @@ function FamilyLine({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
     <td><span className={`status ${row.status === "accepts" ? "status-confirmed" : row.status === "declines" ? "status-neutral" : "status-pending"}`}>{replyLabel(row)}</span>
       {row.reply?.attending && row.reply.dietary !== "none" ? <span className="table-secondary">{DIETARY_OPTIONS.find((option) => option.value === row.reply!.dietary)?.label}</span> : null}</td>
     <td><span className="desk-cell-label">Sent: </span><span className="table-secondary">{invited ? `Invited ${invited}` : "Not sent yet"}{reminded ? ` · reminded ${reminded}${row.reminders > 1 ? ` (${row.reminders}×)` : ""}` : ""}</span></td>
-    <td>{desk.canEdit ? <FamilyActions desk={desk} row={row} /> : null}</td>
+    <td>{desk.canEdit ? <FamilyActions desk={desk} row={row} onDeleted={onDeleted} /> : null}</td>
   </tr>;
 }
 
-function FamilyActions({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
+function FamilyActions({ desk, row, onDeleted }: { desk: InviteDesk; row: FamilyRow; onDeleted: (message: string) => void }) {
   const [panel, setPanel] = useState<null | "edit" | "reply">(null);
-  const [confirm, setConfirm] = useState<null | "replace" | "remove">(null);
+  const [confirm, setConfirm] = useState<null | "replace" | "delete">(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [status, setStatus] = useState<Status>({});
@@ -130,10 +130,16 @@ function FamilyActions({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
     setBusy(false);
     setStatus(result.error ? { error: result.error } : { message: replace ? "New link made. The old link no longer works; send them the new one." : "Link made. You can invite them now." });
   };
-  const remove = async () => { setConfirm(null); setBusy(true); setStatus(await setFamilyRemovedAction(desk.weddingId, row.id, true)); setBusy(false); };
+  const turnOn = async () => { setBusy(true); setStatus(await setFamilyRemovedAction(desk.weddingId, row.id, false)); setBusy(false); };
+  const destroy = async () => {
+    setConfirm(null); setBusy(true);
+    const result = await deleteFamilyAction(desk.weddingId, row.id);
+    setBusy(false);
+    if (result.message) onDeleted(`${row.name}: ${result.message}`); else setStatus(result);
+  };
   return <div className="desk-actions">
     <div className="doc-actions">
-      {row.code ? <>
+      {row.removed ? <Button type="button" disabled={busy} onClick={turnOn}>{busy ? "Working…" : "Turn their link back on"}</Button> : row.code ? <>
         <Button type="button" disabled={!row.functionIds.length} onClick={() => send("invite")}><MessageCircle size={15} aria-hidden="true" /> Invite<span className="sr-only"> {row.name} on WhatsApp</span></Button>
         {row.status === "waiting" && <Button type="button" variant="secondary" onClick={() => send("remind")}>Remind<span className="sr-only"> {row.name} on WhatsApp</span></Button>}
         <Button type="button" variant="secondary" onClick={copy}>{copied ? <><Check size={15} aria-hidden="true" /> Copied</> : <><Copy size={15} aria-hidden="true" /> Copy link</>}</Button>
@@ -143,7 +149,7 @@ function FamilyActions({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
         <Button type="button" variant="quiet" onClick={() => setPanel(panel === "reply" ? null : "reply")}>Record their reply</Button>
         {row.code && <Button type="button" variant="quiet" disabled={busy} onClick={() => setConfirm("replace")}>Make a new link</Button>}
         <Link className="button button-quiet" href={`/guests?q=${encodeURIComponent(row.name)}`}>People in this family</Link>
-        <Button type="button" variant="quiet" disabled={busy} onClick={() => setConfirm("remove")}>Remove from list</Button>
+        <Button type="button" variant="quiet" className="desk-danger" disabled={busy} onClick={() => setConfirm("delete")}><Trash2 size={15} aria-hidden="true" /> Delete family</Button>
       </details>
     </div>
     {!row.functionIds.length && <p className="field-help">Choose their events under More → Events and guests before inviting them.</p>}
@@ -152,7 +158,7 @@ function FamilyActions({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
     {status.error && <p className="field-error" role="alert">{status.error}</p>}
     {status.message && <p className="field-success" role="status">{status.message}</p>}
     <ConfirmationDialog open={confirm === "replace"} title={`Make a new link for ${row.name}?`} description="The link they have now stops working. Use this only if the old link reached the wrong people." confirmLabel="Make new link" confirmDisabled={busy} onConfirm={() => makeCode(true)} onCancel={() => setConfirm(null)} />
-    <ConfirmationDialog open={confirm === "remove"} title={`Remove ${row.name} from the list?`} description="Their link stops working and they leave the counts. Their reply is kept, and you can put them back later. To delete the family completely, use the People page." confirmLabel="Remove from list" confirmDisabled={busy} onConfirm={remove} onCancel={() => setConfirm(null)} />
+    <ConfirmationDialog open={confirm === "delete"} title={`Delete ${row.name}?`} description={deleteText(row)} confirmLabel={busy ? "Deleting…" : "Delete family"} confirmDisabled={busy} onConfirm={destroy} onCancel={() => setConfirm(null)} />
   </div>;
 }
 
@@ -207,14 +213,4 @@ function RecordReply({ desk, row, onDone }: { desk: InviteDesk; row: FamilyRow; 
     </>}
     <div className="doc-actions"><Button type="button" disabled={busy || (coming && !chosen.length)} onClick={save}>{busy ? "Saving…" : "Save reply"}</Button></div>
   </div>;
-}
-
-function PutBack({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<Status>({});
-  return <span className="doc-actions">
-    <Button type="button" variant="secondary" disabled={busy} onClick={async () => { setBusy(true); setStatus(await setFamilyRemovedAction(desk.weddingId, row.id, false)); setBusy(false); }}>{busy ? "Putting back…" : "Put back"}</Button>
-    {status.error && <span className="field-error" role="alert">{status.error}</span>}
-    {status.message && <span className="field-success" role="status">{status.message}</span>}
-  </span>;
 }

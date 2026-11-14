@@ -122,9 +122,11 @@ export type FamilyRow = {
   id: string; name: string; phone: string; code: string | null; maxGuests: number | null; removed: boolean;
   functionIds: string[]; reply: DeskReply | null; status: "accepts" | "declines" | "waiting" | "no_events";
   invitedAt: string | null; remindedAt: string | null; reminders: number;
+  /** People in the family on the People page (deleted with the family). */
+  people: number;
 };
 
-export function familyRows(input: { families: DeskFamily[]; invites: DeskInvite[]; replies: DeskReply[]; messages: DeskMessage[] }): FamilyRow[] {
+export function familyRows(input: { families: DeskFamily[]; invites: DeskInvite[]; replies: DeskReply[]; messages: DeskMessage[]; people?: Record<string, number> }): FamilyRow[] {
   const replyOf = new Map(input.replies.map((reply) => [reply.household_id, reply]));
   const latest = (values: Array<string | null>) => values.filter((value): value is string => Boolean(value)).sort().at(-1) ?? null;
   return input.families.map((family) => {
@@ -138,21 +140,29 @@ export function familyRows(input: { families: DeskFamily[]; invites: DeskInvite[
       status: reply ? (reply.attending ? "accepts" : "declines") : functionIds.length ? "waiting" : "no_events",
       invitedAt: latest(messages.filter((row) => row.kind === "invite").map((row) => row.sent_at)),
       remindedAt: latest(reminders.map((row) => row.sent_at)), reminders: reminders.length,
+      people: input.people?.[family.id] ?? 0,
     };
   });
 }
 
-/** "Coming, 4" / "Not coming" / "Not yet" / "No events chosen". */
-export function replyLabel(row: Pick<FamilyRow, "status" | "reply">): string {
+/** "Coming, 4" / "Not coming" / "Not yet" / "No events chosen" / "Link turned off". */
+export function replyLabel(row: Pick<FamilyRow, "status" | "reply"> & { removed?: boolean }): string {
+  if (row.removed && !row.reply) return "Link turned off";
   if (row.status === "accepts") return `Coming, ${row.reply!.guest_count}`;
   if (row.status === "declines") return "Not coming";
   if (row.status === "no_events") return "No events chosen";
   return "Not yet";
 }
 
-/** Families who haven't replied first, then by name. Removed families are listed separately. */
+/** What "Delete family" removes, in plain words. */
+export function deleteText(row: Pick<FamilyRow, "people" | "reply">) {
+  const people = row.people ? `the ${row.people === 1 ? "person" : `${row.people} people`} in it` : "the family";
+  return `This permanently deletes ${people}${row.reply ? ", their reply" : ""}, their link and their message records. It can't be undone. If someone has a room or an upcoming ride booked, cancel that first.`;
+}
+
+/** Families who haven't replied first, then by name. Families whose link is turned off go last. */
 export function sortFamilies(rows: FamilyRow[]): FamilyRow[] {
-  const rank = (row: FamilyRow) => (row.status === "waiting" ? 0 : row.status === "no_events" ? 1 : 2);
+  const rank = (row: FamilyRow) => (row.removed ? 3 : row.status === "waiting" ? 0 : row.status === "no_events" ? 1 : 2);
   return [...rows].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
 

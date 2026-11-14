@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
-import { addFamilies, familyCode, FamilyInviteRuleError, recordFamilyReply, recordFamilySend, setFamilyRemoved, updateFamily } from "@/lib/data/family-invites";
+import { addFamilies, deleteFamily, familyCode, FamilyInviteRuleError, recordFamilyReply, recordFamilySend, setFamilyRemoved, updateFamily } from "@/lib/data/family-invites";
 import { databaseProblem, parseFamilyLines, problemText } from "@/lib/planning/family-paste";
 
 export type AddFamiliesState = { problems?: string[]; error?: string; message?: string; at?: number };
@@ -84,6 +84,16 @@ export async function setFamilyRemovedAction(weddingId: string, householdId: str
     await refresh();
     return { message: removed ? "Removed from the list. Their link no longer works, and their reply is kept." : "Put back. Their link works again." };
   } catch (error) { return { error: failure(error, "Couldn't change this family. Nothing was changed.") }; }
+}
+
+/** Deletes the family and everyone in it. Nothing is deleted if something still depends on them. */
+export async function deleteFamilyAction(weddingId: string, householdId: string): Promise<Result> {
+  if (!id.safeParse(weddingId).success || !id.safeParse(householdId).success) return { error: BROKEN };
+  try {
+    const people = await deleteFamily(weddingId, householdId);
+    await refresh(); revalidatePath("/travel");
+    return { message: `deleted, with ${people} ${people === 1 ? "person" : "people"}. They are gone from the People tab too.` };
+  } catch (error) { return { error: failure(error, "Couldn't delete this family. Nothing was deleted; refresh and try again.") }; }
 }
 
 /** A reply the planner got by phone or in person. */

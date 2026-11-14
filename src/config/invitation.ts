@@ -73,9 +73,11 @@ const details: z.input<typeof configSchema> = {
   goodToKnow: { weather: null, dressCode: null, hashtag: null, parking: null, driversAndStaff: null },
   contact: { name: null, phone: null, email: null },
   rsvp: { respondBy: null },
-  // The original piece made for the invitation site (nothing to license). The NirvanaSutra Music
-  // track used on the old site is not copied here: its permission was never confirmed.
-  music: { title: "Mangala Arambha (Raga Hamsadhwani, veena)", src: "/invite/hamsadhwani.mp3", credit: null },
+  // The same track as on the invitation site. It plays only when a guest chooses "Open with music"
+  // or presses play, and loops until paused. The track belongs to NirvanaSutra Music ("All rights
+  // reserved"); confirm their permission. If they say no, switch to the original piece made for the
+  // site: { title: "Mangala Arambha (Raga Hamsadhwani, veena)", src: "/audio/hamsadhwani.mp3", credit: null }
+  music: { title: "A Sacred Carnatic Wedding Melody", src: "/audio/wedding-music.mp3", credit: "NirvanaSutra Music" },
 };
 
 function load(): InvitationConfig {
