@@ -1266,8 +1266,16 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 .desk-actions .button, .desk-send .button { min-height: 44px; }
 .desk-panel { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--white); }
 .desk-choice { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
-.desk-more > summary { display: inline-flex; min-height: 44px; align-items: center; padding: 0 12px; color: var(--brand-accent-text, var(--sage)); font-weight: 650; cursor: pointer; }
-.desk-more[open] { display: grid; gap: 4px; }
+/* "More" opens a menu over the page, below its button, so the row never moves. */
+.desk-more { position: relative; display: inline-block; }
+.desk-more-button { display: inline-flex; min-height: 44px; align-items: center; border: 0; border-radius: 10px; background: transparent; padding: 0 12px; color: var(--brand-accent-text, var(--sage)); font-weight: 650; cursor: pointer; }
+.desk-more-button:hover, .desk-more-button[aria-expanded="true"] { background: var(--sage-soft); }
+.desk-more-menu { position: fixed; z-index: 60; display: grid; border: 1px solid var(--line); border-radius: 12px; background: var(--white); padding: 6px; box-shadow: 0 12px 32px rgba(39, 43, 35, .16); }
+.desk-more-menu [role="menuitem"] { display: flex; min-height: 44px; align-items: center; gap: 8px; border: 0; border-radius: 8px; background: transparent; padding: 0 12px; color: var(--ink); font-size: 14px; text-align: left; cursor: pointer; }
+.desk-more-menu [role="menuitem"]:hover, .desk-more-menu [role="menuitem"]:focus-visible { background: var(--sage-soft); }
+.desk-more-menu [role="menuitem"]:disabled { opacity: .5; cursor: not-allowed; }
+.desk-more-menu .desk-danger { color: #a3211b; }
+
 .desk-add-form textarea { font-family: inherit; min-height: 140px; }
 .desk-add-form .auth-alert ul { margin: 6px 0 0; padding-left: 18px; }
 @media (max-width: 760px) {

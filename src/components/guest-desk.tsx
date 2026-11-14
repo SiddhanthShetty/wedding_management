@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, Download, MessageCircle, Plus, Trash2, Users } from "lucide-react";
 import { addFamiliesAction, deleteFamilyAction, familyCodeAction, recordFamilyReplyAction, recordFamilySendAction, setFamilyRemovedAction, updateFamilyAction, type AddFamiliesState } from "@/app/actions/family-invites";
@@ -186,13 +186,13 @@ function FamilyActions({ desk, row, onDeleted }: { desk: InviteDesk; row: Family
         {row.status === "waiting" && <Button type="button" variant="secondary" onClick={() => send("remind")}>Remind<span className="sr-only"> {row.name} on WhatsApp</span></Button>}
         <Button type="button" variant="secondary" onClick={copy}>{copied ? <><Check size={15} aria-hidden="true" /> Copied</> : <><Copy size={15} aria-hidden="true" /> Copy link</>}</Button>
       </> : <Button type="button" disabled={busy} onClick={() => makeCode(false)}>{busy ? "Making…" : "Make their link"}</Button>}
-      <details className="desk-more"><summary>More</summary>
-        <Button type="button" variant="quiet" onClick={() => setPanel(panel === "edit" ? null : "edit")}>Events and guests</Button>
-        <Button type="button" variant="quiet" onClick={() => setPanel(panel === "reply" ? null : "reply")}>Record their reply</Button>
-        {row.code && <Button type="button" variant="quiet" disabled={busy} onClick={() => setConfirm("replace")}>Make a new link</Button>}
-        <Button type="button" variant="quiet" onClick={() => setPanel(panel === "details" ? null : "details")}>Family details and people</Button>
-        <Button type="button" variant="quiet" className="desk-danger" disabled={busy} onClick={() => setConfirm("delete")}><Trash2 size={15} aria-hidden="true" /> Delete family</Button>
-      </details>
+      <MoreMenu label={`More for ${row.name}`} items={[
+        { label: "Events and guests", onSelect: () => setPanel(panel === "edit" ? null : "edit") },
+        { label: "Record their reply", onSelect: () => setPanel(panel === "reply" ? null : "reply") },
+        ...(row.code ? [{ label: "Make a new link", onSelect: () => setConfirm("replace"), disabled: busy }] : []),
+        { label: "Family details and people", onSelect: () => setPanel(panel === "details" ? null : "details") },
+        { label: "Delete family", onSelect: () => setConfirm("delete"), disabled: busy, danger: true },
+      ]} />
     </div>
     {!row.functionIds.length && <p className="field-help">Choose their events under More → Events and guests before inviting them.</p>}
     {panel === "edit" && <EditFamily desk={desk} row={row} onDone={(result) => { setStatus(result); if (result.message) setPanel(null); }} />}
@@ -413,4 +413,59 @@ function PersonForm({ desk, householdId, person, onDone }: { desk: InviteDesk; h
     {state.error && <p className="field-error field-full" role="alert">{state.error}</p>}
     <div className="doc-actions field-full"><Button type="submit" disabled={pending}>{pending ? "Saving…" : person ? "Save" : "Add person"}</Button><Button type="button" variant="quiet" onClick={onDone}>Cancel</Button></div>
   </form>;
+}
+
+type MenuItem = { label: string; onSelect: () => void; disabled?: boolean; danger?: boolean };
+
+/**
+ * "More": a small menu that opens over the page below its button, so the row doesn't move.
+ * Closes on choosing an item, Escape, or a tap outside; arrow keys move between items.
+ */
+function MoreMenu({ label, items }: { label: string; items: MenuItem[] }) {
+  // Where the menu sits on screen. It is pinned to the window (not the table, which scrolls and
+  // would clip it), right-aligned under the button, and opens upwards near the bottom of the screen.
+  const [place, setPlace] = useState<React.CSSProperties | null>(null);
+  const open = place !== null;
+  const box = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const toggle = () => {
+    if (open || !button.current) { setPlace(null); return; }
+    const rect = button.current.getBoundingClientRect();
+    const width = Math.min(240, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+    const below = window.innerHeight - rect.bottom;
+    setPlace(below < 300 && rect.top > below ? { left, width, bottom: window.innerHeight - rect.top + 4 } : { left, width, top: rect.bottom + 4 });
+  };
+  const setOpen = (value: boolean) => { if (!value) setPlace(null); };
+  useEffect(() => {
+    if (!open) return;
+    box.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    const outside = (event: PointerEvent) => { if (!box.current?.contains(event.target as Node)) setOpen(false); };
+    const keys = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setOpen(false); button.current?.focus(); return; }
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      event.preventDefault();
+      const all = [...(box.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
+      const at = all.indexOf(document.activeElement as HTMLButtonElement);
+      all[(at + (event.key === "ArrowDown" ? 1 : all.length - 1)) % all.length]?.focus();
+    };
+    // The menu is pinned to the screen, so it closes if the page scrolls or resizes under it.
+    const close = () => setPlace(null);
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", keys);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", keys);
+      window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close);
+    };
+  }, [open]);
+  return <div className="desk-more" ref={box}>
+    <button ref={button} type="button" className="desk-more-button" aria-haspopup="menu" aria-expanded={open} aria-label={label} onClick={toggle}>More</button>
+    {place && <div className="desk-more-menu" role="menu" aria-label={label} style={place}>
+      {items.map((item) => <button key={item.label} type="button" role="menuitem" className={item.danger ? "desk-danger" : undefined} disabled={item.disabled} onClick={() => { setOpen(false); item.onSelect(); }}>
+        {item.danger && <Trash2 size={15} aria-hidden="true" />}{item.label}
+      </button>)}
+    </div>}
+  </div>;
 }
