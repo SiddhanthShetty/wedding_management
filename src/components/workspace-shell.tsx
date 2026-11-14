@@ -8,7 +8,7 @@ import { signOutAction } from "@/app/actions/auth";
 import { LOOK_COOKIE, LOOK_EVENT, softStyleVars, type Look } from "@/lib/soft-look";
 import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
 import type { WorkspaceBranding } from "@/lib/data/branding";
-import { AREAS, areaForPath, currentSectionLabel, isActiveLink, visibleNavGroups } from "@/lib/navigation";
+import { activeAreaTab, AREAS, areaForPath, currentSectionLabel, isActiveLink, visibleNavGroups } from "@/lib/navigation";
 import { addItemsFor, type AddItem } from "@/lib/add-menu";
 import { PageIntro } from "@/components/page-intro";
 import { ROLE_NAMES } from "@/lib/roles";
@@ -169,7 +169,7 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
         <button type="button" className="phone-tab" onClick={() => setOpen(true)} aria-expanded={open}><Menu size={20} aria-hidden="true" /><span>More</span></button>
       </nav>
       <main id="main-content" className="main-content" inert={open}>{area && <nav className="area-tabs" aria-label={{ guests: "Guests sections", plan: "Plan sections", money: "Money sections", week: "Wedding week sections" }[area]}>
-        {AREAS[area].filter(() => groups.some((group) => group.links.some((link) => link.area === area))).map((tab) => <Link key={tab.href} href={tab.href} className="area-tab" aria-current={pathname === tab.href || pathname.startsWith(`${tab.href}/`) ? "page" : undefined}>{tab.label}</Link>)}
+        {AREAS[area].filter(() => groups.some((group) => group.links.some((link) => link.area === area))).map((tab) => <Link key={tab.href} href={tab.href} className="area-tab" aria-current={activeAreaTab(pathname, AREAS[area]) === tab.href ? "page" : undefined}>{tab.label}</Link>)}
       </nav>}<PageIntro pathname={pathname} />{children}{isDemoPage && <p className="footer-note">Demo shell</p>}</main>
     </div>
   </div>;

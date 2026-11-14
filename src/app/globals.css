@@ -1259,3 +1259,23 @@ fieldset.studio-group-body { border-width: 1px 0 0; }
 .ops-issues-wrap > summary { font-size: 15px; }
 .ops-late { flex-basis: 100%; }
 .ops-late > summary { cursor: pointer; color: #8a5a1f; font-size: 14px; font-weight: 650; }
+/* Guest desk */
+.guest-desk .stat-card { min-height: 0; }
+.desk-cell-label { display: none; color: var(--muted); }
+.desk-actions { display: grid; gap: 8px; min-width: 0; }
+.desk-actions .button, .desk-send .button { min-height: 44px; }
+.desk-panel { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--white); }
+.desk-choice { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.desk-more > summary { display: inline-flex; min-height: 44px; align-items: center; padding: 0 12px; color: var(--brand-accent-text, var(--sage)); font-weight: 650; cursor: pointer; }
+.desk-more[open] { display: grid; gap: 4px; }
+.desk-add-form textarea { font-family: inherit; min-height: 140px; }
+.desk-add-form .auth-alert ul { margin: 6px 0 0; padding-left: 18px; }
+@media (max-width: 760px) {
+  .desk-cell-label { display: inline; }
+  .guest-desk-table td:last-child { padding-top: 8px; }
+}
+.rsvp-all.rsvp-all-family { width: 100%; min-height: 54px; border: 0; background: var(--portal-accent-text, #4f6146); color: #fff; font-size: 17px; font-weight: 700; }
+.rsvp-all.rsvp-all-family:disabled { opacity: .7; }
+.guest-portal-add-name { justify-self: start; min-height: 44px; margin: 4px 0 8px; }
+.guest-portal-name-form { display: grid; gap: 8px; margin: 4px 0 12px; }
+.guest-portal-name-form input { min-height: 44px; font-size: 16px; }

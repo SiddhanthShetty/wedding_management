@@ -19,7 +19,7 @@ const writes = target === "staging";
 test.skip(!enabled, "Signed-in journeys run only with E2E_TARGET=staging or E2E_TARGET=readonly and an account.");
 test.describe.configure({ mode: "serial" });
 
-const ROUTES = ["/overview", "/today", "/guests", "/invitations", "/functions", "/tasks", "/decisions", "/search", "/venues-vendors", "/budget", "/logistics", "/schedule", "/travel", "/documents", "/messages", "/settings"];
+const ROUTES = ["/overview", "/today", "/guests/simple", "/guests", "/invitations", "/functions", "/tasks", "/decisions", "/search", "/venues-vendors", "/budget", "/logistics", "/schedule", "/travel", "/documents", "/messages", "/settings"];
 
 async function signIn(page: Page) {
   await page.goto("/sign-in");
@@ -91,4 +91,33 @@ test("invitation studio previews the design and makes a family preview link that
   await expect(preview.getByText(/Preview · replies are switched off/)).toBeVisible({ timeout: 20_000 });
   expect(preview.url()).not.toContain("#"); // the token is removed from the address bar
   await guest.close();
+});
+
+test("guest desk: paste two families, reply for the whole family by one link, see it replied", async ({ page, context }) => {
+  test.skip(!writes, "Creates TEST families and a reply: staging only.");
+  await signIn(page);
+  const stamp = Date.now();
+  const rao = `TEST Desk Rao ${stamp}`;
+  const pai = `TEST Desk Pai ${stamp}`;
+  await page.goto("/guests/simple");
+  await page.getByLabel("Families").fill(`${rao}, , 3\n${pai}, +91 98765 43210`);
+  await page.getByRole("button", { name: "Add families" }).click();
+  await expect(page.getByText("Added 2 families (4 people).")).toBeVisible();
+  await expect(page.getByLabel("Families")).toHaveValue("");
+  // The link is shown once, inside the WhatsApp message.
+  const row = page.locator("li", { hasText: rao });
+  const whatsapp = await row.getByRole("link", { name: "Open WhatsApp" }).getAttribute("href");
+  const link = /https?:\/\/[^\s]+\/guest#[A-Za-z0-9_-]{43}/.exec(decodeURIComponent(new URL(whatsapp!).searchParams.get("text")!))![0];
+  await page.reload();
+  await expect(page.getByRole("row", { name: new RegExp(rao) })).toContainText("Not yet");
+  await expect(page.getByRole("row", { name: new RegExp(pai) })).toBeVisible();
+
+  const guest = await context.newPage();
+  await guest.goto(link);
+  await guest.getByRole("button", { name: "All of us, to all events" }).click();
+  await expect(guest.getByText(/Saved “Yes” for 3 people/)).toBeVisible();
+  await guest.close();
+
+  await page.reload();
+  await expect(page.getByRole("row", { name: new RegExp(rao) })).toContainText("Accepts, 3 of 3");
 });

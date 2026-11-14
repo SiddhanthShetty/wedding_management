@@ -13,6 +13,9 @@ export type PortalStrings = {
   yesToAll: (name: string) => string; saving: string; saveAll: string;
   dietaryTitle: string; dietaryIntro: string; meal: string; mealChoose: string; mealVeg: string; mealNonVeg: string; mealJain: string; mealVegan: string; mealOther: string; mealOtherHint: string; allergies: string; assistance: string; savingInfo: string; saveInfo: string;
   replyEveryoneTitle: string; replyEveryoneButton: string; replyEveryoneConfirm: (count: number) => string; saveForEveryone: string; cancel: string;
+  // Guest desk: one tap for the whole family, and naming people the hosts added as "guest 2".
+  allOfUs: string; allOfUsHint: string; allOfUsReplace: string; allOfUsYes: string; allOfUsSaved: (count: number) => string; allOfUsPartial: (names: string) => string;
+  addName: string; nameFor: (placeholder: string) => string; saveName: string; savingName: string; nameSaved: string;
   yourPlan: string; items: (count: number) => string; everyone: string; addToCalendar: string; map: string; timingTbc: string;
   stayAt: (place: string) => string; until: (date: string) => string; pickup: string; departureRide: string; ride: string;
   travelTitle: string; checkIn: (date: string, time: string) => string; checkOut: (date: string, time: string) => string;
@@ -46,6 +49,10 @@ const en: PortalStrings = {
   dietaryTitle: "Food and assistance", dietaryIntro: "Only your meal preference, allergies and assistance needs are shared with your hosts.",
   meal: "Meal preference", mealChoose: "Choose…", mealVeg: "Veg", mealNonVeg: "Non-veg", mealJain: "Jain", mealVegan: "Vegan", mealOther: "Something else", mealOtherHint: "Tell us what you eat", allergies: "Allergies", assistance: "Assistance needs", savingInfo: "Saving…", saveInfo: "Save information",
   replyEveryoneTitle: "Replying for everyone?", replyEveryoneButton: "Yes, everyone is coming to everything",
+  allOfUs: "All of us, to all events", allOfUsHint: "Saves “Yes” for everyone on this invitation, for every event. You can change any answer below.",
+  allOfUsReplace: "Some answers are already saved. Change them all to “Yes”?", allOfUsYes: "Yes, change them",
+  allOfUsSaved: (n) => `Saved “Yes” for ${n} ${n === 1 ? "person" : "people"}.`, allOfUsPartial: (names) => `Saved for ${names}. The rest could not be saved; refresh the page and try again.`,
+  addName: "Add name", nameFor: (p) => `Name for ${p}`, saveName: "Save name", savingName: "Saving…", nameSaved: "Name saved.",
   replyEveryoneConfirm: (n) => `This saves “Yes, attending” for every invitation you can reply to, for ${n} ${n === 1 ? "person" : "people"}. You can change any answer afterwards.`,
   saveForEveryone: "Yes, save for everyone", cancel: "Cancel",
   yourPlan: "Your plan", items: (n) => `${n} ${n === 1 ? "item" : "items"}`, everyone: "Everyone", addToCalendar: "Add to calendar", map: "Map", timingTbc: "timing to be confirmed",
@@ -84,6 +91,10 @@ const hi: PortalStrings = {
   dietaryTitle: "भोजन और सहायता", dietaryIntro: "केवल आपकी भोजन पसंद, एलर्जी और सहायता की ज़रूरतें मेज़बानों के साथ साझा होती हैं।",
   meal: "भोजन पसंद", mealChoose: "चुनें…", mealVeg: "शाकाहारी", mealNonVeg: "मांसाहारी", mealJain: "जैन", mealVegan: "वीगन", mealOther: "कुछ और", mealOtherHint: "बताइए आप क्या खाते हैं", allergies: "एलर्जी", assistance: "सहायता की ज़रूरत", savingInfo: "सहेजा जा रहा है…", saveInfo: "जानकारी सहेजें",
   replyEveryoneTitle: "सबकी ओर से उत्तर देना है?", replyEveryoneButton: "हाँ, सभी सभी कार्यक्रमों में आएँगे",
+  allOfUs: "हम सब, सभी कार्यक्रमों में", allOfUsHint: "इस निमंत्रण के सभी लोगों के लिए हर कार्यक्रम में “हाँ” सहेजता है। आप नीचे कोई भी उत्तर बदल सकते हैं।",
+  allOfUsReplace: "कुछ उत्तर पहले से सहेजे गए हैं। क्या सभी को “हाँ” में बदलें?", allOfUsYes: "हाँ, बदलें",
+  allOfUsSaved: (n) => `${n} लोगों के लिए “हाँ” सहेजा गया।`, allOfUsPartial: (names) => `${names} के लिए सहेजा गया। बाकी सहेजे नहीं जा सके; पेज रीफ़्रेश करके फिर कोशिश करें।`,
+  addName: "नाम जोड़ें", nameFor: (p) => `${p} का नाम`, saveName: "नाम सहेजें", savingName: "सहेजा जा रहा है…", nameSaved: "नाम सहेजा गया।",
   replyEveryoneConfirm: (n) => `इससे ${n} लोगों के हर निमंत्रण के लिए “हाँ” सहेजा जाएगा। आप बाद में कोई भी उत्तर बदल सकते हैं।`,
   saveForEveryone: "हाँ, सबके लिए सहेजें", cancel: "रद्द करें",
   yourPlan: "आपका कार्यक्रम", items: (n) => `${n}`, everyone: "सभी", addToCalendar: "कैलेंडर में जोड़ें", map: "नक्शा", timingTbc: "समय तय होना है",
@@ -122,6 +133,10 @@ const kn: PortalStrings = {
   dietaryTitle: "ಊಟ ಮತ್ತು ಸಹಾಯ", dietaryIntro: "ನಿಮ್ಮ ಊಟದ ಆಯ್ಕೆ, ಅಲರ್ಜಿ ಮತ್ತು ಸಹಾಯದ ಅಗತ್ಯಗಳನ್ನು ಮಾತ್ರ ಆತಿಥೇಯರೊಂದಿಗೆ ಹಂಚಿಕೊಳ್ಳಲಾಗುತ್ತದೆ.",
   meal: "ಊಟದ ಆಯ್ಕೆ", mealChoose: "ಆಯ್ಕೆ ಮಾಡಿ…", mealVeg: "ಸಸ್ಯಾಹಾರಿ", mealNonVeg: "ಮಾಂಸಾಹಾರಿ", mealJain: "ಜೈನ", mealVegan: "ವೀಗನ್", mealOther: "ಬೇರೆ", mealOtherHint: "ನೀವು ಏನು ತಿನ್ನುತ್ತೀರಿ ಎಂದು ಬರೆಯಿರಿ", allergies: "ಅಲರ್ಜಿ", assistance: "ಸಹಾಯದ ಅಗತ್ಯ", savingInfo: "ಉಳಿಸಲಾಗುತ್ತಿದೆ…", saveInfo: "ಮಾಹಿತಿ ಉಳಿಸಿ",
   replyEveryoneTitle: "ಎಲ್ಲರ ಪರವಾಗಿ ಉತ್ತರಿಸುವಿರಾ?", replyEveryoneButton: "ಹೌದು, ಎಲ್ಲರೂ ಎಲ್ಲಾ ಸಮಾರಂಭಗಳಿಗೆ ಬರುತ್ತಾರೆ",
+  allOfUs: "ನಾವೆಲ್ಲರೂ, ಎಲ್ಲಾ ಸಮಾರಂಭಗಳಿಗೆ", allOfUsHint: "ಈ ಆಹ್ವಾನದಲ್ಲಿರುವ ಎಲ್ಲರಿಗೂ ಪ್ರತಿಯೊಂದು ಸಮಾರಂಭಕ್ಕೆ “ಹೌದು” ಉಳಿಸುತ್ತದೆ. ಕೆಳಗೆ ಯಾವುದೇ ಉತ್ತರವನ್ನು ಬದಲಿಸಬಹುದು.",
+  allOfUsReplace: "ಕೆಲವು ಉತ್ತರಗಳನ್ನು ಈಗಾಗಲೇ ಉಳಿಸಲಾಗಿದೆ. ಎಲ್ಲವನ್ನೂ “ಹೌದು” ಎಂದು ಬದಲಿಸುವುದೇ?", allOfUsYes: "ಹೌದು, ಬದಲಿಸಿ",
+  allOfUsSaved: (n) => `${n} ಜನರಿಗೆ “ಹೌದು” ಉಳಿಸಲಾಗಿದೆ.`, allOfUsPartial: (names) => `${names} ಅವರಿಗೆ ಉಳಿಸಲಾಗಿದೆ. ಉಳಿದವು ಉಳಿಯಲಿಲ್ಲ; ಪುಟವನ್ನು ರಿಫ್ರೆಶ್ ಮಾಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.`,
+  addName: "ಹೆಸರು ಸೇರಿಸಿ", nameFor: (p) => `${p} ಅವರ ಹೆಸರು`, saveName: "ಹೆಸರು ಉಳಿಸಿ", savingName: "ಉಳಿಸಲಾಗುತ್ತಿದೆ…", nameSaved: "ಹೆಸರು ಉಳಿಸಲಾಗಿದೆ.",
   replyEveryoneConfirm: (n) => `${n} ಜನರ ಪ್ರತಿಯೊಂದು ಆಹ್ವಾನಕ್ಕೂ “ಹೌದು” ಉಳಿಸಲಾಗುತ್ತದೆ. ನಂತರ ಯಾವುದೇ ಉತ್ತರವನ್ನು ಬದಲಿಸಬಹುದು.`,
   saveForEveryone: "ಹೌದು, ಎಲ್ಲರಿಗೂ ಉಳಿಸಿ", cancel: "ರದ್ದುಮಾಡಿ",
   yourPlan: "ನಿಮ್ಮ ಕಾರ್ಯಕ್ರಮ", items: (n) => `${n}`, everyone: "ಎಲ್ಲರೂ", addToCalendar: "ಕ್ಯಾಲೆಂಡರ್‌ಗೆ ಸೇರಿಸಿ", map: "ನಕ್ಷೆ", timingTbc: "ಸಮಯ ನಿಗದಿಯಾಗಬೇಕಿದೆ",
@@ -157,6 +172,10 @@ const tcy: PortalStrings = {
   addNote: "ಆತಿಥೇಯೆರೆಗ್ ಸಂದೇಶ ಸೇರಾಲೆ", saveAll: "ಮಾತಾ ಉತ್ತರೊಲೆನ್ ದೀಲೆ", saving: "ಉತ್ತರೊಲೆನ್ ದೀಪುನೆ…",
   yesToAll: (name) => `${name}ಗ್ ಮಾತೆಡ್ಲಾ ಅಂದ್`,
   replyEveryoneTitle: "ಮಾತೆರೆನ ಪರವಾದ್ ಉತ್ತರ ಕೊರ್ಪರಾ?", replyEveryoneButton: "ಅಂದ್, ಮಾತೆರ್ಲಾ ಮಾತಾ ಕಾರ್ಯಕ್ರಮೊಗು ಬರ್ಪೆರ್",
+  allOfUs: "ಎಂಕುಲ್ ಮಾತೆರ್ಲಾ, ಮಾತಾ ಕಾರ್ಯಕ್ರಮೊಗು", allOfUsHint: "ಈ ಲೆಪ್ಪುಡು ಉಪ್ಪುನ ಮಾತೆರೆಗ್ಲಾ ಮಾತಾ ಕಾರ್ಯಕ್ರಮೊಗು “ಅಂದ್” ದೀಪುಂಡು. ತಿರ್ತ್ ಏರೆನಾಂಡಲಾ ಉತ್ತರ ಬದಲ್ ಮಲ್ಪೊಲಿ.",
+  allOfUsReplace: "ಕೆಲವು ಉತ್ತರೊಲು ದುಂಬೇ ದೀತ್ತ್ಂಡ್. ಮಾತೆನ್ಲಾ “ಅಂದ್” ಪಂಡ್ದ್ ಬದಲ್ ಮಲ್ಪೊಡಾ?", allOfUsYes: "ಅಂದ್, ಬದಲ್ ಮಲ್ಪುಲೆ",
+  allOfUsSaved: (n) => `${n} ಜನೊಕುಲೆಗ್ “ಅಂದ್” ದೀತ್ತ್ಂಡ್.`, allOfUsPartial: (names) => `${names} ನಕುಲೆಗ್ ದೀತ್ತ್ಂಡ್. ಒರಿನವು ದೀಯೆರೆ ಆತ್ಜಿ; ಪುಟೊನು ರಿಫ್ರೆಶ್ ಮಲ್ತ್ ಕುಡ ಪ್ರಯತ್ನ ಮಲ್ಪುಲೆ.`,
+  addName: "ಪುದರ್ ಸೇರಾಲೆ", nameFor: (p) => `${p} ನಕುಲೆನ ಪುದರ್`, saveName: "ಪುದರ್ ದೀಲೆ", savingName: "ದೀಪುನೆ…", nameSaved: "ಪುದರ್ ದೀತ್ತ್ಂಡ್.",
   saveForEveryone: "ಅಂದ್, ಮಾತೆರೆಗ್ಲಾ ದೀಲೆ", cancel: "ಬೊಡ್ಚಿ",
   yourPlan: "ಈರೆನ ಕಾರ್ಯಕ್ರಮ", everyone: "ಮಾತೆರ್ಲಾ", addToCalendar: "ಕ್ಯಾಲೆಂಡರ್‌ಗ್ ಸೇರಾಲೆ",
   travelHelp: "ದಾಲ ತಪ್ಪು ತೋಜಿಂಡ ಆತಿಥೇಯೆರೆನ್ ಸಂಪರ್ಕ ಮಲ್ಪುಲೆ.",

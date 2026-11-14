@@ -7,6 +7,7 @@ import { buildItinerary, functionIcs, mapLink } from "@/lib/guest-portal/itinera
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, CalendarPlus, Heart, MapPin } from "lucide-react";
 import { recordGuestPortalRsvpBatchAction, saveGuestPortalProfileAction, type GuestActionState } from "@/app/actions/guests";
+import { namePlaceholderAction, replyAllYesAction } from "@/app/actions/portal";
 import type { GuestPortalData, PortalGuest, PortalInvitation } from "@/lib/guest-portal/server";
 import { Button } from "@/components/ui";
 import { InvitationCard } from "@/components/invitation-card";
@@ -118,15 +119,7 @@ function PersonRsvpForm({person}:{person:PortalGuest}){
   const [submissionKeys,setSubmissionKeys]=useState<Record<string,string>>({});
   const [batchSubmissionKey,setBatchSubmissionKey]=useState("");
   const router=useRouter();
-  const formRef=useRef<HTMLFormElement>(null);
-  const [submitAfterUpdate,setSubmitAfterUpdate]=useState(false);
   const acceptAll=()=>setDrafts((current)=>Object.fromEntries(person.invitations.map((invitation)=>[invitation.id,{note:current[invitation.id]?.note??"",response:"yes"}])));
-  // Accept all invitations this link is authorized to manage.
-  useEffect(()=>{
-    const onAll=()=>{acceptAll();setSubmitAfterUpdate(true);};
-    window.addEventListener("portal:accept-all",onAll);
-    return ()=>window.removeEventListener("portal:accept-all",onAll);
-  });
 
   const saidYes=useRef(false);
   const [burst,setBurst]=useState(0);
@@ -149,8 +142,6 @@ function PersonRsvpForm({person}:{person:PortalGuest}){
     const draft=drafts[invitation.id];
     return draft&&(draft.response!==(invitation.response??"")||draft.note!==(invitation.response_note??""));
   });
-  // Only submit when "accept all" actually changed something for this person.
-  useEffect(()=>{ if(submitAfterUpdate){setSubmitAfterUpdate(false);if(changed.length)formRef.current?.requestSubmit();} },[submitAfterUpdate,changed.length]);
   const responses=JSON.stringify({
     guestId:person.id,
     submissionKey:batchSubmissionKey,
@@ -162,7 +153,7 @@ function PersonRsvpForm({person}:{person:PortalGuest}){
       submissionKey:submissionKeys[invitation.id]??"",
     })),
   });
-  return <form ref={formRef} action={action} className="guest-portal-rsvp-batch" onSubmit={()=>{saidYes.current=changed.some((invitation)=>drafts[invitation.id]?.response==="yes");}}>
+  return <form action={action} className="guest-portal-rsvp-batch" onSubmit={()=>{saidYes.current=changed.some((invitation)=>drafts[invitation.id]?.response==="yes");}}>
     {burst>0&&<CelebrationBurst key={burst} kind={effect}/>}
     {person.invitations.length>1&&<button type="button" className="rsvp-all" onClick={acceptAll}>{t.yesToAll(person.full_name)}</button>}
     <div className="guest-portal-functions">{person.invitations.map((invitation)=><FunctionCard key={invitation.id} invitation={invitation}><RsvpFields invitation={invitation} draft={drafts[invitation.id]??{response:"",note:""}} onChange={(next)=>setDrafts((current)=>({...current,[invitation.id]:next}))}/></FunctionCard>)}</div>
@@ -208,16 +199,60 @@ function FunctionCard({invitation,children}:{invitation:PortalInvitation;childre
   </article>;
 }
 
-function AuthorizedGuestsAcceptAll({count}:{count:number}){
+/**
+ * "All of us, to all events": one tap saves "Yes" for everyone this link may answer for. It asks
+ * first only when that would change an answer already given.
+ */
+function AllOfUs({people}:{people:PortalGuest[]}){
   const t=useT();
+  const router=useRouter();
+  const effect=useContext(PortalEffect);
   const [confirming,setConfirming]=useState(false);
-  return <section className="guest-portal-person household-accept">
-    <h2>{t.replyEveryoneTitle}</h2>
-    {!confirming?<button type="button" className="rsvp-all" onClick={()=>setConfirming(true)}>{t.replyEveryoneButton}</button>:<>
-      <p>{t.replyEveryoneConfirm(count)}</p>
-      <div className="guest-portal-link-actions"><Button type="button" onClick={()=>{window.dispatchEvent(new Event("portal:accept-all"));setConfirming(false);}}>{t.saveForEveryone}</Button><Button type="button" variant="secondary" onClick={()=>setConfirming(false)}>{t.cancel}</Button></div>
-    </>}
+  const [pending,setPending]=useState(false);
+  const [shown,setShown]=useState<{message?:string;error?:string}>({});
+  const [burst,setBurst]=useState(0);
+  const todo=people.map((person)=>({person,invitations:person.invitations.filter((invitation)=>invitation.response!=="yes")})).filter((row)=>row.invitations.length);
+  const changesAnswers=todo.some((row)=>row.invitations.some((invitation)=>invitation.response));
+  const save=async()=>{
+    setConfirming(false);
+    if(!todo.length){setShown({message:t.alreadySaved});return;}
+    setPending(true);setShown({});
+    const result=await replyAllYesAction(todo.map(({person,invitations})=>({guestId:person.id,responses:invitations.map((invitation)=>({invitationId:invitation.id,note:invitation.response_note??"",expectedUpdatedAt:invitation.updated_at??"",submissionKey:crypto.randomUUID()}))})));
+    setPending(false);
+    const saved=result.saved??[];
+    if(result.status==="saved"||result.status==="duplicate"){setShown({message:t.allOfUsSaved(people.length)});setBurst((n)=>n+1);router.refresh();return;}
+    if(saved.length){setShown({error:t.allOfUsPartial(people.filter((person)=>saved.includes(person.id)).map((person)=>person.full_name).join(", "))});router.refresh();return;}
+    setShown({error:result.status==="conflict"?t.conflict:result.status==="invalid"?t.invalid:t.unavailableShort});
+  };
+  return <section className="guest-portal-person household-accept" aria-labelledby="all-of-us">
+    {burst>0&&<CelebrationBurst key={burst} kind={effect}/>}
+    <button id="all-of-us" type="button" className="rsvp-all rsvp-all-family" disabled={pending} onClick={()=>changesAnswers?setConfirming(true):save()}>{pending?t.saving:t.allOfUs}</button>
+    <p>{t.allOfUsHint}</p>
+    {confirming&&<div role="alertdialog" aria-labelledby="all-of-us-confirm"><p id="all-of-us-confirm">{t.allOfUsReplace}</p>
+      <div className="guest-portal-link-actions"><Button type="button" onClick={save}>{t.allOfUsYes}</Button><Button type="button" variant="secondary" onClick={()=>setConfirming(false)}>{t.cancel}</Button></div></div>}
+    {shown.error&&<p className="guest-portal-error" role="alert">{shown.error}</p>}{shown.message&&<p className="guest-portal-success" role="status">{shown.message}</p>}
   </section>;
+}
+
+/** Someone the hosts added as "<family> guest N": the family can give their name, once. */
+function AddName({person}:{person:PortalGuest}){
+  const t=useT();
+  const router=useRouter();
+  const [open,setOpen]=useState(false);
+  const [key,setKey]=useState("");
+  const [state,action,pending]=useActionState(namePlaceholderAction,{});
+  const fieldId=`name-${person.id}`;
+  useEffect(()=>{ if(state.status==="saved"||state.status==="duplicate")router.refresh(); },[state.status,router]);
+  if(!open)return <button type="button" className="button button-secondary guest-portal-add-name" onClick={()=>{setKey(crypto.randomUUID());setOpen(true);}}>{t.addName}</button>;
+  const error=state.status==="conflict"?t.conflict:state.status==="invalid"?t.invalid:state.status==="unavailable"?t.unavailableShort:null;
+  return <form action={action} className="guest-portal-name-form">
+    <input type="hidden" name="guestId" value={person.id}/><input type="hidden" name="submissionKey" value={key}/>
+    <label htmlFor={fieldId}>{t.nameFor(person.full_name)}</label>
+    <input id={fieldId} name="fullName" className="field-control" required maxLength={120} autoComplete="name"/>
+    <div className="guest-portal-link-actions"><Button type="submit" disabled={pending||!key}>{pending?t.savingName:t.saveName}</Button><Button type="button" variant="secondary" onClick={()=>setOpen(false)}>{t.cancel}</Button></div>
+    {error&&<p className="guest-portal-error" role="alert">{error}</p>}
+    {(state.status==="saved"||state.status==="duplicate")&&<p className="guest-portal-success" role="status">{t.nameSaved}</p>}
+  </form>;
 }
 
 function downloadIcs(fn:Parameters<typeof functionIcs>[0]){
@@ -388,9 +423,10 @@ function PortalContent({data:raw,replay=0,embedded=false}:{data:GuestPortalData;
     <InfoSection t={t} site={site}/>
     {preview?<div id="reply" className="portal-reply"><PreviewReplies data={data}/></div>:<div id="reply" className="portal-reply">
     <header className="guest-portal-welcome"><p className="guest-portal-eyebrow">{t.celebrationWith}</p><h1>{data.couple_names.length?data.couple_names.join(" & "):t.ourFamily}</h1><p>{t.welcome(portalGuest?.full_name??"")} {proxyPeople.length?t.proxyNote(proxyPeople.map((person)=>person.full_name).join(", ")):t.onlyYours}</p></header>
-    {data.people.length>1&&data.people.reduce((total,person)=>total+person.invitations.length,0)>1&&<AuthorizedGuestsAcceptAll count={data.people.length}/>}
+    {data.people.length>1&&<AllOfUs people={data.people}/>}
     {!data.people.length?<section className="guest-portal-state"><h2>{t.notAvailableTitle}</h2><p>{t.unavailable}</p></section>:data.people.map(person=><section className="guest-portal-person" key={person.id}>
       <div className="guest-portal-person-heading"><h2>{person.full_name}</h2><span>{person.is_proxy?t.proxyAccess:t.yourInvitation} · {t.invitations(person.invitations.length)}</span></div>
+      {!preview&&data.placeholder_ids?.includes(person.id)&&<AddName person={person}/>}
       <PersonRsvpForm key={`${person.id}:${person.invitations.map((invitation)=>`${invitation.id}:${invitation.updated_at??"new"}`).join("|")}`} person={person}/>
       <TravelArrangements person={person}/>
       <GuestProfileForm person={person}/>

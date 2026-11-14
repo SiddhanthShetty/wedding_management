@@ -4,6 +4,7 @@ export const PAGE_INTROS: Record<string, string> = {
   "/tasks": "Everything to do, grouped by month. Type a task in the box at the top to add it, and tap Done when it's done.",
   "/decisions": "Questions you're deciding together, like the menu or the decorator, with the options and what each of you prefers.",
   "/functions": "Your wedding events, from Haldi to Reception, with their dates, times and places.",
+  "/guests/simple": "Paste your families, send each one their invitation on WhatsApp, and see who has replied. One link answers for the whole family.",
   "/guests": "Families and guests, who's invited to which function, and their replies.",
   "/invitations": "Send each family their own private invitation link, and see who has opened it and replied.",
   "/messages": "Messages and reminders for guests. Nothing is sent automatically; you send them yourself.",

@@ -37,6 +37,8 @@ export type GuestPortalData = {
   media?: PortalMedia;
   /** A preview for the couple or their family: replies and blessings are switched off. */
   preview?: { expires_at: string | null };
+  /** People the hosts added as "<family> guest N", whom this link may name. */
+  placeholder_ids?: string[];
 };
 
 function publicSupabase() {
@@ -89,13 +91,16 @@ export async function getGuestPortalData(): Promise<GuestPortalData | null> {
     const sessionDigest = await getGuestPortalSessionDigest();
     if (!sessionDigest || !(await consumePortalRateLimit("read"))) return null;
     const supabase = publicSupabase();
-    const [portal, media] = await Promise.all([
+    const [portal, media, placeholders] = await Promise.all([
       supabase.rpc("get_guest_portal_data", { p_session_digest: sessionDigest }),
       supabase.rpc("list_guest_portal_media", { p_session_digest: sessionDigest }),
+      supabase.rpc("get_guest_portal_placeholders", { p_session_digest: sessionDigest }),
     ]);
     if (portal.error || !portal.data || typeof portal.data !== "object") return null;
     const listing = !media.error && media.data && typeof media.data === "object" ? media.data as Omit<PortalMedia, "base"> : null;
-    return { ...(portal.data as GuestPortalData), media: listing ? { base: "/guest/media/", ...listing } : undefined };
+    // Before the guest-desk migration is applied there are no placeholders; the page works the same.
+    const placeholderIds = !placeholders.error && Array.isArray(placeholders.data) ? (placeholders.data as unknown[]).filter((id): id is string => typeof id === "string") : [];
+    return { ...(portal.data as GuestPortalData), media: listing ? { base: "/guest/media/", ...listing } : undefined, placeholder_ids: placeholderIds };
   } catch { return null; }
 }
 
@@ -118,6 +123,45 @@ export async function recordPortalRsvps(input: { guestId: string; responses: Arr
     });
     if (error || !data || typeof data !== "object") return { status: "unavailable" } as const;
     return data as { status: "saved" | "duplicate" | "conflict" | "invalid" | "unavailable"; saved_count?: number };
+  } catch { return { status: "unavailable" } as const; }
+}
+
+type PortalStatus = "saved" | "duplicate" | "conflict" | "invalid" | "unavailable";
+
+/**
+ * "All of us, to all events": saves each person's answers through the same batch reply function
+ * (one transaction per person, with stale-write and duplicate checks). Counts as one submission
+ * for rate limiting. Stops at the first person whose answers could not be saved.
+ */
+export async function recordPortalFamilyRsvps(people: Array<{ guestId: string; responses: Array<{ invitationId: string; response: "yes" | "no" | "maybe"; note: string; expectedUpdatedAt: string | null; submissionKey: string }> }>) {
+  const saved: string[] = [];
+  try {
+    if (!(await consumePortalRateLimit("submit"))) return { status: "unavailable" as PortalStatus, saved };
+    const sessionDigest = await getGuestPortalSessionDigest();
+    if (!sessionDigest) return { status: "unavailable" as PortalStatus, saved };
+    const supabase = publicSupabase();
+    for (const person of people) {
+      const { data, error } = await supabase.rpc("record_guest_portal_rsvps", {
+        p_session_digest: sessionDigest, p_guest_id: person.guestId,
+        p_responses: person.responses.map((entry) => ({ invitation_id: entry.invitationId, response: entry.response, note: entry.note, expected_updated_at: entry.expectedUpdatedAt, submission_key: entry.submissionKey })),
+      });
+      const status = (error || !data || typeof data !== "object" ? "unavailable" : (data as { status: PortalStatus }).status) as PortalStatus;
+      if (status !== "saved" && status !== "duplicate") return { status, saved };
+      saved.push(person.guestId);
+    }
+    return { status: "saved" as PortalStatus, saved };
+  } catch { return { status: "unavailable" as PortalStatus, saved }; }
+}
+
+/** The family names someone the hosts added as "<family> guest N". Allowed once per person. */
+export async function renamePortalPlaceholder(input: { guestId: string; fullName: string; submissionKey: string }) {
+  try {
+    if (!(await consumePortalRateLimit("submit"))) return { status: "unavailable" } as const;
+    const sessionDigest = await getGuestPortalSessionDigest();
+    if (!sessionDigest) return { status: "unavailable" } as const;
+    const { data, error } = await publicSupabase().rpc("rename_guest_portal_placeholder", { p_session_digest: sessionDigest, p_guest_id: input.guestId, p_full_name: input.fullName, p_submission_key: input.submissionKey });
+    if (error || !data || typeof data !== "object") return { status: "unavailable" } as const;
+    return data as { status: PortalStatus };
   } catch { return { status: "unavailable" } as const; }
 }
 

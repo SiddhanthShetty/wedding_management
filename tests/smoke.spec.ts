@@ -8,7 +8,7 @@ test("authentication routes render and unauthenticated workspace routes redirect
 
   const protectedRoutes = [
     "/overview", "/functions", "/tasks", "/decisions", "/search", "/venues-vendors", "/budget",
-    "/guests", "/logistics", "/documents", "/settings", "/design-system",
+    "/guests", "/guests/simple", "/logistics", "/documents", "/settings", "/design-system",
     "/travel", "/schedule", "/schedule/pack", "/messages", "/overview/export", "/invitations", "/today",
   ];
   for (const route of protectedRoutes) {
