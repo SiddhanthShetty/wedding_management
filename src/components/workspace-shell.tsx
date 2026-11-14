@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, FileText, Heart, LogOut, Menu, Plus, Search, Settings, Sparkles, X } from "lucide-react";
+import Image from "next/image";
+import { ChevronDown, FileText, LogOut, Menu, Plus, Search, Settings, Sparkles, X } from "lucide-react";
 import { signOutAction } from "@/app/actions/auth";
 import { LOOK_COOKIE, LOOK_EVENT, softStyleVars, type Look } from "@/lib/soft-look";
 import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
@@ -131,7 +132,8 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
     <button className={`mobile-backdrop ${open ? "is-open" : ""}`} aria-label="Close navigation" onClick={() => setOpen(false)} tabIndex={open ? 0 : -1} />
     <aside ref={sidebarRef} className={`sidebar ${open ? "is-open" : ""}`} aria-label="Menu" role={open ? "dialog" : undefined} aria-modal={open ? "true" : undefined}>
       <Link href="/overview" className="brand" aria-label="Wedding Desk home">
-        <span className={`brand-mark ${branding?.monogram ? "has-monogram" : ""}`}>{branding?.monogram ? <span aria-hidden="true">{branding.monogram}</span> : <Heart size={18} strokeWidth={1.7} aria-hidden="true" />}</span><span className="brand-name">{branding?.coupleNames || "Wedding Desk"}</span>
+        {/* The couple's SS monogram seal, from their invitation. */}
+        <Image src="/invite/seal.webp" width={72} height={72} alt="" aria-hidden="true" className="brand-seal" priority /><span className="brand-name">{branding?.coupleNames || "Wedding Desk"}</span>
       </Link>
       <div className="workspace-switcher">
         <span><span className="switch-title">{weddingName}</span><span className="switch-meta">Your wedding</span></span>

@@ -1414,3 +1414,7 @@ html[data-cover] .invite-site #cover { position: fixed; inset: 0; z-index: 60; d
 }
 .guest-desk .guest-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 760px) { .guest-desk .guest-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* The couple's SS monogram seal as the app's logo */
+.brand-seal { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; box-shadow: 0 1px 3px rgba(94, 11, 18, .18); }
+.auth-brand { display: grid; justify-items: center; gap: 10px; }
+.auth-seal { width: 72px; height: 72px; border-radius: 50%; box-shadow: 0 4px 14px rgba(94, 11, 18, .18); }
