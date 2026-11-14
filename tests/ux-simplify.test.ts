@@ -15,10 +15,10 @@ describe("grouped navigation", () => {
 
   it("names the current section, including nested pages", () => {
     expect(currentSectionLabel("/schedule/pack")).toBe("Run sheets");
-    expect(currentSectionLabel("/guests/simple")).toBe("Invitations");
-    expect(currentSectionLabel("/guests")).toBe("People");
+    // Guests is one page now: no Invitations / People / Messages tabs.
+    expect(currentSectionLabel("/guests/simple")).toBe("Guests");
     expect(areaForPath("/today")).toBe("week");
-    expect(areaForPath("/messages")).toBe("guests");
+    expect(areaForPath("/messages")).toBeNull();
     expect(areaForPath("/budget")).toBe("money");
     expect(isActiveLink("/travel", NAV_GROUPS.find((group) => group.id === "week")!.links[0]!)).toBe(true);
     expect(currentSectionLabel("/travel")).toBe("Stays & travel");

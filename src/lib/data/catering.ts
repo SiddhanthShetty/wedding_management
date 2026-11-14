@@ -54,19 +54,23 @@ export async function getCateringWorkspace(weddingId: string) {
   if (bookings.error) fail("Could not load linked budget records.");
   const bookingById = new Map((bookings.data ?? []).map((booking) => [booking.id, booking]));
   const serviceDtos = await Promise.all((services.data ?? []).map(async (service) => {
-    const [invitedResult, dietaryResult] = await Promise.all([
-      supabase.rpc("get_catering_invited_guests", { p_wedding_id: weddingId, p_service_id: service.id }),
+    // Counts come from family replies (Guests → Invitations): families invited, people coming.
+    const [familyResult, dietaryResult] = await Promise.all([
+      supabase.rpc("get_catering_family_counts", { p_wedding_id: weddingId, p_service_id: service.id }),
       supabase.rpc("get_catering_dietary_summary", { p_wedding_id: weddingId, p_service_id: service.id }),
     ]);
-    if (invitedResult.error || dietaryResult.error) fail("Could not load invited guests and dietary summary.");
+    if (familyResult.error || dietaryResult.error) fail("Could not load replies and the food summary.");
     const counts = (countResult.data ?? []).filter((row) => row.meal_service_id === service.id);
     const assignments = (assignmentResult.data ?? []).filter((row) => row.meal_service_id === service.id);
     const menus = (menuResult.data ?? []).filter((row) => row.meal_service_id === service.id).map((menu) => ({ ...menu, items: (itemResult.data ?? []).filter((item) => item.menu_id === menu.id) }));
     const latestSnapshot = (snapshotResult.data ?? []).find((row) => row.meal_service_id === service.id) ?? null;
-    return { ...service, caterer_name: suppliersById.get(service.caterer_supplier_id) ?? null, linked_booking: bookingById.get(service.booking_id) ?? null, counts, assignments, guests: invitedResult.data ?? [], dietary: dietaryResult.data, menus, tastings: (tastingResult.data ?? []).filter((row) => row.meal_service_id === service.id), latest_snapshot: latestSnapshot, allergy_details: allergyByService[service.id] ?? [] };
+    return { ...service, caterer_name: suppliersById.get(service.caterer_supplier_id) ?? null, linked_booking: bookingById.get(service.booking_id) ?? null, counts, assignments, family: (familyResult.data ?? { invited_families: 0, replied_families: 0, coming_people: 0, families: [] }) as CateringFamilies, dietary: dietaryResult.data, menus, tastings: (tastingResult.data ?? []).filter((row) => row.meal_service_id === service.id), latest_snapshot: latestSnapshot, allergy_details: allergyByService[service.id] ?? [] };
   }));
   return { wedding: context.wedding, canEdit: context.membership.role === "owner" || context.membership.role === "co_owner" || context.moduleAccess.logistics === "edit", canSeeAllergies, canLinkBookings: bookingAccess, functions: refData.functions ?? [], suppliers: refData.caterers ?? [], bookings: bookings.data ?? [], services: serviceDtos, categories };
 }
+
+/** Families invited to a meal service's function, and who is coming, from family replies. */
+export type CateringFamilies = { invited_families: number; replied_families: number; coming_people: number; families: Array<{ name: string; people: number; dietary: string }> };
 
 export async function createCateringService(weddingId: string, input: Row) {
   const context = await authorizeWeddingOperation(weddingId, "logistics", "edit");

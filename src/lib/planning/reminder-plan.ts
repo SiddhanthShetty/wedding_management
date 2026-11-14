@@ -36,14 +36,14 @@ function addDays(date: string, days: number) {
  * Four steps before the wedding. A step is "now" from its date until the next step's date,
  * "done" after that (meaning its time has passed, not that it was sent), and "upcoming" before.
  */
-export function reminderPlan(weddingDate: string | null, today: string, reminderFunctionId: string | null): PlanStep[] {
+export function reminderPlan(weddingDate: string | null, today: string): PlanStep[] {
   if (!weddingDate) return [];
-  const remind = reminderFunctionId ? `/messages?function=${reminderFunctionId}&kind=reminder` : "/messages?kind=reminder";
+  // Each step opens the right part of the Guests page.
   const steps = [
-    { key: "invite", days: -56, title: "Send the invitations", detail: "About 8 weeks before. Each family gets its own link.", href: "/guests/simple", action: "Open Invitations" },
-    { key: "gentle", days: -28, title: "Gentle reminder", detail: "About 4 weeks before, to anyone who hasn't replied.", href: remind, action: "Prepare reminders" },
-    { key: "final", days: -14, title: "Last call", detail: "About 2 weeks before, so you can give the caterer final numbers.", href: remind, action: "Prepare reminders" },
-    { key: "directions", days: -3, title: "Directions and timings", detail: "A few days before, for everyone coming.", href: "/messages?kind=update", action: "Prepare the message" },
+    { key: "invite", days: -56, title: "Send the invitations", detail: "About 8 weeks before. Tap Invite next to each family.", href: "/guests/simple#families", action: "Go to families" },
+    { key: "gentle", days: -28, title: "Gentle reminder", detail: "About 4 weeks before, to families who haven't replied: tap Remind.", href: "/guests/simple#families", action: "Go to families" },
+    { key: "final", days: -14, title: "Last call", detail: "About 2 weeks before, so you can give the caterer final numbers.", href: "/guests/simple#families", action: "Go to families" },
+    { key: "directions", days: -3, title: "Directions and timings", detail: "A few days before, to families coming: Send an update.", href: "/guests/simple#send-update", action: "Send an update" },
   ].map((step) => ({ ...step, date: addDays(weddingDate, step.days) }));
   return steps.map((step, index) => {
     const next = steps[index + 1]?.date ?? weddingDate;

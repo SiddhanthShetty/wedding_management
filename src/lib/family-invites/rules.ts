@@ -32,6 +32,25 @@ export function inviteMessage(family: string, link: string, couple: string): str
   return `Dear ${family},\n\nWith the blessings of our families, we warmly invite you to the wedding of ${couple}.\n\nYour invitation, with the events, directions and a place to reply: ${link}`;
 }
 
+/**
+ * The words for "Send an update" (for example directions and timings a few days before). {family}
+ * and {link} are filled in for each family when it is sent.
+ */
+export function updateTemplate(event: { name: string; date: string | null; time: string | null; venue: string | null }, couple: string): string {
+  const when = event.date ? ` on ${new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${event.date}T12:00:00Z`))}` : "";
+  const at = event.time ? ` at ${formatClock(event.time)}` : "";
+  const where = event.venue ? `, ${event.venue}` : "";
+  return `Dear {family},\n\nWe can't wait to see you at the ${event.name}${when}${at}${where}. Your invitation has the map and all the details: {link}\n\nWith love,\n${couple}`;
+}
+
+/** Fills in {family} and {link}. */
+export const fillUpdate = (template: string, family: string, link: string) => template.split("{family}").join(family).split("{link}").join(link);
+
+function formatClock(time: string) {
+  const [hh, mm] = time.slice(0, 5).split(":").map(Number) as [number, number];
+  return `${hh % 12 === 0 ? 12 : hh % 12}${mm ? `:${String(mm).padStart(2, "0")}` : ""} ${hh < 12 ? "am" : "pm"}`;
+}
+
 export function reminderMessage(family: string, link: string, couple: string): string {
   return `Dear ${family},\n\nA gentle reminder from ${couple}: please let us know if you can join us. It only takes a minute: ${link}`;
 }
@@ -115,13 +134,15 @@ export type DeskFamily = {
 };
 export type DeskReply = { household_id: string; attending: boolean; guest_count: number; function_ids: string[]; dietary: string; dietary_notes: string; message: string; reply_name: string; reply_phone: string; source: string; updated_at: string };
 export type DeskInvite = { household_id: string; function_id: string };
-export type DeskMessage = { household_id: string; sent_at: string | null; kind: "invite" | "remind" };
+export type DeskMessage = { household_id: string; sent_at: string | null; kind: "invite" | "remind" | "update" };
 export type DeskFunction = { id: string; name: string };
 
 export type FamilyRow = {
   id: string; name: string; phone: string; code: string | null; maxGuests: number | null; removed: boolean;
   functionIds: string[]; reply: DeskReply | null; status: "accepts" | "declines" | "waiting" | "no_events";
   invitedAt: string | null; remindedAt: string | null; reminders: number;
+  /** Last "Send an update" message recorded for this family. */
+  updateSentAt: string | null;
   /** People in the family on the People page (deleted with the family). */
   people: number;
 };
@@ -140,6 +161,7 @@ export function familyRows(input: { families: DeskFamily[]; invites: DeskInvite[
       status: reply ? (reply.attending ? "accepts" : "declines") : functionIds.length ? "waiting" : "no_events",
       invitedAt: latest(messages.filter((row) => row.kind === "invite").map((row) => row.sent_at)),
       remindedAt: latest(reminders.map((row) => row.sent_at)), reminders: reminders.length,
+      updateSentAt: latest(messages.filter((row) => row.kind === "update").map((row) => row.sent_at)),
       people: input.people?.[family.id] ?? 0,
     };
   });

@@ -1,7 +1,7 @@
 /** Family invitations: links, messages, the reply form, the Guest desk's counts and the paste box. */
 import { describe, expect, it } from "vitest";
 import {
-  CODE_PATTERN, databaseFieldMessage, deleteText, deskTotals, familyRows, functionHeadcounts, inviteLink, inviteMessage, mealsByFunction, newInviteCode, reminderMessage,
+  CODE_PATTERN, databaseFieldMessage, deleteText, deskTotals, fillUpdate, updateTemplate, familyRows, functionHeadcounts, inviteLink, inviteMessage, mealsByFunction, newInviteCode, reminderMessage,
   repliesCsv, replyErrors, replyLabel, replySchema, sortFamilies, whatsappLink, withoutLink, type DeskFamily, type DeskReply,
 } from "../src/lib/family-invites/rules";
 import { checkFamilyEntries, databaseProblem, familyNameKey, phoneProblem, tidyPhone } from "../src/lib/planning/family-entries";
@@ -31,6 +31,21 @@ describe("family links", () => {
     expect(whatsappLink("+91 98765 43210", "Hi & bye")).toEqual({ url: "https://wa.me/919876543210?text=Hi%20%26%20bye", hasNumber: true });
     expect(whatsappLink("98765 43210", "Hi")).toEqual({ url: "https://wa.me/?text=Hi", hasNumber: false });
     expect(withoutLink("Open https://x/i/ABC and https://x/i/ABC", "https://x/i/ABC")).toBe("Open [invitation link] and [invitation link]");
+  });
+});
+
+describe("sending an update", () => {
+  it("writes the event's details once and fills in each family's name and link", () => {
+    const template = updateTemplate({ name: "Muhurtham", date: "2027-12-10", time: "10:30:00", venue: "Kudroli Temple Hall" }, "Sweekruti & Siddhanth");
+    expect(template).toBe("Dear {family},\n\nWe can't wait to see you at the Muhurtham on Friday, 10 December at 10:30 am, Kudroli Temple Hall. Your invitation has the map and all the details: {link}\n\nWith love,\nSweekruti & Siddhanth");
+    expect(updateTemplate({ name: "Haldi", date: null, time: null, venue: null }, "A & B")).toContain("see you at the Haldi. Your invitation");
+    expect(updateTemplate({ name: "Reception", date: "2027-12-11", time: "19:00", venue: null }, "A & B")).toContain("on Saturday, 11 December at 7 pm.");
+    expect(fillUpdate("Dear {family}, {link} and {link}", "Rao family", "https://x/i/ABC")).toBe("Dear Rao family, https://x/i/ABC and https://x/i/ABC");
+  });
+
+  it("shows the last update on the family's row", () => {
+    const [row] = familyRows({ families: [fam("1", "Rao family")], invites: [], replies: [], messages: [{ household_id: "1", sent_at: "2027-12-07T10:00:00Z", kind: "update" }] });
+    expect(row).toMatchObject({ updateSentAt: "2027-12-07T10:00:00Z", invitedAt: null, reminders: 0 });
   });
 });
 

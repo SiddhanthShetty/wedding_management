@@ -21,8 +21,8 @@ export function calculatePlateEstimate(portions: number, perPlateRate: string): 
 }
 
 export type CateringReviewInput = {
-  guests: Array<{ guest_id: string; response: string | null }>;
-  assignedGuestIds: Set<string>;
+  /** People coming to the service's function, from family replies. */
+  confirmed: number;
   latestSnapshotConfirmed: number | null;
   finalCountDeadline: string | null;
   hasSnapshot: boolean;
@@ -35,11 +35,8 @@ export type CateringReviewInput = {
  */
 export function cateringReviewReasons(input: CateringReviewInput): string[] {
   const now = input.now ?? new Date();
-  const confirmed = countCateringGuests(input.guests.map((guest) => ({ guestId: guest.guest_id, invited: true, response: guest.response }))).confirmed;
   const reasons: string[] = [];
-  if (input.latestSnapshotConfirmed !== null && input.latestSnapshotConfirmed !== confirmed) reasons.push(`Confirmed guests changed since the last snapshot (${input.latestSnapshotConfirmed} → ${confirmed}).`);
-  const unassigned = input.guests.filter((guest) => guest.response === "yes" && !input.assignedGuestIds.has(guest.guest_id)).length;
-  if (unassigned) reasons.push(`${unassigned} confirmed guest(s) have no adult or child meal category.`);
+  if (input.latestSnapshotConfirmed !== null && input.latestSnapshotConfirmed !== input.confirmed) reasons.push(`People coming changed since the last saved count (${input.latestSnapshotConfirmed} → ${input.confirmed}).`);
   if (input.finalCountDeadline && new Date(input.finalCountDeadline) < now && !input.hasSnapshot) reasons.push("The final-count deadline has passed without a captured count.");
   return reasons;
 }

@@ -126,7 +126,7 @@ export function WorkspaceShell({ children, weddingName, displayName, role, modul
   const brandStyle = { ...(branding ? { ["--brand-accent" as string]: branding.accent, ["--brand-accent-text" as string]: branding.accentText, ["--brand-bg" as string]: branding.background } : {}), ...softStyleVars(branding?.accent) } as React.CSSProperties;
   // Phone tab bar: the main destinations this member can open, plus "More" for the full menu.
   const tabFor = (href: string) => groups.flatMap((group) => group.links).find((link) => link.href === href);
-  const phoneTabs = ["/overview", "/tasks", "/guests", "/venues-vendors"].map(tabFor).filter((link): link is NonNullable<typeof link> => Boolean(link));
+  const phoneTabs = ["/overview", "/tasks", "/guests/simple", "/venues-vendors"].map(tabFor).filter((link): link is NonNullable<typeof link> => Boolean(link));
   return <div className="app-shell" data-look={look} style={brandStyle}>
     <button className={`mobile-backdrop ${open ? "is-open" : ""}`} aria-label="Close navigation" onClick={() => setOpen(false)} tabIndex={open ? 0 : -1} />
     <aside ref={sidebarRef} className={`sidebar ${open ? "is-open" : ""}`} aria-label="Menu" role={open ? "dialog" : undefined} aria-modal={open ? "true" : undefined}>

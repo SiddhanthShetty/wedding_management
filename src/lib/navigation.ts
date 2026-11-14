@@ -3,12 +3,11 @@ import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
 
 export type NavLink = { href: string; label: string; icon: LucideIcon; module?: WeddingModule; area?: AreaId };
 export type NavGroup = { id: string; label: string | null; links: NavLink[] };
-export type AreaId = "plan" | "guests" | "money" | "week";
+export type AreaId = "plan" | "money" | "week";
 
 /** Pages that belong together share one menu entry and show section tabs at the top. */
 export const AREAS: Record<AreaId, Array<{ href: string; label: string }>> = {
   plan: [{ href: "/tasks", label: "To do" }, { href: "/decisions", label: "To decide" }, { href: "/functions", label: "Functions" }],
-  guests: [{ href: "/guests/simple", label: "Invitations" }, { href: "/guests", label: "People" }, { href: "/messages", label: "Messages" }],
   money: [{ href: "/venues-vendors", label: "Vendors" }, { href: "/budget", label: "Budget" }],
   week: [{ href: "/schedule", label: "Run sheets" }, { href: "/today", label: "Day-of" }, { href: "/logistics", label: "Catering" }, { href: "/travel", label: "Stays & travel" }],
 };
@@ -20,7 +19,7 @@ export const AREAS: Record<AreaId, Array<{ href: string; label: string }>> = {
 export const NAV_GROUPS: NavGroup[] = [
   { id: "home", label: null, links: [{ href: "/overview", label: "Home", icon: LayoutDashboard }] },
   { id: "plan", label: null, links: [{ href: "/tasks", label: "Plan", icon: CheckSquare2, module: "planning", area: "plan" }] },
-  { id: "guests", label: null, links: [{ href: "/guests/simple", label: "Guests", icon: UsersRound, module: "guests", area: "guests" }] },
+  { id: "guests", label: null, links: [{ href: "/guests/simple", label: "Guests", icon: UsersRound, module: "guests" }] },
   { id: "money", label: null, links: [{ href: "/venues-vendors", label: "Money", icon: Wallet, module: "suppliers_finance", area: "money" }] },
   { id: "week", label: null, links: [{ href: "/schedule", label: "Wedding week", icon: CalendarHeart, module: "logistics", area: "week" }] },
 ];
@@ -35,7 +34,7 @@ export function visibleNavGroups(role: MemberRole, moduleAccess: Partial<Record<
 
 const matchesPath = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
-/** The area tab for this page: the most specific match, so /guests/simple is not also "People & RSVPs". */
+/** The area tab for this page: the most specific match, so a nested page highlights only its own tab. */
 export function activeAreaTab(pathname: string, tabs: Array<{ href: string }>): string | null {
   return tabs.filter((tab) => matchesPath(pathname, tab.href)).sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
 }

@@ -47,11 +47,10 @@ describe("dashboard selections (pure)", () => {
   });
 
   it("flags catering services with the shared review rule", () => {
-    const guests = [{ guest_id: "a", response: "yes" }, { guest_id: "b", response: "yes" }, { guest_id: "c", response: "no" }];
-    expect(cateringReviewReasons({ guests, assignedGuestIds: new Set(["a", "b"]), latestSnapshotConfirmed: 2, finalCountDeadline: null, hasSnapshot: true })).toEqual([]);
-    expect(cateringReviewReasons({ guests, assignedGuestIds: new Set(["a"]), latestSnapshotConfirmed: 1, finalCountDeadline: "2020-01-01T00:00:00Z", hasSnapshot: true }))
-      .toEqual(["Confirmed guests changed since the last snapshot (1 → 2).", "1 confirmed guest(s) have no adult or child meal category."]);
-    expect(cateringReviewReasons({ guests: [], assignedGuestIds: new Set(), latestSnapshotConfirmed: null, finalCountDeadline: "2020-01-01T00:00:00Z", hasSnapshot: false }))
+    expect(cateringReviewReasons({ confirmed: 6, latestSnapshotConfirmed: 6, finalCountDeadline: null, hasSnapshot: true })).toEqual([]);
+    expect(cateringReviewReasons({ confirmed: 8, latestSnapshotConfirmed: 6, finalCountDeadline: "2020-01-01T00:00:00Z", hasSnapshot: true }))
+      .toEqual(["People coming changed since the last saved count (6 → 8)."]);
+    expect(cateringReviewReasons({ confirmed: 0, latestSnapshotConfirmed: null, finalCountDeadline: "2020-01-01T00:00:00Z", hasSnapshot: false }))
       .toEqual(["The final-count deadline has passed without a captured count."]);
   });
 });

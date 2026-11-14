@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Copy, Download, MessageCircle, Plus, Trash2, Users } from "lucide-react";
 import { addFamiliesAction, deleteFamilyAction, familyCodeAction, recordFamilyReplyAction, recordFamilySendAction, setFamilyRemovedAction, updateFamilyAction, type AddFamiliesState } from "@/app/actions/family-invites";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
+import { MealChoice } from "@/components/meal-choice";
+import { deleteGuestAction, saveGuestAction, saveHouseholdAction, type GuestActionState } from "@/app/actions/guests";
+import { reminderPlan } from "@/lib/planning/reminder-plan";
 import { Button, Card, DataTable, EmptyState } from "@/components/ui";
-import type { InviteDesk } from "@/lib/data/family-invites";
-import { deleteText, DIETARY_OPTIONS, inviteLink, inviteMessage, reminderMessage, replyLabel, repliesCsv, whatsappLink, type FamilyRow } from "@/lib/family-invites/rules";
+import type { FamilyPerson, InviteDesk } from "@/lib/data/family-invites";
+import { deleteText, DIETARY_OPTIONS, fillUpdate, inviteLink, inviteMessage, reminderMessage, updateTemplate, replyLabel, repliesCsv, whatsappLink, type FamilyRow } from "@/lib/family-invites/rules";
 import { checkFamilyEntries, emptyEntry, MAX_FAMILIES_AT_ONCE, MAX_FAMILY_NAME, MAX_GUESTS_PER_FAMILY, phoneProblem, tidyPhone, type EntryError, type EntryField, type FamilyEntry } from "@/lib/planning/family-entries";
 import { formatDate } from "@/lib/format";
 
@@ -30,8 +34,9 @@ export function GuestDesk({ desk }: { desk: InviteDesk }) {
       <Tile label="Not yet replied" value={desk.totals.waiting} />
       <Tile label="Guests coming" value={desk.totals.coming} />
     </div>
+    <WhenToSend desk={desk} />
     {desk.canEdit ? <AddFamilies desk={desk} /> : <p className="field-help" role="note">You can see the list. To add families or send invitations, ask the couple to let you change guests.</p>}
-    <Card title="Families" subtitle="Each family has one link that never changes. Families who haven't replied are at the top."
+    <Card id="families" title="Families" subtitle="Each family has one link that never changes. Families who haven't replied are at the top."
       action={desk.families.length ? <Button type="button" variant="secondary" onClick={download}><Download size={15} aria-hidden="true" /> Download CSV</Button> : undefined}>
       {notice && <p className="auth-success" role="status">{notice}</p>}
       {!desk.families.length ? <EmptyState icon={<Users size={20} aria-hidden="true" />} title="No families yet" description={desk.canEdit ? "Paste your families above, one per line." : "Families appear here once the couple adds them."} />
@@ -39,6 +44,7 @@ export function GuestDesk({ desk }: { desk: InviteDesk }) {
           {desk.families.map((row) => <FamilyLine key={row.id} desk={desk} row={row} onDeleted={setNotice} />)}
         </DataTable>}
     </Card>
+    {desk.canEdit && <SendUpdate desk={desk} />}
     <Card title="Guests per event" subtitle="People coming, from each family's reply. Families who haven't replied are counted as families.">
       {!desk.headcounts.length ? <p className="field-help">Add your events on <Link href="/functions">Plan → Functions</Link> to see counts.</p>
         : <DataTable label="Guests per event" headers={["Event", "Coming", "Not coming", "Not yet replied", "Families invited"]}>
@@ -135,13 +141,13 @@ function FamilyLine({ desk, row, onDeleted }: { desk: InviteDesk; row: FamilyRow
     <td><span className="desk-cell-label">Most guests: </span>{row.maxGuests ?? "Any"}</td>
     <td><span className={`status ${row.status === "accepts" ? "status-confirmed" : row.status === "declines" ? "status-neutral" : "status-pending"}`}>{replyLabel(row)}</span>
       {row.reply?.attending && row.reply.dietary !== "none" ? <span className="table-secondary">{DIETARY_OPTIONS.find((option) => option.value === row.reply!.dietary)?.label}</span> : null}</td>
-    <td><span className="desk-cell-label">Sent: </span><span className="table-secondary">{invited ? `Invited ${invited}` : "Not sent yet"}{reminded ? ` · reminded ${reminded}${row.reminders > 1 ? ` (${row.reminders}×)` : ""}` : ""}</span></td>
+    <td><span className="desk-cell-label">Sent: </span><span className="table-secondary">{invited ? `Invited ${invited}` : "Not sent yet"}{reminded ? ` · reminded ${reminded}${row.reminders > 1 ? ` (${row.reminders}×)` : ""}` : ""}{row.updateSentAt ? ` · update ${day(row.updateSentAt, desk.timezone)}` : ""}</span></td>
     <td>{desk.canEdit ? <FamilyActions desk={desk} row={row} onDeleted={onDeleted} /> : null}</td>
   </tr>;
 }
 
 function FamilyActions({ desk, row, onDeleted }: { desk: InviteDesk; row: FamilyRow; onDeleted: (message: string) => void }) {
-  const [panel, setPanel] = useState<null | "edit" | "reply">(null);
+  const [panel, setPanel] = useState<null | "edit" | "reply" | "details">(null);
   const [confirm, setConfirm] = useState<null | "replace" | "delete">(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -184,12 +190,13 @@ function FamilyActions({ desk, row, onDeleted }: { desk: InviteDesk; row: Family
         <Button type="button" variant="quiet" onClick={() => setPanel(panel === "edit" ? null : "edit")}>Events and guests</Button>
         <Button type="button" variant="quiet" onClick={() => setPanel(panel === "reply" ? null : "reply")}>Record their reply</Button>
         {row.code && <Button type="button" variant="quiet" disabled={busy} onClick={() => setConfirm("replace")}>Make a new link</Button>}
-        <Link className="button button-quiet" href={`/guests?q=${encodeURIComponent(row.name)}`}>People in this family</Link>
+        <Button type="button" variant="quiet" onClick={() => setPanel(panel === "details" ? null : "details")}>Family details and people</Button>
         <Button type="button" variant="quiet" className="desk-danger" disabled={busy} onClick={() => setConfirm("delete")}><Trash2 size={15} aria-hidden="true" /> Delete family</Button>
       </details>
     </div>
     {!row.functionIds.length && <p className="field-help">Choose their events under More → Events and guests before inviting them.</p>}
     {panel === "edit" && <EditFamily desk={desk} row={row} onDone={(result) => { setStatus(result); if (result.message) setPanel(null); }} />}
+    {panel === "details" && <FamilyDetailsPanel desk={desk} row={row} />}
     {panel === "reply" && <RecordReply desk={desk} row={row} onDone={(result) => { setStatus(result); if (result.message) setPanel(null); }} />}
     {status.error && <p className="field-error" role="alert">{status.error}</p>}
     {status.message && <p className="field-success" role="status">{status.message}</p>}
@@ -249,4 +256,161 @@ function RecordReply({ desk, row, onDone }: { desk: InviteDesk; row: FamilyRow; 
     </>}
     <div className="doc-actions"><Button type="button" disabled={busy || (coming && !chosen.length)} onClick={save}>{busy ? "Saving…" : "Save reply"}</Button></div>
   </div>;
+}
+
+/** Suggested dates for invitations, reminders and the last update, counted back from the wedding. */
+function WhenToSend({ desk }: { desk: InviteDesk }) {
+  const steps = reminderPlan(desk.weddingDate, desk.today);
+  const now = steps.find((step) => step.state === "now");
+  const show = (date: string) => formatDate(date, "UTC");
+  if (!steps.length) return <details className="more-details when-to-send"><summary>When to send</summary><p className="field-help">Set your wedding date in <Link href="/settings">Settings</Link> to see when to send invitations, reminders and updates.</p></details>;
+  return <details className="more-details when-to-send"><summary>When to send{now ? `: ${now.title.toLowerCase()} now` : ""}</summary>
+    <ol className="plan-steps">{steps.map((step) => <li key={step.key} className={`plan-step is-${step.state}`}>
+      <span className="plan-date">{show(step.date)}</span>
+      <span className="plan-body"><strong>{step.title}</strong>{step.state === "now" && <span className="status status-pending">Now</span>}<span className="row-meta">{step.detail}</span></span>
+      {step.state !== "upcoming" && <a className="button button-secondary" href={step.href}>{step.action}</a>}
+    </li>)}</ol>
+    <p className="field-help">Suggestions only. Nothing is sent automatically.</p>
+  </details>;
+}
+
+/**
+ * Send an update (directions and timings, a change of time) to the families coming to one event,
+ * or everyone invited to it. Write it once; each family's name and link are filled in.
+ */
+function SendUpdate({ desk }: { desk: InviteDesk }) {
+  const [functionId, setFunctionId] = useState(desk.functions[0]?.id ?? "");
+  const [audience, setAudience] = useState<"coming" | "invited">("coming");
+  const fn = desk.functions.find((row) => row.id === functionId);
+  const template = (target = fn) => target ? updateTemplate({ name: target.name, date: target.date, time: target.time, venue: target.venue }, desk.coupleNames) : "";
+  const [message, setMessage] = useState(() => template());
+  const [sent, setSent] = useState<Record<string, Status>>({});
+  const choose = (id: string) => { setFunctionId(id); setMessage(template(desk.functions.find((row) => row.id === id))); setSent({}); };
+  const families = desk.families.filter((row) => !row.removed && row.functionIds.includes(functionId) && (audience === "invited" || (row.reply?.attending && row.reply.function_ids.includes(functionId))));
+  const problem = !message.trim() ? "Write the message first." : null;
+  const send = (row: FamilyRow) => {
+    if (!row.code) return;
+    const link = inviteLink(window.location.origin, row.code);
+    const text = fillUpdate(message, row.name, link);
+    window.open(whatsappLink(row.phone, text).url, "_blank", "noopener,noreferrer");
+    void recordFamilySendAction({ weddingId: desk.weddingId, householdId: row.id, kind: "update", message: text, link, functionId }).then((result) => setSent((current) => ({ ...current, [row.id]: result })));
+  };
+  if (!desk.functions.length) return null;
+  return <Card id="send-update" title="Send an update" subtitle="For directions, timings or a change, a few days before an event. Write it once; each family's name and their link are filled in.">
+    <div className="field-grid">
+      <div className="field"><label className="field-label" htmlFor="update-event">Event</label>
+        <select id="update-event" className="field-control" value={functionId} onChange={(event) => choose(event.target.value)}>{desk.functions.map((row) => <option key={row.id} value={row.id}>{row.name}{row.date ? ` · ${formatDate(row.date, desk.timezone)}` : ""}</option>)}</select></div>
+      <fieldset className="starter-list"><legend className="field-label">Send to</legend>
+        <label className="checkbox-row"><input type="radio" name="update-audience" checked={audience === "coming"} onChange={() => setAudience("coming")} /><span>Families coming</span></label>
+        <label className="checkbox-row"><input type="radio" name="update-audience" checked={audience === "invited"} onChange={() => setAudience("invited")} /><span>Everyone invited</span></label>
+      </fieldset>
+    </div>
+    <div className="field"><label className="field-label" htmlFor="update-message">Message</label>
+      <textarea id="update-message" className="field-control" rows={6} maxLength={2000} value={message} onChange={(event) => setMessage(event.target.value)} aria-describedby="update-message-help" aria-invalid={Boolean(problem)} />
+      <span className="field-help" id="update-message-help">{problem ?? "{family} becomes the family's name and {link} their invitation link."}</span></div>
+    {!families.length ? <p className="field-help">{audience === "coming" ? "No family has said yes to this event yet." : "No family is invited to this event yet."}</p>
+      : <ul className="doc-list update-list">{families.map((row) => {
+        const result = sent[row.id];
+        return <li key={row.id} className="reference-row"><span className="row-title">{row.name}</span><span className="row-meta">{row.phone || "No number: WhatsApp will ask you to pick the chat"}</span>
+          <span className="doc-actions">{row.code ? <Button type="button" variant="secondary" disabled={Boolean(problem)} onClick={() => send(row)}><MessageCircle size={15} aria-hidden="true" /> WhatsApp<span className="sr-only"> {row.name}</span></Button> : <span className="field-help">Make their link first.</span>}
+            {result?.message && <span className="field-success" role="status"><Check size={14} aria-hidden="true" /> Sent</span>}{result?.error && <span className="field-error" role="alert">{result.error}</span>}</span></li>;
+      })}</ul>}
+  </Card>;
+}
+
+const MEAL_LABELS = { meal: "Food", choose: "Not told us yet", other: "Something else", otherHint: "What they eat", veg: "Veg", nonveg: "Non-veg", jain: "Jain", vegan: "Vegan" };
+
+/** A family's own details and the people in it, for stays, rides and food. */
+function FamilyDetailsPanel({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
+  const details = desk.details[row.id];
+  const router = useRouter();
+  const [state, action, pending] = useActionState(saveHouseholdAction, {} as GuestActionState);
+  const [name, setName] = useState(row.name);
+  const [phone, setPhone] = useState(row.phone);
+  const [adding, setAdding] = useState(false);
+  const [checked, setChecked] = useState<{ name?: string; phone?: string }>({});
+  useEffect(() => { if (state.message) router.refresh(); }, [state.message, router]);
+  if (!details) return null;
+  const check = (event: React.FormEvent<HTMLFormElement>) => {
+    const tidy = tidyPhone(phone);
+    const found = { name: name.trim().length < 2 ? "Enter the family's name." : undefined, phone: phoneProblem(tidy) ?? undefined };
+    setChecked(found);
+    if (found.name || found.phone) { event.preventDefault(); return; }
+    // The tidied number (+91 …) is what gets saved.
+    const box = event.currentTarget.elements.namedItem("contactPhone") as HTMLInputElement | null;
+    if (box) box.value = tidy;
+    setPhone(tidy);
+  };
+  return <div className="desk-panel family-details">
+    <form action={action} onSubmit={check} noValidate className="field-grid">
+      <input type="hidden" name="weddingId" value={desk.weddingId} /><input type="hidden" name="householdId" value={row.id} />
+      <input type="hidden" name="contactName" value={details.contactName} /><input type="hidden" name="contactEmail" value={details.contactEmail} />
+      <div className="field"><label className="field-label" htmlFor={`fd-name-${row.id}`}>Family name</label><input id={`fd-name-${row.id}`} name="name" className="field-control" value={name} maxLength={120} onChange={(event) => setName(event.target.value)} aria-invalid={Boolean(checked.name)} />{checked.name && <span className="field-error" role="alert">{checked.name}</span>}</div>
+      <div className="field"><label className="field-label" htmlFor={`fd-phone-${row.id}`}>WhatsApp number</label><input id={`fd-phone-${row.id}`} name="contactPhone" type="tel" inputMode="tel" className="field-control" value={phone} maxLength={20} onChange={(event) => setPhone(event.target.value)} aria-invalid={Boolean(checked.phone)} />{checked.phone && <span className="field-error" role="alert">{checked.phone}</span>}</div>
+      <div className="field"><label className="field-label" htmlFor={`fd-side-${row.id}`}>Whose side</label><select id={`fd-side-${row.id}`} name="familySide" className="field-control" defaultValue={details.familySide}>{(["couple_one", "couple_two", "shared", "unknown"] as const).map((value) => <option key={value} value={value}>{desk.familySideLabels[value]}</option>)}</select></div>
+      <div className="field"><label className="field-label" htmlFor={`fd-address-${row.id}`}>Address (optional)</label><input id={`fd-address-${row.id}`} name="address" className="field-control" defaultValue={details.address} maxLength={1200} /></div>
+      <div className="field field-full"><label className="field-label" htmlFor={`fd-notes-${row.id}`}>Notes (only you see these)</label><input id={`fd-notes-${row.id}`} name="notes" className="field-control" defaultValue={details.notes} maxLength={4000} /></div>
+      {state.error && <p className="field-error field-full" role="alert">{state.error}</p>}{state.message && <p className="field-success field-full" role="status">Saved.</p>}
+      <div className="doc-actions field-full"><Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save family details"}</Button></div>
+    </form>
+    <div className="family-people">
+      <p className="field-label">People in this family ({details.people.length})</p>
+      <p className="field-help">Add names only when you need them: for rooms and pickups (Stays &amp; travel), or someone&apos;s food or help needs.</p>
+      <ul className="doc-list">{details.people.map((person) => <PersonRow key={person.id} desk={desk} person={person} />)}</ul>
+      {adding ? <PersonForm desk={desk} householdId={row.id} onDone={() => setAdding(false)} /> : <Button type="button" variant="secondary" onClick={() => setAdding(true)}><Plus size={15} aria-hidden="true" /> Add a person</Button>}
+    </div>
+  </div>;
+}
+
+function PersonRow({ desk, person }: { desk: InviteDesk; person: FamilyPerson }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<Status>({});
+  const remove = async () => {
+    setConfirming(false); setBusy(true);
+    const result = await deleteGuestAction(desk.weddingId, person.id, person.updated_at);
+    setBusy(false);
+    if (result.error) setStatus({ error: result.error }); else router.refresh();
+  };
+  if (editing) return <li><PersonForm desk={desk} householdId={person.household_id} person={person} onDone={() => setEditing(false)} /></li>;
+  const needs = [person.meal_preference, person.allergies && `Allergies: ${person.allergies}`, person.assistance_needs && `Help: ${person.assistance_needs}`].filter(Boolean).join(" · ");
+  return <li className="reference-row"><span className="row-title">{person.full_name}</span><span className="row-meta">{[person.phone, needs].filter(Boolean).join(" · ") || "No details yet"}</span>
+    <span className="doc-actions"><Button type="button" variant="quiet" onClick={() => setEditing(true)}>Edit<span className="sr-only"> {person.full_name}</span></Button>
+      <Button type="button" variant="quiet" className="desk-danger" disabled={busy} onClick={() => setConfirming(true)}>Delete<span className="sr-only"> {person.full_name}</span></Button></span>
+    {status.error && <span className="field-error" role="alert">{status.error}</span>}
+    <ConfirmationDialog open={confirming} title={`Delete ${person.full_name}?`} description="This removes this person and their stay, ride and food details. The family and its reply stay. It can't be undone." confirmLabel="Delete person" confirmDisabled={busy} onConfirm={remove} onCancel={() => setConfirming(false)} />
+  </li>;
+}
+
+/** Add or edit one person: name, phone, food, allergies and help they need. */
+function PersonForm({ desk, householdId, person, onDone }: { desk: InviteDesk; householdId: string; person?: FamilyPerson; onDone: () => void }) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(saveGuestAction, {} as GuestActionState);
+  const [name, setName] = useState(person?.full_name ?? "");
+  const [phone, setPhone] = useState(person?.phone ?? "");
+  const [checked, setChecked] = useState<{ name?: string; phone?: string }>({});
+  useEffect(() => { if (state.message) { router.refresh(); onDone(); } }, [state.message, router, onDone]);
+  const id = person?.id ?? `new-${householdId}`;
+  const check = (event: React.FormEvent<HTMLFormElement>) => {
+    const tidy = tidyPhone(phone);
+    const found = { name: name.trim().length < 2 ? "Enter their name." : undefined, phone: tidy ? phoneProblem(tidy) ?? undefined : undefined };
+    setChecked(found);
+    if (found.name || found.phone) { event.preventDefault(); return; }
+    const box = event.currentTarget.elements.namedItem("phone") as HTMLInputElement | null;
+    if (box) box.value = tidy;
+    setPhone(tidy);
+  };
+  return <form action={action} onSubmit={check} noValidate className="field-grid person-form">
+    <input type="hidden" name="weddingId" value={desk.weddingId} /><input type="hidden" name="guestId" value={person?.id ?? ""} /><input type="hidden" name="expectedUpdatedAt" value={person?.updated_at ?? ""} />
+    <input type="hidden" name="householdId" value={householdId} /><input type="hidden" name="email" value={person?.email ?? ""} /><input type="hidden" name="followUpOwnerUserId" value={person?.follow_up_owner_user_id ?? ""} /><input type="hidden" name="notes" value={person?.notes ?? ""} />
+    <div className="field"><label className="field-label" htmlFor={`p-name-${id}`}>Name</label><input id={`p-name-${id}`} name="fullName" className="field-control" value={name} maxLength={120} onChange={(event) => setName(event.target.value)} aria-invalid={Boolean(checked.name)} />{checked.name && <span className="field-error" role="alert">{checked.name}</span>}</div>
+    <div className="field"><label className="field-label" htmlFor={`p-phone-${id}`}>Phone (optional)</label><input id={`p-phone-${id}`} name="phone" type="tel" inputMode="tel" className="field-control" value={phone} maxLength={20} onChange={(event) => setPhone(event.target.value)} aria-invalid={Boolean(checked.phone)} />{checked.phone && <span className="field-error" role="alert">{checked.phone}</span>}</div>
+    <div className="field"><MealChoice name="mealPreference" defaultValue={person?.meal_preference ?? ""} labels={MEAL_LABELS} /></div>
+    <div className="field"><label className="field-label" htmlFor={`p-allergies-${id}`}>Allergies (optional)</label><input id={`p-allergies-${id}`} name="allergies" className="field-control" defaultValue={person?.allergies ?? ""} maxLength={500} /></div>
+    <div className="field field-full"><label className="field-label" htmlFor={`p-help-${id}`}>Help they need (optional)</label><input id={`p-help-${id}`} name="assistanceNeeds" className="field-control" defaultValue={person?.assistance_needs ?? ""} maxLength={500} placeholder="For example, wheelchair access" /></div>
+    {state.error && <p className="field-error field-full" role="alert">{state.error}</p>}
+    <div className="doc-actions field-full"><Button type="submit" disabled={pending}>{pending ? "Saving…" : person ? "Save" : "Add person"}</Button><Button type="button" variant="quiet" onClick={onDone}>Cancel</Button></div>
+  </form>;
 }

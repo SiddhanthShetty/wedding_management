@@ -24,7 +24,7 @@ export const KIND_LABELS: Record<SearchKind, string> = {
 export function hitHref(kind: SearchKind, id: string, term: string): string {
   const q = encodeURIComponent(term);
   switch (kind) {
-    case "guest": return `/guests?view=people&q=${q}`;
+    case "guest": return "/guests/simple";
     case "household": return "/guests/simple";
     case "vendor": return `/venues-vendors?q=${q}`;
     case "task": return `/tasks?view=all#task-${id}`;

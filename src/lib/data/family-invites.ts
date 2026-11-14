@@ -3,8 +3,15 @@ import "server-only";
 import { AuthorizationDeniedError, authorizeWeddingOperation } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDuplicateSubmission } from "@/lib/data/travel";
+import { instantToLocalDate } from "@/lib/planning/local-time";
 import { deskTotals, familyRows, functionHeadcounts, newInviteCode, sortFamilies, withoutLink, type DeskFamily, type DeskInvite, type DeskMessage, type DeskReply } from "@/lib/family-invites/rules";
 import type { CheckedFamily } from "@/lib/planning/family-entries";
+
+type FamilyDetailsRecord = { contact_name: string; contact_email: string; family_side: string; address: string; notes: string };
+/** A person in a family, for stays, rides and food details. */
+export type FamilyPerson = { id: string; household_id: string; full_name: string; phone: string; email: string; meal_preference: string; allergies: string; assistance_needs: string; notes: string; follow_up_owner_user_id: string | null; updated_at: string };
+/** A family's own details and the people in it (edited under More → Family details). */
+export type FamilyDetails = { contactName: string; contactEmail: string; familySide: string; address: string; notes: string; people: FamilyPerson[] };
 
 /** A rule the planner can fix (shown as written). */
 export class FamilyInviteRuleError extends Error { constructor(message: string) { super(message); this.name = "FamilyInviteRuleError"; } }
@@ -26,16 +33,16 @@ async function editor(weddingId: string) {
   return { context, supabase: await createSupabaseServerClient() };
 }
 
-const KINDS = { "family-invite:": "invite", "family-remind:": "remind" } as const;
+const KINDS = { "family-invite:": "invite", "family-remind:": "remind", "family-update:": "update" } as const;
 
 export async function getInviteDesk(weddingId: string) {
   const context = await authorizeWeddingOperation(weddingId, "guests", "read");
   const supabase = await createSupabaseServerClient();
   const [families, invites, replies, guests, records, functions, wedding] = await Promise.all([
-    supabase.from("guest_households").select("id,name,contact_phone,invite_code,invite_max_guests,invite_removed_at,created_at").eq("wedding_id", weddingId).order("name"),
+    supabase.from("guest_households").select("id,name,contact_name,contact_email,contact_phone,family_side,address,notes,invite_code,invite_max_guests,invite_removed_at,created_at").eq("wedding_id", weddingId).order("name"),
     supabase.from("family_function_invites").select("household_id,function_id").eq("wedding_id", weddingId),
     supabase.from("family_replies").select("household_id,attending,guest_count,function_ids,dietary,dietary_notes,message,reply_name,reply_phone,source,updated_at").eq("wedding_id", weddingId),
-    supabase.from("guests").select("id,household_id").eq("wedding_id", weddingId),
+    supabase.from("guests").select("id,household_id,full_name,phone,email,meal_preference,allergies,assistance_needs,notes,follow_up_owner_user_id,created_at,updated_at").eq("wedding_id", weddingId).order("created_at"),
     supabase.from("communication_records").select("guest_id,sent_at,dedupe_key").eq("wedding_id", weddingId).like("dedupe_key", "family-%"),
     supabase.rpc("get_guest_function_references", { p_wedding_id: weddingId }),
     supabase.from("weddings").select("partner_one_display_name,partner_two_display_name").eq("id", weddingId).maybeSingle(),
@@ -49,8 +56,13 @@ export async function getInviteDesk(weddingId: string) {
   });
   const people: Record<string, number> = {};
   for (const household of householdOf.values()) people[household] = (people[household] ?? 0) + 1;
+  const familyRecords = (families.data ?? []) as Array<DeskFamily & FamilyDetailsRecord>;
+  const details: Record<string, FamilyDetails> = Object.fromEntries(familyRecords.map((family) => [family.id, {
+    contactName: family.contact_name, contactEmail: family.contact_email, familySide: family.family_side, address: family.address, notes: family.notes,
+    people: ((guests.data ?? []) as FamilyPerson[]).filter((person) => person.household_id === family.id),
+  }]));
   const rows = sortFamilies(familyRows({ families: (families.data ?? []) as DeskFamily[], invites: (invites.data ?? []) as DeskInvite[], replies: (replies.data ?? []) as DeskReply[], messages, people }));
-  const active = ((functions.data ?? []) as Array<{ id: string; name: string; function_date: string | null; status: string; archived_at: string | null }>)
+  const active = ((functions.data ?? []) as Array<{ id: string; name: string; function_date: string | null; start_time: string | null; venue_name: string | null; status: string; archived_at: string | null }>)
     .filter((fn) => !fn.archived_at && fn.status !== "cancelled")
     .sort((a, b) => (a.function_date ?? "9999").localeCompare(b.function_date ?? "9999"));
   return {
@@ -59,7 +71,11 @@ export async function getInviteDesk(weddingId: string) {
     timezone: context.wedding.timezone,
     coupleNames: [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean).join(" & ") || context.wedding.name,
     familySideLabels: { couple_one: context.wedding.partner_one_display_name.trim() || "Couple one", couple_two: context.wedding.partner_two_display_name.trim() || "Couple two", shared: "Both sides", unknown: "Not sure" },
-    functions: active.map((fn) => ({ id: fn.id, name: fn.name, date: fn.function_date })),
+    functions: active.map((fn) => ({ id: fn.id, name: fn.name, date: fn.function_date, time: fn.start_time, venue: fn.venue_name })),
+    // When to send: counted back from the wedding date (or the last function's date).
+    weddingDate: context.wedding.wedding_date ?? active.map((fn) => fn.function_date).filter((date): date is string => Boolean(date)).sort().at(-1) ?? null,
+    today: instantToLocalDate(new Date(), context.wedding.timezone),
+    details,
     // Every family on the list, as on the People tab. A family whose link was turned off earlier
     // (the old "Remove from list") stays listed so it can be turned back on or deleted.
     families: rows,
@@ -126,7 +142,7 @@ export async function recordFamilyReply(weddingId: string, householdId: string, 
  * Records that the planner sent the invitation or a reminder themselves, against the family's
  * contact person (at most one record of each kind a day). The link is never stored.
  */
-export async function recordFamilySend(weddingId: string, input: { householdId: string; kind: "invite" | "remind"; message: string; link: string }) {
+export async function recordFamilySend(weddingId: string, input: { householdId: string; kind: "invite" | "remind" | "update"; message: string; link: string; functionId?: string | null }) {
   const { context, supabase } = await editor(weddingId);
   const { data: people, error: peopleError } = await supabase.from("guests").select("id,full_name").eq("wedding_id", weddingId).eq("household_id", input.householdId).order("created_at").limit(1);
   check(peopleError, "Could not record this.");
@@ -134,10 +150,11 @@ export async function recordFamilySend(weddingId: string, input: { householdId: 
   if (!contact) throw new FamilyInviteRuleError("Add a person to this family on the People page first, so the send can be recorded against them.");
   const sentAt = new Date().toISOString();
   const { data, error } = await supabase.from("communication_records").upsert([{
-    wedding_id: weddingId, guest_id: contact.id, function_id: null, template_id: null, channel: "whatsapp", subject: input.kind === "invite" ? "Wedding invitation" : "Reminder",
+    wedding_id: weddingId, guest_id: contact.id, function_id: input.kind === "update" ? input.functionId ?? null : null, template_id: null, channel: "whatsapp",
+    subject: input.kind === "invite" ? "Wedding invitation" : input.kind === "remind" ? "Reminder" : "Update",
     body_snapshot: withoutLink(input.message, input.link).slice(0, 6000), state: "sent", manual: true, sent_at: sentAt,
-    notes: input.kind === "invite" ? "Family invitation" : "Reminder to reply",
-    dedupe_key: `family-${input.kind}:${input.householdId}:${sentAt.slice(0, 10)}`, recorded_by_user_id: context.user.id,
+    notes: input.kind === "invite" ? "Family invitation" : input.kind === "remind" ? "Reminder to reply" : "Update before the event",
+    dedupe_key: `family-${input.kind}:${input.householdId}:${input.kind === "update" ? `${input.functionId}:` : ""}${sentAt.slice(0, 10)}`, recorded_by_user_id: context.user.id,
   }], { onConflict: "wedding_id,dedupe_key", ignoreDuplicates: true }).select("id");
   if (isDuplicateSubmission(error)) return { recorded: 0 };
   check(error, "Could not record this.");

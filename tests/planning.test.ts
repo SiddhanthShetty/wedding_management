@@ -396,70 +396,72 @@ describe("guest household, invitation, RSVP and import rules",()=>{
 });
 
 describe("per-function catering counts, guarantees and snapshots",()=>{
+  // Families reply once for everyone (Guests → Invitations); catering counts people coming from those replies.
+  const code=(n:number)=>`CATER${String(n).padStart(7,"0")}`;
+  const reply=async(n:number,attending:boolean,count:number,dietary="none",notes="")=>{
+    await assumeUser(null,"anon");
+    const result=await db.query<{r:{status:string}}>("select public.submit_family_reply($1,$2,$3,$4::uuid[],$5,$6,'','Test Guest','+91 98765 43210') r",[code(n),attending,count,attending?[FUNCTION_A]:[],dietary,notes]);
+    await assumeUser(OWNER_A);
+    expect(result.rows[0]!.r.status).toBe("saved");
+  };
   async function createCateringFixture(){
     await assumeUser(OWNER_A);
-    const household=await db.query<{id:string}>("select public.save_guest_household($1,null,$2::jsonb) id",[WEDDING_A,JSON.stringify({name:"Catering count family"})]);
-    const people:string[]=[];
-    for(const name of ["Adult One","Child One","Adult Two","Child Two"]) {
-      const row=await db.query<{id:string}>("select public.save_guest($1,null,$2::jsonb,null) id",[WEDDING_A,JSON.stringify({household_id:household.rows[0]!.id,full_name:name,email:"",phone:"",family_side:"shared",meal_preference:name==="Adult One"?"Vegetarian":"",allergies:name==="Adult One"?"Peanuts":"",assistance_needs:"",notes:""})]);
-      people.push(row.rows[0]!.id);
-      await db.query("select public.set_guest_invitation($1,$2,$3,true,false)",[WEDDING_A,row.rows[0]!.id,FUNCTION_A]);
-    }
-    const invitations=await db.query<{id:string;guest_id:string}>("select id,guest_id from public.guest_invitations where wedding_id=$1 and function_id=$2 and guest_id=any($3::uuid[])",[WEDDING_A,FUNCTION_A,people]);
-    for(let i=0;i<invitations.rows.length;i++){
-      const response=i===0?"yes":i===1?"yes":i===2?"no":"maybe";
-      await db.query("select public.record_guest_rsvp($1,$2,$3,'phone','Recorded response',null)",[WEDDING_A,invitations.rows[i]!.id,response]);
-    }
+    await db.query("select public.create_family_invites_bulk($1,$2::jsonb,$3::uuid[],'shared')",[WEDDING_A,JSON.stringify([
+      {name:"Rao family",phone:"",max_guests:4,code:code(1)},{name:"Pai family",phone:"",max_guests:4,code:code(2)},{name:"Kini family",phone:"",max_guests:null,code:code(3)},
+    ]),[FUNCTION_A]]);
+    await reply(1,true,3,"vegetarian","Peanuts");
+    await reply(2,false,0);
     const service=await db.query<{id:string}>("insert into public.catering_meal_services(wedding_id,function_id,name,final_count_deadline,currency,created_by_user_id) values($1,$2,'Dinner',now()-interval '1 day','EUR',$3) returning id",[WEDDING_A,FUNCTION_A,OWNER_A]);
     for(const category of ["adult","child","vendor","staff"])await db.query("insert into public.catering_service_counts(wedding_id,meal_service_id,category) values($1,$2,$3)",[WEDDING_A,service.rows[0]!.id,category]);
-    await db.query("insert into public.catering_guest_assignments(wedding_id,meal_service_id,guest_id,category) values($1,$2,$3,'adult'),($1,$2,$4,'child'),($1,$2,$5,'adult'),($1,$2,$6,'child')",[WEDDING_A,service.rows[0]!.id,...people]);
     await db.query("update public.catering_service_counts set manual_expected_count=1,per_plate_rate=\n      case category when 'vendor' then 18.50 when 'staff' then 12.25 else null end where wedding_id=$1 and meal_service_id=$2 and category in ('vendor','staff')",[WEDDING_A,service.rows[0]!.id]);
     await expectDenied(db.query("update public.catering_meal_services set currency='GBP' where wedding_id=$1 and id=$2",[WEDDING_A,service.rows[0]!.id]));
     await db.query("select public.approve_catering_guarantee($1,$2,7,2)",[WEDDING_A,service.rows[0]!.id]);
-    return {people,serviceId:service.rows[0]!.id,invitations:invitations.rows};
+    return {serviceId:service.rows[0]!.id};
   }
 
-  it("counts mixed household responses by distinct person and includes manual staff/vendor meals once",async()=>{
-    const {people,serviceId}=await createCateringFixture();
-    const invites=await db.query<{invited:string;confirmed:string}>("select count(distinct guest_id)::text invited,count(distinct guest_id) filter(where r.response='yes')::text confirmed from public.guest_invitations i left join public.guest_rsvps r on r.wedding_id=i.wedding_id and r.invitation_id=i.id where i.wedding_id=$1 and i.function_id=$2 and i.status='invited' and guest_id=any($3::uuid[])",[WEDDING_A,FUNCTION_A,people]);
-    expect(invites.rows[0]).toEqual({invited:"4",confirmed:"2"});
-    await expectDenied(db.query("insert into public.catering_guest_assignments(wedding_id,meal_service_id,guest_id,category) values($1,$2,$3,'child')",[WEDDING_A,serviceId,people[0]]));
+  it("counts families invited and people coming from family replies, with manual staff/vendor meals once",async()=>{
+    const {serviceId}=await createCateringFixture();
+    const counts=await db.query<{c:Record<string,unknown>}>("select public.get_catering_family_counts($1,$2) c",[WEDDING_A,serviceId]);
+    expect(counts.rows[0]!.c).toEqual({invited_families:3,replied_families:2,coming_people:3,families:[{name:"Rao family",people:3,dietary:"vegetarian"}]});
+    const diet=await db.query<{d:Record<string,unknown>}>("select public.get_catering_dietary_summary($1,$2) d",[WEDDING_A,serviceId]);
+    expect(diet.rows[0]!.d).toEqual({preferences:[{preference:"vegetarian",count:3}],assistance_count:1});
     const snapId=await db.query<{id:string}>("select public.capture_catering_count_snapshot($1,$2) id",[WEDDING_A,serviceId]);
-    const snap=await db.query<{id:string;invited_count:number;confirmed_count:number;final_catering_count:number;approved_guarantee:number;category_totals:Record<string,{manual_expected:number}>}>("select id,invited_count,confirmed_count,final_catering_count,approved_guarantee,category_totals from public.catering_count_snapshots where id=$1",[snapId.rows[0]!.id]);
-    expect(snap.rows[0]).toMatchObject({invited_count:4,confirmed_count:2,approved_guarantee:7,final_catering_count:9});
+    const snap=await db.query<{invited_count:number;confirmed_count:number;final_catering_count:number;approved_guarantee:number;category_totals:Record<string,{manual_expected:number;confirmed?:number}>}>("select invited_count,confirmed_count,final_catering_count,approved_guarantee,category_totals from public.catering_count_snapshots where id=$1",[snapId.rows[0]!.id]);
+    // Expected: 3 people coming (as adults) + 1 vendor + 1 staff = 5; agreed number 7 is higher; + buffer 2 = 9.
+    expect(snap.rows[0]).toMatchObject({invited_count:3,confirmed_count:3,approved_guarantee:7,final_catering_count:9});
+    expect(snap.rows[0]?.category_totals.adult.confirmed).toBe(3);
     expect(snap.rows[0]?.category_totals.vendor.manual_expected).toBe(1);
     expect(snap.rows[0]?.category_totals.staff.manual_expected).toBe(1);
+    // Families taken off the list are left out.
+    await db.exec("reset role");
+    await db.query("update public.guest_households set invite_removed_at=now() where name='Rao family'");
+    await assumeUser(OWNER_A);
+    expect((await db.query<{c:{coming_people:number;invited_families:number}}>("select public.get_catering_family_counts($1,$2) c",[WEDDING_A,serviceId])).rows[0]!.c).toMatchObject({coming_people:0,invited_families:2});
   });
 
-  it("does not mutate an approved guarantee or prior snapshot when an RSVP changes after deadline",async()=>{
+  it("does not change the agreed number or a saved count when a reply changes after the deadline",async()=>{
     const {serviceId}=await createCateringFixture();
     const first=await db.query<{id:string}> ("select public.capture_catering_count_snapshot($1,$2) id",[WEDDING_A,serviceId]);
     const original=await db.query<{final_catering_count:number;confirmed_count:number}> ("select final_catering_count,confirmed_count from public.catering_count_snapshots where id=$1",[first.rows[0]!.id]);
-    const noResponse=await db.query<{id:string}> ("select i.id from public.guest_invitations i join public.guest_rsvps r on r.wedding_id=i.wedding_id and r.invitation_id=i.id where i.wedding_id=$1 and i.function_id=$2 and r.response='no' limit 1",[WEDDING_A,FUNCTION_A]);
-    const responseVersion=await db.query<{updated_at:string}>("select updated_at from public.guest_rsvps where invitation_id=$1",[noResponse.rows[0]!.id]);
-    await db.query("select public.record_guest_rsvp($1,$2,'yes','phone','Changed after deadline',$3::timestamptz)",[WEDDING_A,noResponse.rows[0]!.id,responseVersion.rows[0]!.updated_at]);
+    await reply(2,true,2);
     const service=await db.query<{approved_guarantee:number;agreed_buffer:number}> ("select approved_guarantee,agreed_buffer from public.catering_meal_services where id=$1",[serviceId]);
     const prior=await db.query<{final_catering_count:number;confirmed_count:number}> ("select final_catering_count,confirmed_count from public.catering_count_snapshots where id=$1",[first.rows[0]!.id]);
     expect(service.rows[0]).toEqual({approved_guarantee:7,agreed_buffer:2});
     expect(prior.rows[0]).toEqual(original.rows[0]);
     const newerId=await db.query<{id:string}> ("select public.capture_catering_count_snapshot($1,$2) id",[WEDDING_A,serviceId]);
     const newer=await db.query<{confirmed_count:number}>("select confirmed_count from public.catering_count_snapshots where id=$1",[newerId.rows[0]!.id]);
-    expect(newer.rows[0]?.confirmed_count).toBe(3);
+    expect(newer.rows[0]?.confirmed_count).toBe(5);
   });
 
-  it("keeps individual allergy details restricted to owners or guest editors",async()=>{
+  it("keeps families' food notes restricted to owners or guest editors",async()=>{
     const fixture=await createCateringFixture();
-    await db.exec("reset role");
-    await db.query("update public.guests set allergies='' where wedding_id=$1",[WEDDING_A]);
-    await db.query("update public.guests set allergies='Peanuts' where wedding_id=$1 and id=(select i.guest_id from public.guest_invitations i join public.guest_rsvps r on r.wedding_id=i.wedding_id and r.invitation_id=i.id where i.wedding_id=$1 and i.function_id=$2 and r.response='yes' order by i.guest_id limit 1)",[WEDDING_A,FUNCTION_A]);
     await assumeUser("10000000-0000-4000-8000-000000000003");
     await expectDenied(db.query("select * from public.get_catering_allergy_details($1,$2)",[WEDDING_A,fixture.serviceId]));
     await expectDenied(db.query("select public.approve_catering_guarantee($1,$2,9,2)",[WEDDING_A,fixture.serviceId]));
     await expectDenied(db.query("select public.save_catering_category_count($1,$2,'vendor',$3::jsonb)",[WEDDING_A,fixture.serviceId,JSON.stringify({manual_expected_count:3})]));
     await assumeUser(OWNER_A);
     const detail=await db.query<{guest_name:string;allergies:string}>("select * from public.get_catering_allergy_details($1,$2)",[WEDDING_A,fixture.serviceId]);
-    expect(detail.rows).toHaveLength(1);
-    expect(detail.rows[0]?.allergies).toBe("Peanuts");
+    expect(detail.rows).toEqual([{guest_name:"Rao family",allergies:"Peanuts"}]);
   });
 });
 

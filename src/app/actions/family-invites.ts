@@ -61,13 +61,14 @@ export async function familyCodeAction(weddingId: string, householdId: string, r
   } catch (error) { return { error: failure(error, "Couldn't make the link. Nothing was changed; refresh and try again.") }; }
 }
 
-export async function recordFamilySendAction(input: { weddingId: string; householdId: string; kind: "invite" | "remind"; message: string; link: string }): Promise<Result> {
-  const parsed = z.object({ weddingId: id, householdId: id, kind: z.enum(["invite", "remind"]), message: z.string().min(1).max(8000), link: z.string().max(500) }).safeParse(input);
+export async function recordFamilySendAction(input: { weddingId: string; householdId: string; kind: "invite" | "remind" | "update"; message: string; link: string; functionId?: string | null }): Promise<Result> {
+  const parsed = z.object({ weddingId: id, householdId: id, kind: z.enum(["invite", "remind", "update"]), message: z.string().min(1).max(8000), link: z.string().max(500), functionId: id.nullable().optional() })
+    .refine((value) => value.kind !== "update" || Boolean(value.functionId)).safeParse(input);
   if (!parsed.success) return { error: "Could not record this." };
   try {
     const result = await recordFamilySend(parsed.data.weddingId, parsed.data);
     await refresh();
-    const what = parsed.data.kind === "invite" ? "Invitation" : "Reminder";
+    const what = parsed.data.kind === "invite" ? "Invitation" : parsed.data.kind === "remind" ? "Reminder" : "Update";
     return { message: result.recorded ? `${what} recorded as sent by you.` : `${what} was already recorded for this family today.` };
   } catch (error) { return { error: failure(error, "Could not record this. Nothing was saved.") }; }
 }

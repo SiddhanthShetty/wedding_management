@@ -101,7 +101,7 @@ export const loadCateringSection = cache(async (weddingId: string) => {
     const flagged = data.services.map((service) => ({
       id: service.id, name: service.name, function_name: data.functions.find((fn) => fn.id === service.function_id)?.name ?? "Function",
       reasons: cateringReviewReasons({
-        guests: service.guests, assignedGuestIds: new Set(service.assignments.map((row: { guest_id: string }) => row.guest_id)),
+        confirmed: service.family.coming_people,
         latestSnapshotConfirmed: service.latest_snapshot?.confirmed_count ?? null, finalCountDeadline: service.final_count_deadline, hasSnapshot: Boolean(service.latest_snapshot),
       }),
     })).filter((row) => row.reasons.length);

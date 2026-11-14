@@ -1,6 +1,7 @@
 # Invitations: one link per family
 
-**Pages:** Guests → **Invitations** (`/guests/simple`, the Guest desk) for the couple; `/i/<code>` for each family.
+**Pages:** **Guests** (`/guests/simple`, one page, no tabs) for the couple; `/i/<code>` for each family.
+The old People (`/guests`) and Messages (`/messages`) pages redirect here.
 **Migration:** `supabase/migrations/20261120100000_family_invitations.sql` (additive).
 
 The couple's invitation site (the `wedding_invitation` repository) now lives inside this app. Families get
@@ -19,10 +20,18 @@ the per-person guest links are gone.
   number from 1 to 20; a name already on the list, or repeated in another row, is refused. All or
   nothing: if any box has a problem, nothing is added and everything typed stays. Each family also gets
   one contact person, named after the family, so messages and stays have someone to attach to.
+- **When to send** (folded at the top): suggested dates counted back from the wedding date (invite 8
+  weeks before, reminder 4, last call 2, an update 3 days before), each linking to the right place.
 - **Each row:** Invite (opens WhatsApp with the message and link; records "sent by you" in Messages),
   Remind (families who haven't replied), Copy link, and under More: change events and most guests, record a
-  reply that came by phone, make a new link (the old one stops working), the family's people, and
-  **Delete family**.
+  reply that came by phone, make a new link (the old one stops working), **Family details and people**,
+  and **Delete family**.
+- **Family details and people:** the family's name, WhatsApp number, side, address and private notes, and
+  the people in it (name, phone, food, allergies, help they need), each with Edit and Delete. Add names only
+  when needed: Stays & travel assigns rooms and pickups to people.
+- **Send an update:** pick an event and "Families coming" or "Everyone invited", write the message once
+  (`{family}` and `{link}` are filled in), then tap WhatsApp per family. Each send is recorded and shows on
+  the family's row ("update 7 Dec"), at most once a day per family and event.
 - **Delete family** (after a confirmation) permanently deletes the family and everyone in it, with their
   reply, link, events and message records. Nothing is deleted while someone has a room or an upcoming ride
   booked, or the family has files attached; the message says what to cancel first. A deleted family is gone
@@ -50,13 +59,14 @@ to the original Hamsadhwani piece (`/audio/hamsadhwani.mp3`), which is already i
 
 ## Elsewhere
 
-- **People** (`/guests`): families and the people in them, for stays, rides, seating and food details.
-  No per-person invitations or replies any more.
-- **Catering:** food counts come from family replies (each family's choice × people coming).
+- **Catering:** food counts and each meal service come from family replies (migration
+  `20261121100000_catering_from_family_replies.sql`): families invited, people coming, each coming
+  family's food choice, and families' food notes (for the couple and guest editors only). People coming
+  count as adult meals unless adult and child counts are entered by hand. Saved final counts never change.
 - **Home:** reply progress per event, and "X families · Y of Z replied · N guests coming".
-- **Messages:** each family's contact person stands for the family (invited to its events; replied once the
-  family has replied), so templates and reminders still reach families.
-- Old `/guest#…` links show "This invitation link has changed". `/invitations` redirects to the Guest desk.
+- **Messages records:** every Invite, Remind and update is recorded against the family's contact person.
+- Old `/guest#…` links show "This invitation link has changed". `/invitations`, `/guests` and `/messages`
+  redirect to the Guests page.
 
 ## Security and data
 
@@ -75,6 +85,12 @@ Additive. `guest_households` gains `invite_code`, `invite_max_guests`, `invite_r
 `family_function_invites`, `family_replies`, `family_reply_history`. Backfill: each family is invited to
 the active functions its people are invited to today. Per-person invitations, replies, links, proxies,
 invitation designs and media stay in place, unused, until a later migration removes them with approval.
+
+## Database impact (`20261121100000_catering_from_family_replies.sql`)
+
+Functions only: a new `get_catering_family_counts`, and `get_catering_dietary_summary`,
+`get_catering_allergy_details` and `capture_catering_count_snapshot` replaced with the same signatures and
+permission checks, reading family replies. No table or row changes. Apply it before deploying this code.
 
 ## Checks
 
