@@ -2,7 +2,7 @@
  * The "soft look" for the planning workspace: a warm tint from the couple's theme with raised and
  * pressed surfaces, while text, inputs and buttons keep readable contrast (see the tests).
  */
-import { contrastRatio, darkenToContrast } from "@/lib/invitations/content";
+import { contrastRatio, darkenToContrast } from "@/lib/color";
 
 export const LOOK_COOKIE = "wedding-look";
 /** Sent by Settings → Appearance so the open page switches look straight away. */

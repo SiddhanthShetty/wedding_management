@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { classifyMeal, MEAL_VALUES, mealCountsByFunction } from "../src/lib/planning/meals";
-import { PORTAL_STRINGS } from "../src/lib/guest-portal/i18n";
 
 describe("meal choices", () => {
   it("recognises the saved choices and older typed answers", () => {
@@ -18,11 +17,6 @@ describe("meal choices", () => {
     expect(classifyMeal("Gluten free")).toBe("other");
     expect(classifyMeal("  ")).toBe("unknown");
     expect(classifyMeal(null)).toBe("unknown");
-  });
-  it("has the choices in every guest language", () => {
-    for (const strings of Object.values(PORTAL_STRINGS)) {
-      for (const key of ["mealChoose", "mealVeg", "mealNonVeg", "mealJain", "mealVegan", "mealOther", "mealOtherHint"] as const) expect(strings[key]).toBeTruthy();
-    }
   });
 });
 

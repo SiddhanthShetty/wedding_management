@@ -4,13 +4,8 @@ import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z, ZodError } from "zod";
 import { AuthorizationDeniedError } from "@/lib/auth/access";
-import { createGuestPlusOne, createGuestPortalLink, deleteGuest, deleteGuestHousehold, exportWeddingGuests, getGuestWorkspace, importGuestRows, recordGuestRsvp, resolveGuestImportDuplicate, revokeGuestPortalLink, saveGuest, saveGuestHousehold, setGuestInvitation, setGuestInvitationsBulk, setGuestPortalProxies, suggestGuestDuplicates, type GuestImportRecord } from "@/lib/data/guests";
-import { guestImportRows, guestInput, guestInvitationChangesInput, householdInput, invitationInput, isoTimestampInput, plusOneInput, rsvpInput } from "@/lib/planning/guest-inputs";
-import { recordPortalGuestProfile, recordPortalRsvps } from "@/lib/guest-portal/server";
-import { createGuestFamily } from "@/lib/data/guests";
-import { familyInput, parseFamilyMembers } from "@/lib/planning/family-input";
-import { z as portalZ } from "zod";
-import { guestPortalRsvpBatchInput } from "@/lib/planning/guest-inputs";
+import { deleteGuest, deleteGuestHousehold, exportWeddingGuests, importGuestRows, resolveGuestImportDuplicate, saveGuest, saveGuestHousehold, suggestGuestDuplicates, type GuestImportRecord } from "@/lib/data/guests";
+import { guestImportRows, guestInput, householdInput, isoTimestampInput } from "@/lib/planning/guest-inputs";
 
 export type GuestActionState={error?:string;message?:string;savedId?:string;data?:unknown};
 const read=(form:FormData,key:string)=>{const value=form.get(key);return typeof value==="string"?value:"";};
@@ -53,57 +48,12 @@ export async function saveGuestAction(_state:GuestActionState,form:FormData):Pro
   try{const savedId=await saveGuest(wedding.data,id.data||null,{household_id:parsed.data.householdId,full_name:parsed.data.fullName,email:parsed.data.email,phone:parsed.data.phone,follow_up_owner_user_id:parsed.data.followUpOwnerUserId||null,meal_preference:parsed.data.mealPreference,allergies:parsed.data.allergies,assistance_needs:parsed.data.assistanceNeeds,notes:parsed.data.notes},expected.data||null);await revalidate();return {message:id.data?"Guest updated.":"Guest created.",savedId};}catch(error){return {error:actionError(error)};}
 }
 
-export async function createGuestPortalLinkAction(wedding:string,guest:string,proxyGuests:unknown=[]):Promise<GuestActionState>{
-  const weddingIdResult=z.uuid().safeParse(wedding);const guestId=z.uuid().safeParse(guest);const proxies=z.array(z.uuid()).max(20).safeParse(proxyGuests);
-  if(!weddingIdResult.success||!guestId.success||!proxies.success||new Set(proxies.data).size!==proxies.data.length)return {error:"Invalid guest or proxy selection."};
-  try{const link=await createGuestPortalLink(weddingIdResult.data,guestId.data,proxies.data);await revalidate();return {message:"Individual private link created. Any previous link for this guest has been revoked.",data:link};}catch(error){return {error:actionError(error)};}
-}
 
-export async function setGuestPortalProxiesAction(wedding:string,link:string,proxyGuests:unknown):Promise<GuestActionState>{
-  const weddingIdResult=z.uuid().safeParse(wedding);const linkId=z.uuid().safeParse(link);const proxies=z.array(z.uuid()).max(20).safeParse(proxyGuests);
-  if(!weddingIdResult.success||!linkId.success||!proxies.success||new Set(proxies.data).size!==proxies.data.length)return {error:"Invalid guest or proxy selection."};
-  try{await setGuestPortalProxies(weddingIdResult.data,linkId.data,proxies.data);await revalidate();return {message:"Proxy access updated."};}catch(error){return {error:actionError(error)};}
-}
 
-export async function revokeGuestPortalLinkAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
-  const wedding=weddingId(form);const linkId=z.uuid().safeParse(read(form,"linkId"));
-  if(!wedding.success||!linkId.success)return {error:"Invalid guest link."};
-  try{await revokeGuestPortalLink(wedding.data,linkId.data);await revalidate();return {message:"Individual link revoked."};}catch(error){return {error:actionError(error)};}
-}
 
-export async function setGuestInvitationAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
-  const wedding=weddingId(form);const parsed=values(form,invitationInput);
-  if(!wedding.success||!parsed.success)return {error:parsed.success?"Invalid invitation selection.":actionError(parsed.error)};
-  try{await setGuestInvitation(wedding.data,parsed.data.guestId,parsed.data.functionId,parsed.data.invited==="true",parsed.data.plusOneAllowed==="true");await revalidate();return {message:"Invitation updated."};}catch(error){return {error:actionError(error)};}
-}
 
-export async function saveGuestInvitationsBulkAction(wedding:string,entries:unknown):Promise<GuestActionState>{
-  const weddingResult=z.uuid().safeParse(wedding);
-  const parsed=guestInvitationChangesInput.safeParse(entries);
-  if(!weddingResult.success)return {error:"Invalid wedding selection."};
-  if(!parsed.success)return {error:parsed.error.issues[0]?.message??"Check the invitation changes and try again."};
-  try{
-    const count=await setGuestInvitationsBulk(weddingResult.data,parsed.data);
-    await revalidate();
-    return {message:`${count} invitation changes saved together.`};
-  }catch(error){
-    if(error instanceof AuthorizationDeniedError)return {error:"You can no longer change this. Refresh the page, and ask the couple if it keeps happening."};
-    return {error:error instanceof Error?error.message:"Could not save the invitation changes."};
-  }
-}
 
-export async function recordGuestRsvpAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
-  const wedding=weddingId(form);const parsed=values(form,rsvpInput);
-  if(!wedding.success||!parsed.success)return {error:parsed.success?"Invalid response.":actionError(parsed.error)};
-  try{await recordGuestRsvp(wedding.data,parsed.data.invitationId,parsed.data.response,parsed.data.source,parsed.data.note,parsed.data.expectedUpdatedAt||null);await revalidate();return {message:"Response recorded."};}catch(error){return {error:actionError(error)};}
-}
 
-export async function createPlusOneAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
-  const wedding=weddingId(form);const ids=form.getAll("functionIds").filter((value):value is string=>typeof value==="string");
-  const parsed=plusOneInput.safeParse({primaryGuestId:read(form,"primaryGuestId"),fullName:read(form,"fullName"),functionIds:ids});
-  if(!wedding.success||!parsed.success)return {error:parsed.success?"Invalid plus-one request.":actionError(parsed.error)};
-  try{const savedId=await createGuestPlusOne(wedding.data,parsed.data.primaryGuestId,parsed.data.fullName,parsed.data.functionIds);await revalidate();return {message:"Plus-one added and invited to the selected functions.",savedId};}catch(error){return {error:actionError(error)};}
-}
 
 function parseRows(json:string):GuestImportRecord[]{
   const raw:unknown=JSON.parse(json);return guestImportRows.parse(raw);
@@ -132,60 +82,9 @@ export async function resolveGuestImportDuplicateAction(_state:GuestActionState,
   try{await resolveGuestImportDuplicate(wedding.data,rowId.data);await revalidate();return {message:"Reviewed row imported as a separate person."};}catch(error){return {error:actionError(error)};}
 }
 
-export async function refreshGuestsAction(wedding:string){
-  return getGuestWorkspace(z.uuid().parse(wedding));
-}
 
-const portalProfileSchema=portalZ.object({guestId:portalZ.uuid(),mealPreference:portalZ.string().max(500),allergies:portalZ.string().max(2000),assistanceNeeds:portalZ.string().max(2000),expectedUpdatedAt:isoTimestampInput,submissionKey:portalZ.uuid()});
 
-function portalResultError(status:string){
-  if(status==="conflict")return "These details changed since this page opened. Refresh to review the latest response before submitting again.";
-  if(status==="invalid")return "Check the response and try again.";
-  return "This invitation link is no longer available. Please contact your hosts.";
-}
 
-export async function recordGuestPortalRsvpBatchAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
-  const raw=form.get("responsesJson");
-  if(typeof raw!=="string"||raw.length>32_000)return {error:"Check the responses and try again."};
-  let payload:unknown;
-  try{payload=JSON.parse(raw);}catch{return {error:"Check the responses and try again."};}
-  const parsed=guestPortalRsvpBatchInput.safeParse(payload);
-  if(!parsed.success)return {error:parsed.error.issues[0]?.message??"Choose a response for each invited function."};
-  const result=await recordPortalRsvps({
-    guestId:parsed.data.guestId,
-    responses:parsed.data.responses.map((entry)=>({...entry,expectedUpdatedAt:entry.expectedUpdatedAt||null})),
-  });
-  if(result.status==="saved"||result.status==="duplicate"){
-    revalidatePath("/guest");
-    const count=result.saved_count??parsed.data.responses.length;
-    return {message:result.status==="duplicate"?"These responses were already saved.":`${count} response${count===1?"":"s"} saved together.`,savedId:parsed.data.submissionKey};
-  }
-  return {error:portalResultError(result.status)};
-}
 
-export async function saveGuestPortalProfileAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
-  const parsed=portalProfileSchema.safeParse(Object.fromEntries(form.entries()));
-  if(!parsed.success)return {error:parsed.error.issues[0]?.message??"Check the dietary and assistance details."};
-  const result=await recordPortalGuestProfile(parsed.data);
-  if(result.status==="saved"||result.status==="duplicate"){revalidatePath("/guest");return {message:"Your information has been updated.",savedId:parsed.data.submissionKey};}
-  return {error:portalResultError(result.status)};
-}
 
 /** "Add a family": the family, everyone in it (one name per line) and the functions they're invited to. */
-export async function createFamilyAction(_state:GuestActionState,form:FormData):Promise<GuestActionState>{
-  const wedding=weddingId(form);
-  if(!wedding.success)return {error:"Something went wrong with this page. Refresh it and try again."};
-  const parsed=familyInput.safeParse({name:read(form,"name"),familySide:read(form,"familySide")||"unknown",contactPhone:read(form,"contactPhone"),members:read(form,"members"),functionIds:form.getAll("inviteTo").filter((value)=>typeof value==="string")});
-  if(!parsed.success)return {error:parsed.error.issues[0]?.message??"Check the family details."};
-  const members=parseFamilyMembers(parsed.data.members);
-  if(members.error)return {error:members.error};
-  try{
-    const result=await createGuestFamily(wedding.data,parsed.data,members.names,parsed.data.functionIds);
-    await revalidate();revalidatePath("/overview");
-    const who=`${result.people} ${result.people===1?"person":"people"}`;
-    return {message:`Added ${parsed.data.name}: ${who}${result.functions?`, invited to ${result.functions} function${result.functions===1?"":"s"}`:", not invited to anything yet"}.`,savedId:result.householdId};
-  }catch(error){
-    if(error instanceof AuthorizationDeniedError)return {error:"You can no longer change this. Refresh the page, and ask the couple if it keeps happening."};
-    return {error:error instanceof Error&&/family/.test(error.message)?error.message:"Couldn't add this family. Nothing was confirmed; refresh and try again."};
-  }
-}

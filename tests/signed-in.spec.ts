@@ -93,8 +93,9 @@ test("invitation studio previews the design and makes a family preview link that
   await guest.close();
 });
 
-test("guest desk: paste two families, reply for the whole family by one link, see it replied", async ({ page, context }) => {
+test("guest desk: paste two families, reply from a family link, see it replied", async ({ page, context }) => {
   test.skip(!writes, "Creates TEST families and a reply: staging only.");
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await signIn(page);
   const stamp = Date.now();
   const rao = `TEST Desk Rao ${stamp}`;
@@ -102,22 +103,28 @@ test("guest desk: paste two families, reply for the whole family by one link, se
   await page.goto("/guests/simple");
   await page.getByLabel("Families").fill(`${rao}, , 3\n${pai}, +91 98765 43210`);
   await page.getByRole("button", { name: "Add families" }).click();
-  await expect(page.getByText("Added 2 families (4 people).")).toBeVisible();
+  await expect(page.getByText(/Added 2 families/)).toBeVisible();
   await expect(page.getByLabel("Families")).toHaveValue("");
-  // The link is shown once, inside the WhatsApp message.
-  const row = page.locator("li", { hasText: rao });
-  const whatsapp = await row.getByRole("link", { name: "Open WhatsApp" }).getAttribute("href");
-  const link = /https?:\/\/[^\s]+\/guest#[A-Za-z0-9_-]{43}/.exec(decodeURIComponent(new URL(whatsapp!).searchParams.get("text")!))![0];
-  await page.reload();
-  await expect(page.getByRole("row", { name: new RegExp(rao) })).toContainText("Not yet");
+  const row = page.getByRole("row", { name: new RegExp(rao) });
+  await expect(row).toContainText("Not yet");
   await expect(page.getByRole("row", { name: new RegExp(pai) })).toBeVisible();
+  await row.getByRole("button", { name: "Copy link" }).click();
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  expect(link).toMatch(/\/i\/[A-Za-z0-9]{12}$/);
 
   const guest = await context.newPage();
   await guest.goto(link);
-  await guest.getByRole("button", { name: "All of us, to all events" }).click();
-  await expect(guest.getByText(/Saved “Yes” for 3 people/)).toBeVisible();
+  await guest.getByRole("button", { name: "Open quietly" }).click();
+  await expect(guest.getByText(`Dear ${rao},`).first()).toBeVisible();
+  await guest.getByLabel("Your name *").fill("Test Guest");
+  await guest.getByLabel("Phone number *").fill("+91 90000 00000");
+  await guest.getByText("Joyfully accepts").click();
+  await guest.getByLabel("How many of you are coming? *").selectOption("2");
+  for (const box of await guest.locator('input[name="events"]').all()) await box.check();
+  await guest.getByRole("button", { name: "Send our response" }).click();
+  await expect(guest.getByText(/Your response is saved/)).toBeVisible();
   await guest.close();
 
   await page.reload();
-  await expect(page.getByRole("row", { name: new RegExp(rao) })).toContainText("Accepts, 3 of 3");
+  await expect(page.getByRole("row", { name: new RegExp(rao) })).toContainText("Coming, 2");
 });

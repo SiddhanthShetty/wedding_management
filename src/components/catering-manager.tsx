@@ -24,11 +24,11 @@ function MealCountsCard({meals}:{meals:Array<MealCounts&{name:string;date:string
   if(meals===undefined) return <Card title="Food counts from replies"><p className="field-error" role="alert">Couldn&apos;t load the counts. Refresh to try again.</p></Card>;
   if(!meals.length) return null;
   const anyComing=meals.some(row=>row.coming>0);
-  return <Card title="Food counts from replies" subtitle="Guests who replied yes, by what they eat. Use these for each caterer's numbers.">
-    {!anyComing?<p className="field-help">No replies yet. Counts appear here as guests reply yes.</p>:<DataTable label="Food counts per function" headers={["Function","Coming","Veg","Non-veg","Jain","Vegan","Other","Not told us"]}>
+  return <Card title="Food counts from replies" subtitle="People coming, from each family's reply, by the food the family chose. Use these for each caterer's numbers.">
+    {!anyComing?<p className="field-help">No replies yet. Counts appear here as families reply.</p>:<DataTable label="Food counts per function" headers={["Function","Coming","Veg","Non-veg","Jain","Vegan","Other","Not told us"]}>
       {meals.map(row=><tr key={row.functionId}><td><span className="table-primary">{row.name}</span>{row.date&&<span className="table-secondary">{row.date}</span>}</td><td><strong>{row.coming}</strong></td><td>{row.veg}</td><td>{row.nonveg}</td><td>{row.jain}</td><td>{row.vegan}</td><td>{row.other}</td><td>{row.notSaid>0?<span className="meal-missing">{row.notSaid}</span>:0}</td></tr>)}
     </DataTable>}
-    {anyComing&&meals.some(row=>row.notSaid>0)&&<p className="field-help">“Not told us” are guests coming who haven&apos;t chosen. They can choose on their invitation page, or you can set it on Guests.</p>}
+    {anyComing&&meals.some(row=>row.notSaid>0)&&<p className="field-help">“Not told us” are people coming whose family chose “No preference”. Families can change their reply from their invitation link, or you can record it on the Guest desk.</p>}
   </Card>;
 }
 

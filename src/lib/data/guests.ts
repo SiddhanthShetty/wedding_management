@@ -1,4 +1,3 @@
-import { familyInvitations } from "@/lib/planning/family-input";
 import type { LooseRow } from "@/lib/types/loose";
 import "server-only";
 
@@ -173,24 +172,4 @@ export async function exportWeddingGuests(weddingId:string){
     return row;
   });
   return createCsv(headers,rows);
-}
-
-/**
- * Adds a family, its people and their invitations in one go. If any step fails, the family and
- * anyone already added are removed again, so nothing is left half-saved.
- */
-export async function createGuestFamily(weddingId:string,household:{name:string;familySide:string;contactPhone:string},names:string[],functionIds:string[]){
-  await authorizeWeddingOperation(weddingId,"guests","edit");
-  const householdId=await saveGuestHousehold(weddingId,null,{name:household.name,contact_name:names[0]??"",contact_email:"",contact_phone:household.contactPhone,address:"",notes:"",family_side:household.familySide});
-  try{
-    const guestIds:string[]=[];
-    for(const name of names)guestIds.push(await saveGuest(weddingId,null,{household_id:householdId,full_name:name,email:"",phone:"",follow_up_owner_user_id:null,meal_preference:"",allergies:"",assistance_needs:"",notes:""},null));
-    const invitations=familyInvitations(guestIds,functionIds);
-    if(invitations.length)await setGuestInvitationsBulk(weddingId,invitations);
-    return {householdId,people:guestIds.length,functions:functionIds.length};
-  }catch(error){
-    let undone=true;
-    try{await deleteGuestHousehold(weddingId,householdId,true);}catch{undone=false;}
-    throw new Error(undone?"Couldn't add this family, so nothing was saved. Check the names and try again.":"Couldn't finish adding this family. Part of it may have been saved; check the Guests list before trying again.",{cause:error});
-  }
 }

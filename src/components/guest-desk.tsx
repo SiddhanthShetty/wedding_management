@@ -2,51 +2,49 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { Check, MessageCircle, Send, UserRoundX, Users } from "lucide-react";
-import { addFamiliesAction, prepareFamilyInviteAction, recordFamilyReminderAction, setFamilyInvitedAction, type AddFamiliesState } from "@/app/actions/guest-desk";
-import { recordInvitationSharedAction } from "@/app/actions/invitations";
+import { Check, Copy, Download, MessageCircle, Users } from "lucide-react";
+import { addFamiliesAction, familyCodeAction, recordFamilyReplyAction, recordFamilySendAction, setFamilyRemovedAction, updateFamilyAction, type AddFamiliesState } from "@/app/actions/family-invites";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { Button, Card, DataTable, EmptyState } from "@/components/ui";
-import type { GuestDesk as Desk } from "@/lib/data/guest-desk";
-import { isLanguage, LANGUAGES, resolveTexts, shareMessage, whatsappUrl, type LanguageCode } from "@/lib/invitations/content";
-import { reminderMessage } from "@/lib/invitations/reminder";
-import { replyLabel, type FamilyRow } from "@/lib/planning/guest-desk";
+import type { InviteDesk } from "@/lib/data/family-invites";
+import { DIETARY_OPTIONS, inviteLink, inviteMessage, reminderMessage, replyLabel, repliesCsv, whatsappLink, type FamilyRow } from "@/lib/family-invites/rules";
 import { MAX_FAMILIES_PER_PASTE } from "@/lib/planning/family-paste";
 import { formatDate } from "@/lib/format";
 
-const EXAMPLE = "Rao family, +91 98765 43210, 4\nPai family, , 2\nKamath family";
-const lang = (value: string): LanguageCode => isLanguage(value) ? value : "en";
+const EXAMPLE = "Rao family, +91 98765 43210, 4\nPai family, , 2\nAsha Aunty & Uncle";
+type Status = { message?: string; error?: string };
 
-/** The invitation message in the family's language, with their link. Uses the default design's wording when there is one. */
-function inviteText(desk: Desk, name: string, language: string, link: string) {
-  return shareMessage(resolveTexts(lang(language), desk.design?.texts, true, desk.design?.kind ?? "invitation"), { name, couple: desk.coupleNames, link });
-}
-
-export function GuestDesk({ desk }: { desk: Desk }) {
-  const invitedFamilies = desk.families.filter((row) => row.state !== "not_invited");
-  const notInvited = desk.families.filter((row) => row.state === "not_invited");
+export function GuestDesk({ desk }: { desk: InviteDesk }) {
+  const download = () => {
+    const blob = new Blob([`﻿${repliesCsv([...desk.families, ...desk.removed], desk.functions)}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url; anchor.download = "guest-replies.csv"; anchor.click();
+    URL.revokeObjectURL(url);
+  };
   return <div className="section-stack guest-desk">
     <div className="guest-summary-grid" role="group" aria-label="Replies so far">
       <Tile label="Families invited" value={desk.totals.invited} />
       <Tile label="Replied" value={desk.totals.replied} />
       <Tile label="Not yet replied" value={desk.totals.waiting} />
+      <Tile label="Guests coming" value={desk.totals.coming} />
     </div>
     {desk.canEdit ? <AddFamilies desk={desk} /> : <p className="field-help" role="note">You can see the list. To add families or send invitations, ask the couple to let you change guests.</p>}
-    {desk.canEdit && !desk.design && <p className="travel-warning" role="note">No invitation design is chosen yet, so messages use the standard wording and sends can&apos;t be recorded. <Link href="/invitations">Choose a design on Invitations</Link>.</p>}
-    <Card title="Families" subtitle="Families who haven't replied are at the top. Edit names and details on the People & RSVPs page.">
-      {!invitedFamilies.length ? <EmptyState icon={<Users size={20} aria-hidden="true" />} title="No families invited yet" description={desk.canEdit ? "Paste your families above, one per line, to add and invite them in one go." : "Families appear here once the couple adds them."} />
-        : <DataTable label="Families and their replies" className="stack-on-phone guest-desk-table" headers={["Family", "Phone", "People", "Reply", "Sent / opened", ""]}>
-          {invitedFamilies.map((row) => <FamilyLine key={row.id} desk={desk} row={row} />)}
+    <Card title="Families" subtitle="Each family has one link that never changes. Families who haven't replied are at the top."
+      action={desk.families.length ? <Button type="button" variant="secondary" onClick={download}><Download size={15} aria-hidden="true" /> Download CSV</Button> : undefined}>
+      {!desk.families.length ? <EmptyState icon={<Users size={20} aria-hidden="true" />} title="No families yet" description={desk.canEdit ? "Paste your families above, one per line." : "Families appear here once the couple adds them."} />
+        : <DataTable label="Families and their replies" className="stack-on-phone guest-desk-table" headers={["Family", "Phone", "Most guests", "Reply", "Sent", ""]}>
+          {desk.families.map((row) => <FamilyLine key={row.id} desk={desk} row={row} />)}
         </DataTable>}
-      {notInvited.length > 0 && <details className="more-details"><summary>Not on the invite list ({notInvited.length})</summary>
-        <ul className="doc-list">{notInvited.map((row) => <li key={row.id} className="reference-row"><span className="row-title">{row.name}</span><span className="row-meta">{row.people} {row.people === 1 ? "person" : "people"}{row.canPutBack ? " · removed" : " · not invited to anything"}</span>
-          <span className="doc-actions">{desk.canEdit && row.canPutBack && <PutBack desk={desk} row={row} />}<Link className="button button-quiet" href={`/guests?q=${encodeURIComponent(row.name)}`}>Edit people</Link></span></li>)}</ul>
+      {desk.removed.length > 0 && <details className="more-details"><summary>Removed from the list ({desk.removed.length})</summary>
+        <ul className="doc-list">{desk.removed.map((row) => <li key={row.id} className="reference-row"><span className="row-title">{row.name}</span><span className="row-meta">{replyLabel(row)}. Their link doesn&apos;t work while removed.</span>
+          {desk.canEdit && <PutBack desk={desk} row={row} />}</li>)}</ul>
       </details>}
     </Card>
-    <Card title="Headcount per function" subtitle="People, not families. “Waiting” means no reply yet.">
-      {!desk.headcounts.length ? <p className="field-help">Add your functions on Plan → Functions to see headcounts.</p>
-        : <DataTable label="Headcount per function" headers={["Function", "Yes", "Maybe", "No", "Waiting"]}>
-          {desk.headcounts.map((row) => <tr key={row.id}><td className="table-primary">{row.name}</td><td>{row.yes}</td><td>{row.maybe}</td><td>{row.no}</td><td>{row.waiting}</td></tr>)}
+    <Card title="Guests per event" subtitle="People coming, from each family's reply. Families who haven't replied are counted as families.">
+      {!desk.headcounts.length ? <p className="field-help">Add your events on <Link href="/functions">Plan → Functions</Link> to see counts.</p>
+        : <DataTable label="Guests per event" headers={["Event", "Coming", "Not coming", "Not yet replied", "Families invited"]}>
+          {desk.headcounts.map((row) => <tr key={row.id}><td className="table-primary">{row.name}</td><td>{row.people} {row.people === 1 ? "person" : "people"}</td><td>{row.notComing} {row.notComing === 1 ? "family" : "families"}</td><td>{row.waiting} {row.waiting === 1 ? "family" : "families"}</td><td>{row.families}</td></tr>)}
         </DataTable>}
     </Card>
   </div>;
@@ -56,169 +54,167 @@ function Tile({ label, value }: { label: string; value: number }) {
   return <div className="card stat-card"><p className="stat-label">{label}</p><p className="stat-value">{value}</p></div>;
 }
 
-/** The paste box. The text stays after a problem (React would otherwise reset the form), and clears once added. */
-function AddFamilies({ desk }: { desk: Desk }) {
+/** The paste box. The text stays after a problem (React would otherwise reset the form) and clears once added. */
+function AddFamilies({ desk }: { desk: InviteDesk }) {
   const [text, setText] = useState("");
   const [chosen, setChosen] = useState<string[]>(() => desk.functions.map((fn) => fn.id));
   const [side, setSide] = useState("unknown");
-  const [language, setLanguage] = useState<LanguageCode>("en");
   const [state, action, pending] = useActionState(async (previous: AddFamiliesState, form: FormData) => {
     const result = await addFamiliesAction(previous, form);
-    if (result.created) setText("");
+    if (result.message) setText("");
     return result;
   }, {});
   const lines = text.split(/\r?\n/).filter((line) => line.trim()).length;
-  return <>
-    <Card title="Add families" subtitle="Paste one family per line. Each family gets one private link that answers for everyone in it.">
-      {!desk.functions.length ? <p className="field-help">Add your functions first on <Link href="/functions">Plan → Functions</Link>, then come back to invite families to them.</p> : <form action={action} className="section-stack desk-add-form">
-        <input type="hidden" name="weddingId" value={desk.weddingId} />
-        <div className="field">
-          <label className="field-label" htmlFor="desk-families">Families</label>
-          <textarea id="desk-families" name="families" className="field-control" rows={6} value={text} onChange={(event) => setText(event.target.value)} placeholder={EXAMPLE} aria-describedby="desk-families-help" aria-invalid={Boolean(state.problems?.length)} spellCheck={false} />
-          <span className="field-help" id="desk-families-help">One family per line: <strong>name, phone, number of guests</strong>. Phone and number are optional; leave commas out of names. Up to {MAX_FAMILIES_PER_PASTE} at a time. Numbers like 98765 43210 get +91 added.{lines ? ` ${lines} line${lines === 1 ? "" : "s"}.` : ""}</span>
-        </div>
-        <fieldset className="starter-list family-invite-list"><legend className="field-label">Invite them to</legend>
-          {desk.functions.map((fn) => <label key={fn.id} className="checkbox-row"><input type="checkbox" name="inviteTo" value={fn.id} checked={chosen.includes(fn.id)} onChange={(event) => setChosen((current) => event.target.checked ? [...current, fn.id] : current.filter((value) => value !== fn.id))} /><span>{fn.name}{fn.date ? ` · ${formatDate(fn.date, desk.timezone)}` : ""}</span></label>)}
-        </fieldset>
-        <div className="field-grid">
-          <div className="field"><label className="field-label" htmlFor="desk-side">Whose side</label>
-            <select id="desk-side" name="familySide" className="field-control" value={side} onChange={(event) => setSide(event.target.value)}>
-              {(["couple_one", "couple_two", "shared", "unknown"] as const).map((value) => <option key={value} value={value}>{desk.familySideLabels[value]}</option>)}
-            </select></div>
-          <div className="field"><label className="field-label" htmlFor="desk-language">Invitation language</label>
-            <select id="desk-language" name="language" className="field-control" value={language} onChange={(event) => setLanguage(lang(event.target.value))}>
-              {LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}{item.draft ? " (draft wording)" : ""}</option>)}
-            </select></div>
-        </div>
-        {state.problems?.length ? <div className="auth-alert" role="alert"><p><strong>Nothing was added.</strong> Fix {state.problems.length === 1 ? "this" : `these ${state.problems.length} problems`} and try again:</p><ul>{state.problems.map((problem) => <li key={problem}>{problem}</li>)}</ul></div> : null}
-        {state.error && <p className="auth-alert" role="alert">{state.error}</p>}
-        {state.message && <p className="auth-success" role="status">{state.message} Send their invitations below.</p>}
-        <div className="form-actions"><Button type="submit" disabled={pending || !lines || !chosen.length}>{pending ? "Adding…" : "Add families"}</Button></div>
-      </form>}
-    </Card>
-    {state.created?.length ? <SendNow key={state.at} desk={desk} created={state.created} /> : null}
-  </>;
-}
-
-/** Right after adding: each family's new link, shown once, ready for WhatsApp. */
-function SendNow({ desk, created }: { desk: Desk; created: NonNullable<AddFamiliesState["created"]> }) {
-  const [origin] = useState(() => typeof window === "undefined" ? "" : window.location.origin);
-  return <Card title="Send their invitations now" subtitle="These links are shown only on this page, once. If you leave, use “Invite on WhatsApp” on the list later; that makes a new link.">
-    <ul className="doc-list">{created.map((row) => {
-      const link = `${origin}/guest#${row.token}`;
-      const message = inviteText(desk, row.name, row.language, link);
-      return <li key={row.householdId} className="reference-row"><span className="row-title">{row.name}</span><span className="row-meta">{row.people} {row.people === 1 ? "person" : "people"}</span>
-        <SendButtons desk={desk} guestId={row.leadGuestId} phone={row.phone} message={message} link={link} kind="invite" /></li>;
-    })}</ul>
+  return <Card title="Add families" subtitle="Each family gets its own link. It greets them by name, and their reply shows up against their name below.">
+    {!desk.functions.length ? <p className="field-help">Add your events first on <Link href="/functions">Plan → Functions</Link>, then come back to invite families to them.</p> : <form action={action} className="section-stack desk-add-form">
+      <input type="hidden" name="weddingId" value={desk.weddingId} />
+      <div className="field">
+        <label className="field-label" htmlFor="desk-families">Families</label>
+        <textarea id="desk-families" name="families" className="field-control" rows={6} value={text} onChange={(event) => setText(event.target.value)} placeholder={EXAMPLE} aria-describedby="desk-families-help" aria-invalid={Boolean(state.problems?.length)} spellCheck={false} />
+        <span className="field-help" id="desk-families-help">One family per line: the name they&apos;ll be greeted by, then optionally a <strong>phone</strong> and the <strong>most guests</strong> they may bring, separated by commas. Leave commas out of names. Up to {MAX_FAMILIES_PER_PASTE} at a time. Numbers like 98765 43210 get +91 added.{lines ? ` ${lines} line${lines === 1 ? "" : "s"}.` : ""}</span>
+      </div>
+      <fieldset className="starter-list family-invite-list"><legend className="field-label">Invite them to</legend>
+        {desk.functions.map((fn) => <label key={fn.id} className="checkbox-row"><input type="checkbox" name="inviteTo" value={fn.id} checked={chosen.includes(fn.id)} onChange={(event) => setChosen((current) => event.target.checked ? [...current, fn.id] : current.filter((value) => value !== fn.id))} /><span>{fn.name}{fn.date ? ` · ${formatDate(fn.date, desk.timezone)}` : ""}</span></label>)}
+      </fieldset>
+      <div className="field desk-side"><label className="field-label" htmlFor="desk-side">Whose side</label>
+        <select id="desk-side" name="familySide" className="field-control" value={side} onChange={(event) => setSide(event.target.value)}>
+          {(["couple_one", "couple_two", "shared", "unknown"] as const).map((value) => <option key={value} value={value}>{desk.familySideLabels[value]}</option>)}
+        </select></div>
+      {state.problems?.length ? <div className="auth-alert" role="alert"><p><strong>Nothing was added.</strong> Fix {state.problems.length === 1 ? "this" : `these ${state.problems.length} problems`} and try again:</p><ul>{state.problems.map((problem) => <li key={problem}>{problem}</li>)}</ul></div> : null}
+      {state.error && <p className="auth-alert" role="alert">{state.error}</p>}
+      {state.message && <p className="auth-success" role="status">{state.message}</p>}
+      <div className="form-actions"><Button type="submit" disabled={pending || !lines || !chosen.length}>{pending ? "Adding…" : "Add families"}</Button></div>
+    </form>}
   </Card>;
 }
 
-/** Opens WhatsApp with the message, then records the send when the planner says they sent it. */
-function SendButtons({ desk, guestId, phone, message, link, kind }: { desk: Desk; guestId: string; phone: string; message: string; link: string; kind: "invite" | "remind" }) {
-  const [opened, setOpened] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<{ message?: string; error?: string }>({});
-  const whatsapp = whatsappUrl(phone, message);
-  const record = async () => {
-    setBusy(true);
-    const result = kind === "invite"
-      ? desk.design ? await recordInvitationSharedAction({ weddingId: desk.weddingId, guestId, designId: desk.design.id, channel: "whatsapp", message, link }) : { error: "Choose an invitation design on Invitations to record sends." }
-      : await recordFamilyReminderAction({ weddingId: desk.weddingId, guestId, message, link });
-    setBusy(false); setStatus(result);
-  };
-  return <span className="doc-actions desk-send">
-    <a className="button button-primary" href={whatsapp.url} target="_blank" rel="noopener noreferrer" onClick={() => setOpened(true)}><MessageCircle size={15} aria-hidden="true" /> Open WhatsApp</a>
-    {status.message ? <span className="field-success" role="status"><Check size={14} aria-hidden="true" /> {status.message}</span>
-      : <Button type="button" variant={opened ? "secondary" : "quiet"} disabled={busy} onClick={record}>{busy ? "Saving…" : "I sent it"}</Button>}
-    {!whatsapp.hasNumber && <span className="field-help">No number starting with + is saved, so WhatsApp will ask you to pick the chat.</span>}
-    {status.error && <span className="field-error" role="alert">{status.error}</span>}
-  </span>;
-}
+const day = (value: string | null, timezone: string) => (value ? formatDate(value, timezone) : null);
 
-const ago = (value: string | null, timezone: string) => value ? formatDate(value, timezone) : null;
-
-function FamilyLine({ desk, row }: { desk: Desk; row: FamilyRow }) {
-  const invited = ago(row.invitedAt, desk.timezone);
-  const reminded = ago(row.remindedAt, desk.timezone);
-  const opened = ago(row.openedAt, desk.timezone);
+function FamilyLine({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
+  const invited = day(row.invitedAt, desk.timezone);
+  const reminded = day(row.remindedAt, desk.timezone);
   return <tr>
-    <td><span className="table-primary">{row.name}</span>{row.placeholders > 0 && <span className="table-secondary">{row.placeholders} without a name yet</span>}</td>
+    <td><span className="table-primary">{row.name}</span>{row.reply?.message ? <span className="table-secondary">“{row.reply.message.slice(0, 120)}{row.reply.message.length > 120 ? "…" : ""}”</span> : null}</td>
     <td>{row.phone ? <><span className="desk-cell-label">Phone: </span>{row.phone}</> : <span className="table-secondary">No phone</span>}</td>
-    <td><span className="desk-cell-label">People: </span>{row.invitedPeople}{row.people > row.invitedPeople ? ` of ${row.people}` : ""}</td>
-    <td><span className={`status ${row.state === "accepts" ? "status-confirmed" : row.state === "declines" ? "status-neutral" : "status-pending"}`}>{replyLabel(row)}</span></td>
-    <td><span className="desk-cell-label">Sent / opened: </span><span className="table-secondary">{invited ? `Sent ${invited}` : "Not sent yet"}{reminded ? ` · reminded ${reminded}${row.reminders > 1 ? ` (${row.reminders}×)` : ""}` : ""}{opened ? ` · opened ${opened}` : invited ? " · not opened" : ""}</span></td>
-    <td>{desk.canEdit ? <FamilyActions desk={desk} row={row} /> : <Link className="button button-quiet" href={`/guests?q=${encodeURIComponent(row.name)}`}>See people</Link>}</td>
+    <td><span className="desk-cell-label">Most guests: </span>{row.maxGuests ?? "Any"}</td>
+    <td><span className={`status ${row.status === "accepts" ? "status-confirmed" : row.status === "declines" ? "status-neutral" : "status-pending"}`}>{replyLabel(row)}</span>
+      {row.reply?.attending && row.reply.dietary !== "none" ? <span className="table-secondary">{DIETARY_OPTIONS.find((option) => option.value === row.reply!.dietary)?.label}</span> : null}</td>
+    <td><span className="desk-cell-label">Sent: </span><span className="table-secondary">{invited ? `Invited ${invited}` : "Not sent yet"}{reminded ? ` · reminded ${reminded}${row.reminders > 1 ? ` (${row.reminders}×)` : ""}` : ""}</span></td>
+    <td>{desk.canEdit ? <FamilyActions desk={desk} row={row} /> : null}</td>
   </tr>;
 }
 
-type Mode = null | "invite" | "remind";
-
-function FamilyActions({ desk, row }: { desk: Desk; row: FamilyRow }) {
-  const [mode, setMode] = useState<Mode>(null);
-  const [confirm, setConfirm] = useState<null | "invite" | "fresh" | "remove">(null);
-  const [link, setLink] = useState<{ url: string; guestId: string } | null>(null);
+function FamilyActions({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
+  const [panel, setPanel] = useState<null | "edit" | "reply">(null);
+  const [confirm, setConfirm] = useState<null | "replace" | "remove">(null);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<{ message?: string; error?: string }>({});
-  const prepare = async (next: Mode) => {
+  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<Status>({});
+  const linkFor = (code: string) => inviteLink(window.location.origin, code);
+  /** Opens WhatsApp with the message (from the tap itself, so browsers allow it) and records the send. */
+  const send = (kind: "invite" | "remind") => {
+    if (!row.code) return;
+    const link = linkFor(row.code);
+    const message = kind === "invite" ? inviteMessage(row.name, link, desk.coupleNames) : reminderMessage(row.name, link, desk.coupleNames);
+    window.open(whatsappLink(row.phone, message).url, "_blank", "noopener,noreferrer");
+    void recordFamilySendAction({ weddingId: desk.weddingId, householdId: row.id, kind, message, link }).then(setStatus);
+  };
+  const copy = async () => {
+    if (!row.code) return;
+    try { await navigator.clipboard.writeText(linkFor(row.code)); setCopied(true); window.setTimeout(() => setCopied(false), 2000); }
+    catch { setStatus({ error: `Copy didn't work. The link is ${linkFor(row.code)}` }); }
+  };
+  const makeCode = async (replace: boolean) => {
     setConfirm(null); setBusy(true); setStatus({});
-    const result = await prepareFamilyInviteAction(desk.weddingId, row.id);
+    const result = await familyCodeAction(desk.weddingId, row.id, replace);
     setBusy(false);
-    if (!result.token || !result.leadGuestId) { setStatus({ error: result.error ?? "Couldn't make the link." }); return; }
-    setLink({ url: `${window.location.origin}/guest#${result.token}`, guestId: result.leadGuestId });
-    setMode(next);
+    setStatus(result.error ? { error: result.error } : { message: replace ? "New link made. The old link no longer works; send them the new one." : "Link made. You can invite them now." });
   };
-  const remove = async () => {
-    setConfirm(null); setBusy(true);
-    const result = await setFamilyInvitedAction(desk.weddingId, row.id, false);
-    setBusy(false); setStatus(result);
-  };
-  const close = () => { setMode(null); setLink(null); };
+  const remove = async () => { setConfirm(null); setBusy(true); setStatus(await setFamilyRemovedAction(desk.weddingId, row.id, true)); setBusy(false); };
   return <div className="desk-actions">
-    {!mode && <div className="doc-actions">
-      <Button type="button" disabled={busy || !row.leadId} onClick={() => row.linkActive || row.invitedAt ? setConfirm("invite") : prepare("invite")}><Send size={15} aria-hidden="true" /> {busy ? "Preparing…" : row.invitedAt ? "Invite again" : "Invite on WhatsApp"}</Button>
-      {row.state === "not_yet" && row.invitedAt && <Button type="button" variant="secondary" disabled={busy} onClick={() => { setLink(null); setMode("remind"); }}>Remind</Button>}
+    <div className="doc-actions">
+      {row.code ? <>
+        <Button type="button" disabled={!row.functionIds.length} onClick={() => send("invite")}><MessageCircle size={15} aria-hidden="true" /> Invite<span className="sr-only"> {row.name} on WhatsApp</span></Button>
+        {row.status === "waiting" && <Button type="button" variant="secondary" onClick={() => send("remind")}>Remind<span className="sr-only"> {row.name} on WhatsApp</span></Button>}
+        <Button type="button" variant="secondary" onClick={copy}>{copied ? <><Check size={15} aria-hidden="true" /> Copied</> : <><Copy size={15} aria-hidden="true" /> Copy link</>}</Button>
+      </> : <Button type="button" disabled={busy} onClick={() => makeCode(false)}>{busy ? "Making…" : "Make their link"}</Button>}
       <details className="desk-more"><summary>More</summary>
-        <Link className="button button-quiet" href={`/guests?q=${encodeURIComponent(row.name)}`}>Edit people</Link>
-        <Link className="button button-quiet" href="/invitations">Open in Invitations</Link>
-        <Button type="button" variant="quiet" disabled={busy} onClick={() => setConfirm("remove")}><UserRoundX size={15} aria-hidden="true" /> Remove from list</Button>
+        <Button type="button" variant="quiet" onClick={() => setPanel(panel === "edit" ? null : "edit")}>Events and guests</Button>
+        <Button type="button" variant="quiet" onClick={() => setPanel(panel === "reply" ? null : "reply")}>Record their reply</Button>
+        {row.code && <Button type="button" variant="quiet" disabled={busy} onClick={() => setConfirm("replace")}>Make a new link</Button>}
+        <Link className="button button-quiet" href={`/guests?q=${encodeURIComponent(row.name)}`}>People in this family</Link>
+        <Button type="button" variant="quiet" disabled={busy} onClick={() => setConfirm("remove")}>Remove from list</Button>
       </details>
-    </div>}
-    {mode === "invite" && link && <div className="desk-panel">
-      <p className="field-help">New link ready for {row.name}. It answers for everyone in the family and works for 30 days.</p>
-      <SendButtons desk={desk} guestId={link.guestId} phone={row.phone} message={inviteText(desk, row.name, row.language, link.url)} link={link.url} kind="invite" />
-      <Button type="button" variant="quiet" onClick={close}>Done</Button>
-    </div>}
-    {mode === "remind" && <div className="desk-panel">
-      {link ? <>
-        <p className="field-help">Fresh link ready. The old one no longer works.</p>
-        <SendButtons desk={desk} guestId={link.guestId} phone={row.phone} message={reminderMessage(lang(row.language), { name: row.name, couple: desk.coupleNames, link: link.url })} link={link.url} kind="remind" />
-      </> : <>
-        <p className="field-label">How do you want to remind {row.name}?</p>
-        {row.linkActive && row.leadId ? <div className="desk-choice">
-          <p className="field-help">Remind them, asking them to use the link they already have{row.linkExpiresAt ? ` (works until ${formatDate(row.linkExpiresAt, desk.timezone)})` : ""}.</p>
-          <SendButtons desk={desk} guestId={row.leadId} phone={row.phone} message={reminderMessage(lang(row.language), { name: row.name, couple: desk.coupleNames })} link="" kind="remind" />
-        </div> : <p className="field-help">Their link has expired or was replaced, so send a fresh one.</p>}
-        <div className="desk-choice"><Button type="button" variant="secondary" disabled={busy} onClick={() => setConfirm("fresh")}>{busy ? "Preparing…" : "Send a fresh link"}</Button></div>
-      </>}
-      <Button type="button" variant="quiet" onClick={close}>Close</Button>
-    </div>}
+    </div>
+    {!row.functionIds.length && <p className="field-help">Choose their events under More → Events and guests before inviting them.</p>}
+    {panel === "edit" && <EditFamily desk={desk} row={row} onDone={(result) => { setStatus(result); if (result.message) setPanel(null); }} />}
+    {panel === "reply" && <RecordReply desk={desk} row={row} onDone={(result) => { setStatus(result); if (result.message) setPanel(null); }} />}
     {status.error && <p className="field-error" role="alert">{status.error}</p>}
     {status.message && <p className="field-success" role="status">{status.message}</p>}
-    <ConfirmationDialog open={confirm === "invite" || confirm === "fresh"} title={confirm === "fresh" ? `Send ${row.name} a fresh link?` : `Make a new link for ${row.name}?`}
-      description={`This creates a new private link for ${row.leadName}, answering for the whole family. Any previous link for this person stops working.`}
-      confirmLabel="Make new link" confirmDisabled={busy} onConfirm={() => prepare(confirm === "fresh" ? "remind" : "invite")} onCancel={() => setConfirm(null)} />
-    <ConfirmationDialog open={confirm === "remove"} title={`Remove ${row.name} from the list?`}
-      description="Their invitations are withdrawn and their link stops working. The people and any replies they gave are kept, and you can put them back later. To delete them completely, use People & RSVPs."
-      confirmLabel="Remove from list" confirmDisabled={busy} onConfirm={remove} onCancel={() => setConfirm(null)} />
+    <ConfirmationDialog open={confirm === "replace"} title={`Make a new link for ${row.name}?`} description="The link they have now stops working. Use this only if the old link reached the wrong people." confirmLabel="Make new link" confirmDisabled={busy} onConfirm={() => makeCode(true)} onCancel={() => setConfirm(null)} />
+    <ConfirmationDialog open={confirm === "remove"} title={`Remove ${row.name} from the list?`} description="Their link stops working and they leave the counts. Their reply is kept, and you can put them back later. To delete the family completely, use the People page." confirmLabel="Remove from list" confirmDisabled={busy} onConfirm={remove} onCancel={() => setConfirm(null)} />
   </div>;
 }
 
-function PutBack({ desk, row }: { desk: Desk; row: FamilyRow }) {
+function EditFamily({ desk, row, onDone }: { desk: InviteDesk; row: FamilyRow; onDone: (result: Status) => void }) {
+  const [chosen, setChosen] = useState<string[]>(row.functionIds);
+  const [max, setMax] = useState(row.maxGuests ? String(row.maxGuests) : "");
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<{ message?: string; error?: string }>({});
-  return <>
-    <Button type="button" variant="secondary" disabled={busy} onClick={async () => { setBusy(true); setStatus(await setFamilyInvitedAction(desk.weddingId, row.id, true)); setBusy(false); }}>{busy ? "Putting back…" : "Put back"}</Button>
+  const save = async () => { setBusy(true); onDone(await updateFamilyAction(desk.weddingId, row.id, max ? Number(max) : null, chosen)); setBusy(false); };
+  return <div className="desk-panel">
+    <fieldset className="starter-list"><legend className="field-label">Invited to</legend>
+      {desk.functions.map((fn) => <label key={fn.id} className="checkbox-row"><input type="checkbox" checked={chosen.includes(fn.id)} onChange={(event) => setChosen((current) => event.target.checked ? [...current, fn.id] : current.filter((value) => value !== fn.id))} /><span>{fn.name}</span></label>)}
+    </fieldset>
+    <div className="field"><label className="field-label" htmlFor={`max-${row.id}`}>Most guests</label>
+      <select id={`max-${row.id}`} className="field-control" value={max} onChange={(event) => setMax(event.target.value)}>
+        <option value="">Any number</option>{Array.from({ length: 20 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
+      </select></div>
+    <div className="doc-actions"><Button type="button" disabled={busy || !chosen.length} onClick={save}>{busy ? "Saving…" : "Save"}</Button></div>
+  </div>;
+}
+
+/** For replies that came by phone or in person. */
+function RecordReply({ desk, row, onDone }: { desk: InviteDesk; row: FamilyRow; onDone: (result: Status) => void }) {
+  const events = desk.functions.filter((fn) => row.functionIds.includes(fn.id));
+  const [coming, setComing] = useState(row.reply ? row.reply.attending : true);
+  const [count, setCount] = useState(String(row.reply?.attending ? row.reply.guest_count : 1));
+  const [chosen, setChosen] = useState<string[]>(row.reply?.attending ? row.reply.function_ids : events.map((fn) => fn.id));
+  const [dietary, setDietary] = useState(row.reply?.dietary ?? "none");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    onDone(await recordFamilyReplyAction({ weddingId: desk.weddingId, householdId: row.id, attending: coming, guestCount: coming ? Number(count) : 0, functionIds: coming ? chosen : [], dietary: coming ? dietary : "none", message: row.reply?.message ?? "" }));
+    setBusy(false);
+  };
+  if (!events.length) return <div className="desk-panel"><p className="field-help">Choose their events first, under Events and guests.</p></div>;
+  return <div className="desk-panel">
+    <fieldset className="starter-list"><legend className="field-label">Are they coming?</legend>
+      <label className="checkbox-row"><input type="radio" name={`coming-${row.id}`} checked={coming} onChange={() => setComing(true)} /><span>Yes</span></label>
+      <label className="checkbox-row"><input type="radio" name={`coming-${row.id}`} checked={!coming} onChange={() => setComing(false)} /><span>No</span></label>
+    </fieldset>
+    {coming && <>
+      <div className="field"><label className="field-label" htmlFor={`count-${row.id}`}>How many</label>
+        <select id={`count-${row.id}`} className="field-control" value={count} onChange={(event) => setCount(event.target.value)}>
+          {Array.from({ length: row.maxGuests ?? 20 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
+        </select></div>
+      <fieldset className="starter-list"><legend className="field-label">Which events</legend>
+        {events.map((fn) => <label key={fn.id} className="checkbox-row"><input type="checkbox" checked={chosen.includes(fn.id)} onChange={(event) => setChosen((current) => event.target.checked ? [...current, fn.id] : current.filter((value) => value !== fn.id))} /><span>{fn.name}</span></label>)}
+      </fieldset>
+      <div className="field"><label className="field-label" htmlFor={`food-${row.id}`}>Food</label>
+        <select id={`food-${row.id}`} className="field-control" value={dietary} onChange={(event) => setDietary(event.target.value)}>
+          {DIETARY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select></div>
+    </>}
+    <div className="doc-actions"><Button type="button" disabled={busy || (coming && !chosen.length)} onClick={save}>{busy ? "Saving…" : "Save reply"}</Button></div>
+  </div>;
+}
+
+function PutBack({ desk, row }: { desk: InviteDesk; row: FamilyRow }) {
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<Status>({});
+  return <span className="doc-actions">
+    <Button type="button" variant="secondary" disabled={busy} onClick={async () => { setBusy(true); setStatus(await setFamilyRemovedAction(desk.weddingId, row.id, false)); setBusy(false); }}>{busy ? "Putting back…" : "Put back"}</Button>
     {status.error && <span className="field-error" role="alert">{status.error}</span>}
     {status.message && <span className="field-success" role="status">{status.message}</span>}
-  </>;
+  </span>;
 }

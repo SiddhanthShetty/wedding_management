@@ -1,10 +1,10 @@
 import { GuestDesk } from "@/components/guest-desk";
 import { requireCurrentWorkspace } from "@/lib/auth/access";
-import { getGuestDesk } from "@/lib/data/guest-desk";
+import { getInviteDesk } from "@/lib/data/family-invites";
 
-/** The simple guest desk: add families, invite them on WhatsApp, and see who has replied. */
+/** Invitations: add families, send each its one link on WhatsApp, and see who has replied. */
 export default async function GuestDeskPage() {
   const workspace = await requireCurrentWorkspace("guests");
-  const desk = await getGuestDesk(workspace.wedding.id);
+  const desk = await getInviteDesk(workspace.wedding.id);
   return <GuestDesk desk={desk} />;
 }

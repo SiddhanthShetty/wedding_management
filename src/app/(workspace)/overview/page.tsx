@@ -46,7 +46,7 @@ async function Slot<T>({ load, children }: { load: Promise<Section<T>>; children
 async function Attention({ weddingId }: { weddingId: string }) {
   const data = await getDashboard(weddingId);
   const isNew = data.functions.state === "ok" && data.functions.data.total === 0
-    && (data.rsvp.state !== "ok" || data.rsvp.data.guests === 0) && (data.tasks.state !== "ok" || data.tasks.data.total === 0);
+    && (data.rsvp.state !== "ok" || data.rsvp.data.families === 0) && (data.tasks.state !== "ok" || data.tasks.data.total === 0);
   if (isNew) return null;
   const items = attentionItems({
     today: data.today,
@@ -108,7 +108,7 @@ async function AtAGlance({ weddingId, currency }: { weddingId: string; currency:
   const lines: Array<{ key: string; icon: ReactNode; text: string; href: string; action: string }> = [];
   if (tasks.state === "ok") lines.push({ key: "tasks", icon: <CheckSquare2 size={16} />, text: tasks.data.total ? `${tasks.data.total} tasks · ${tasks.data.overdue} overdue · ${tasks.data.dueSoon} due this week` : "No tasks yet", href: "/tasks", action: tasks.data.total ? "Open tasks" : "Add tasks" });
   if (finance.state === "ok") lines.push({ key: "money", icon: <Wallet size={16} />, text: moneyLine(finance.data.totals, finance.data.due.length, currency) ?? "No costs recorded yet", href: "/budget", action: "Open budget" });
-  if (rsvp.state === "ok") lines.push({ key: "guests", icon: <UsersRound size={16} />, text: guestLine(rsvp.data.guests, rsvp.data.functions) ?? "No guests added yet", href: "/guests", action: rsvp.data.guests ? "Open guests" : "Add guests" });
+  if (rsvp.state === "ok") lines.push({ key: "guests", icon: <UsersRound size={16} />, text: guestLine(rsvp.data) ?? "No families added yet", href: "/guests/simple", action: rsvp.data.families ? "Open the Guest desk" : "Add families" });
   if (!lines.length) return null;
   const failed = [finance, rsvp, tasks].some((section) => section.state === "error");
   return <Card title="How it's going" className="home-lines">
@@ -161,13 +161,13 @@ export default async function OverviewPage() {
         <p className="field-help">Totals are grouped by currency and never converted. They are calculated by the same rules as the Budget page.</p>
       </>}</DashSection>}</Slot></Suspense>
       <Suspense fallback={<SectionSkeleton title="RSVP progress" />}><Slot load={loadRsvpSection(id)}>{(section) => <DashSection title="RSVP progress" icon={<UsersRound size={16} />} section={section} area="Guest responses">{(rsvp) => <>{!rsvp.functions.length
-        ? <EmptyState title="No invitations yet" description={rsvp.guests ? "Invite guests to a function to track responses." : "Add guests, then invite them to functions."} />
-        : <ul className="dash-list">{rsvp.functions.map((fn) => <li key={fn.id}><Link href={`/guests?view=invitations&function=${fn.id}`}>
+        ? <EmptyState title="No invitations yet" description={rsvp.families ? "Choose each family's events on the Guest desk to track replies." : "Add families on the Guest desk, then invite them."} />
+        : <ul className="dash-list">{rsvp.functions.map((fn) => <li key={fn.id}><Link href="/guests/simple">
           <span className="row-title">{fn.name}</span>
-          <span className="row-meta">{fn.yes} yes · {fn.no} no · {fn.maybe} maybe · {fn.pending} awaiting · {fn.invited} invited</span>
+          <span className="row-meta">{fn.yes} {fn.yes === 1 ? "person" : "people"} coming · {fn.no} not coming · {fn.pending} not replied · {fn.invited} {fn.invited === 1 ? "family" : "families"} invited</span>
           <span className="dash-bar" aria-hidden="true"><span style={{ width: `${fn.invited ? Math.round(((fn.invited - fn.pending) / fn.invited) * 100) : 0}%` }} /></span>
         </Link></li>)}</ul>}
-        {rsvp.functions.some((fn) => fn.pending > 0) && <p className="dash-actions">Send reminders: {rsvp.functions.filter((fn) => fn.pending > 0).map((fn, index) => <span key={fn.id}>{index > 0 ? " · " : ""}<Link className="text-link" href={`/messages?function=${fn.id}&kind=reminder`}>{fn.name} ({fn.pending})</Link></span>)}</p>}
+        {rsvp.functions.some((fn) => fn.pending > 0) && <p className="dash-actions"><Link className="text-link" href="/guests/simple">Remind families who haven&apos;t replied</Link></p>}
       </>}</DashSection>}</Slot></Suspense>
       <Suspense fallback={<SectionSkeleton title="Catering review" />}><Slot load={loadCateringSection(id)}>{(section) => <DashSection title="Catering review" icon={<UtensilsCrossed size={16} />} section={section} area="Catering">{(catering) => <>
         <div className="dash-counts"><Count href="/logistics" value={catering.flagged.length} label="meal services need review" tone="warn" /></div>

@@ -24,7 +24,7 @@ export async function inviteHouseholdAction(_state: BulkActionState, form: FormD
     const householdId = id.parse(text(form, "householdId"));
     const functionIds = z.array(id).min(1, "Choose at least one function.").max(30).parse(all(form, "functionIds"));
     const result = await inviteHousehold(weddingId, householdId, functionIds);
-    revalidatePath("/guests"); revalidatePath("/invitations"); revalidatePath("/overview");
+    revalidatePath("/guests"); revalidatePath("/guests/simple"); revalidatePath("/overview");
     return { message: result.invited ? `Added ${result.invited} invitation(s) for ${result.people} person(s). Existing invitations were left as they were.` : "Everyone in this household is already invited to those functions.", at: Date.now() };
   } catch (error) { return failure(error, "guest-list"); }
 }
@@ -59,7 +59,7 @@ export async function completeTasksAction(_state: BulkActionState, form: FormDat
 export async function createMissingLinksAction(weddingId: string): Promise<{ links?: Array<{ guestId: string; name: string; householdId: string | null; language: string; email: string; phone: string; token: string }>; error?: string }> {
   try {
     const links = await createMissingGuestLinks(id.parse(weddingId));
-    revalidatePath("/guests"); revalidatePath("/invitations");
+    revalidatePath("/guests"); revalidatePath("/guests/simple");
     return { links };
   } catch (error) { return { error: failure(error, "guest-list").error }; }
 }

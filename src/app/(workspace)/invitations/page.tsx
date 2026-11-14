@@ -1,9 +1,6 @@
-import { requireCurrentWorkspace } from "@/lib/auth/access";
-import { getInvitationWorkspace } from "@/lib/data/invitations";
-import { InvitationStudio } from "@/components/invitation-studio";
+import { redirect } from "next/navigation";
 
-export default async function InvitationsPage() {
-  const workspace = await requireCurrentWorkspace("guests");
-  const data = await getInvitationWorkspace(workspace.wedding.id);
-  return <InvitationStudio data={data} />;
+/** Invitations now live on the Guest desk; old bookmarks and links land there. */
+export default function InvitationsPage() {
+  redirect("/guests/simple");
 }

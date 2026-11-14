@@ -28,7 +28,7 @@ describe("+ Add", () => {
   });
   it("opens each page's own add form", () => {
     expect(ADD_ITEMS.find((item) => item.label === "Cost")?.href).toBe("/budget?add=cost");
-    expect(ADD_ITEMS.find((item) => item.label === "Family")?.href).toBe("/guests?add=household");
+    expect(ADD_ITEMS.find((item) => item.label === "Families")?.href).toBe("/guests/simple");
   });
 });
 
@@ -55,10 +55,11 @@ describe("Home lines", () => {
     expect(moneyLine([{ currency: "INR", budget: null, committed: "0.00", outstanding: "0.00" }], 0, "INR")).toBe("₹0.00 booked · ₹0.00 still to pay");
     expect(moneyLine([], 0, "INR")).toBeNull();
   });
-  it("sums up guests and replies in one line", () => {
-    expect(guestLine(120, [{ invited: 100, pending: 60 }, { invited: 100, pending: 95 }])).toBe("120 guests · 45 of 200 invitations answered");
-    expect(guestLine(3, [])).toBe("3 guests · not invited to any function yet");
-    expect(guestLine(0, [])).toBeNull();
+  it("sums up families and replies in one line", () => {
+    expect(guestLine({ families: 40, invited: 38, replied: 25, coming: 96 })).toBe("40 families · 25 of 38 replied · 96 guests coming");
+    expect(guestLine({ families: 1, invited: 1, replied: 0, coming: 0 })).toBe("1 family · 0 of 1 replied");
+    expect(guestLine({ families: 3, invited: 0, replied: 0, coming: 0 })).toBe("3 families · not invited to any event yet");
+    expect(guestLine({ families: 0, invited: 0, replied: 0, coming: 0 })).toBeNull();
   });
 });
 

@@ -5,7 +5,7 @@ export type AddItem = { label: string; hint: string; href: string; module: Weddi
 /** Everything the "+ Add" button can start, each opening the right form on its page. */
 export const ADD_ITEMS: AddItem[] = [
   { label: "Task", hint: "Something to do", href: "/tasks?add=1", module: "planning" },
-  { label: "Family", hint: "A household of guests", href: "/guests?add=household", module: "guests" },
+  { label: "Families", hint: "Paste families to invite", href: "/guests/simple", module: "guests" },
   { label: "Guest", hint: "One person", href: "/guests?add=guest", module: "guests" },
   { label: "Venue or vendor", hint: "Someone you're considering", href: "/venues-vendors?add=1", module: "suppliers_finance" },
   { label: "Cost", hint: "A booking or an estimate", href: "/budget?add=cost", module: "suppliers_finance" },

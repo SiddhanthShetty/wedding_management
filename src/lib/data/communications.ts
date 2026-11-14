@@ -16,21 +16,50 @@ function check(error: { code?: string; message: string } | null, fallback: strin
 
 export type CommsFunction = { id: string; name: string; function_date: string | null; start_time: string | null; venue_name: string | null; status: string };
 
+/**
+ * Families are invited as a whole (Guest desk). For messages, each family's contact person (the
+ * first person added) stands for the family: invited to its functions, and "replied" once the
+ * family has replied. Real per-person invitations, where they exist, are kept as they are.
+ */
+export function familyRecipients(guests: Array<{ id: string; household_id: string | null; created_at: string }>, personInvites: Array<{ guest_id: string; function_id: string }>, familyInvites: Array<{ household_id: string; function_id: string }>, repliedFamilies: Set<string>) {
+  const contact = new Map<string, string>();
+  for (const guest of [...guests].sort((a, b) => a.created_at.localeCompare(b.created_at))) if (guest.household_id && !contact.has(guest.household_id)) contact.set(guest.household_id, guest.id);
+  const existing = new Set(personInvites.map((row) => `${row.guest_id}:${row.function_id}`));
+  const invitations: Array<{ id: string; guest_id: string; function_id: string; status: "invited" }> = [];
+  const responded: string[] = [];
+  for (const row of familyInvites) {
+    const guestId = contact.get(row.household_id);
+    if (!guestId || existing.has(`${guestId}:${row.function_id}`)) continue;
+    const id = `family:${row.household_id}:${row.function_id}`;
+    invitations.push({ id, guest_id: guestId, function_id: row.function_id, status: "invited" });
+    if (repliedFamilies.has(row.household_id)) responded.push(id);
+  }
+  return { invitations, responded };
+}
+
 export async function getCommunicationsWorkspace(weddingId: string) {
   const context = await authorizeWeddingOperation(weddingId, "guests", "read");
   const supabase = await createSupabaseServerClient();
   const results = await Promise.all([
     supabase.rpc("get_guest_function_references", { p_wedding_id: weddingId }),
     supabase.from("message_templates").select("id,kind,name,function_id,subject,body,archived_at,version,updated_at").eq("wedding_id", weddingId).order("name"),
-    supabase.from("guests").select("id,full_name,email,phone,household_id").eq("wedding_id", weddingId).order("full_name"),
+    supabase.from("guests").select("id,full_name,email,phone,household_id,created_at").eq("wedding_id", weddingId).order("full_name"),
     supabase.from("guest_households").select("id,name,contact_email,contact_phone").eq("wedding_id", weddingId),
     supabase.from("guest_invitations").select("id,guest_id,function_id,status").eq("wedding_id", weddingId),
     supabase.from("guest_rsvps").select("invitation_id").eq("wedding_id", weddingId),
     supabase.from("communication_records").select("id,guest_id,function_id,template_id,channel,subject,body_snapshot,state,manual,sent_at,failure_reason,notes,recorded_by_user_id,created_at,updated_at").eq("wedding_id", weddingId).order("created_at", { ascending: false }).limit(1000),
     supabase.from("weddings").select("partner_one_display_name,partner_two_display_name").eq("id", weddingId).maybeSingle(),
+    supabase.from("family_function_invites").select("household_id,function_id").eq("wedding_id", weddingId),
+    supabase.from("family_replies").select("household_id").eq("wedding_id", weddingId),
   ]);
   for (const result of results) if (result.error) throw new Error("Could not load messages.");
-  const [functions, templates, guests, households, invitations, rsvps, records, wedding] = results;
+  const [functions, templates, guests, households, invitations, rsvps, records, wedding, familyInvites, familyReplies] = results;
+  const family = familyRecipients(
+    (guests.data ?? []) as Array<{ id: string; household_id: string | null; created_at: string }>,
+    (invitations.data ?? []) as Array<{ guest_id: string; function_id: string }>,
+    (familyInvites.data ?? []) as Array<{ household_id: string; function_id: string }>,
+    new Set((familyReplies.data ?? []).map((row) => String(row.household_id))),
+  );
   return {
     wedding: context.wedding,
     canEdit: context.membership.role === "owner" || context.membership.role === "co_owner" || context.moduleAccess.guests === "edit",
@@ -39,8 +68,8 @@ export async function getCommunicationsWorkspace(weddingId: string) {
     templates: (templates.data ?? []) as Array<{ id: string; kind: MessageKind; name: string; function_id: string | null; subject: string; body: string; archived_at: string | null; version: number; updated_at: string }>,
     guests: (guests.data ?? []) as Array<{ id: string; full_name: string; email: string; phone: string; household_id: string | null }>,
     households: (households.data ?? []) as Array<{ id: string; name: string; contact_email: string; contact_phone: string }>,
-    invitations: (invitations.data ?? []) as Array<{ id: string; guest_id: string; function_id: string; status: "invited" | "withdrawn" }>,
-    respondedInvitationIds: (rsvps.data ?? []).map((row) => row.invitation_id as string),
+    invitations: [...(invitations.data ?? []) as Array<{ id: string; guest_id: string; function_id: string; status: "invited" | "withdrawn" }>, ...family.invitations],
+    respondedInvitationIds: [...(rsvps.data ?? []).map((row) => row.invitation_id as string), ...family.responded],
     records: (records.data ?? []) as Array<{ id: string; guest_id: string; function_id: string | null; template_id: string | null; channel: MessageChannel; subject: string; body_snapshot: string; state: MessageState; manual: boolean; sent_at: string | null; failure_reason: string; notes: string; recorded_by_user_id: string; created_at: string; updated_at: string }>,
     loadedAt: new Date().toISOString(),
   };

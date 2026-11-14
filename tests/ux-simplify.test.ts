@@ -15,7 +15,8 @@ describe("grouped navigation", () => {
 
   it("names the current section, including nested pages", () => {
     expect(currentSectionLabel("/schedule/pack")).toBe("Run sheets");
-    expect(currentSectionLabel("/invitations")).toBe("Invitations");
+    expect(currentSectionLabel("/guests/simple")).toBe("Invitations");
+    expect(currentSectionLabel("/guests")).toBe("People");
     expect(areaForPath("/today")).toBe("week");
     expect(areaForPath("/messages")).toBe("guests");
     expect(areaForPath("/budget")).toBe("money");
@@ -42,7 +43,7 @@ describe("what needs you today", () => {
     });
     expect(items.map((item) => item.id)).toEqual(["issues-critical", "tasks-mine-overdue", "payments-week", "suppliers-week", "rsvp-f1", "travel", "decisions"]);
     expect(items.find((item) => item.id === "suppliers-week")!.title).toBe("1 vendor hold or quote expires this week");
-    expect(items.find((item) => item.id === "rsvp-f1")!.href).toBe("/messages?function=f1&kind=reminder");
+    expect(items.find((item) => item.id === "rsvp-f1")!.href).toBe("/guests/simple");
     expect(items.find((item) => item.id === "travel")!.href).toBe("/travel?tab=needs&filter=arrivals-missing");
     expect(items.find((item) => item.id === "payments-week")!.href).toBe("/budget?due=7#upcoming-payments");
   });
@@ -195,25 +196,4 @@ describe("day-of view", async () => {
   });
 });
 
-describe("guest portal itinerary", async () => {
-  const { buildItinerary, functionIcs, mapLink } = await import("../src/lib/guest-portal/itinerary");
-  const fn = (id: string, date: string | null, start: string | null) => ({ id, name: id === "w" ? "Wedding, Muhurtham" : "Sangeet", date, start_time: start, end_time: null, timezone: "Asia/Kolkata", location: "Kudroli; Mangaluru", map_url: null, dress_code: null, status: "confirmed" });
-  it("merges the household's functions, stays and rides in time order with who each applies to", () => {
-    const entries = buildItinerary([
-      { full_name: "Asha", invitations: [{ function: fn("w", "2027-06-18", "10:30") }, { function: fn("s", "2027-06-17", "19:00") }], stays: [{ property: "TEST Inn", address: "", room_type: "Double", check_in_date: "2027-06-17", check_out_date: "2027-06-19", check_in_time: "14:00", check_out_time: null }] },
-      { full_name: "Ravi", invitations: [{ function: fn("w", "2027-06-18", "10:30") }], journeys: [{ kind: "arrival", title: "Pickup", pickup_at: "2027-06-17T05:00:00Z", pickup_location: "Airport", dropoff_location: "TEST Inn", timezone: "Asia/Kolkata" }] },
-    ]);
-    expect(entries.map((entry) => `${entry.type}:${entry.people.join("+")}`)).toEqual(["ride:Ravi", "stay:Asha", "function:Asha", "function:Asha+Ravi"]);
-  });
-  it("writes valid calendar files and escapes text", () => {
-    const ics = functionIcs(fn("w", "2027-06-18", "10:30"), new Date("2027-01-01T00:00:00Z"))!;
-    expect(ics).toContain("DTSTART:20270618T050000Z");
-    expect(ics).toContain("DTEND:20270618T080000Z");
-    expect(ics).toContain("SUMMARY:Wedding\\, Muhurtham");
-    expect(ics).toContain("LOCATION:Kudroli\\; Mangaluru");
-    expect(ics.endsWith("END:VCALENDAR\r\n")).toBe(true);
-    expect(functionIcs(fn("s", "2027-06-17", null))!).toContain("DTSTART;VALUE=DATE:20270617");
-    expect(functionIcs(fn("s", null, null))).toBeNull();
-    expect(mapLink({ map_url: null, location: "Kudroli Temple" })).toBe("https://www.google.com/maps/search/?api=1&query=Kudroli%20Temple");
-  });
-});
+

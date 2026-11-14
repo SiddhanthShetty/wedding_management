@@ -1,16 +1,15 @@
 "use client";
 import type { Loose } from "@/lib/types/loose";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Download, FileUp, Plus, Search, UserRoundPlus } from "lucide-react";
-import { Button, Card, DataTable, EmptyState, Field, PageHeading, SelectField, StatusLabel, TextAreaField } from "@/components/ui";
+import Link from "next/link";
+import { Download, FileUp, Plus, Search } from "lucide-react";
+import { Button, Card, DataTable, EmptyState, Field, PageHeading, SelectField, TextAreaField } from "@/components/ui";
 import { Dialog } from "@/components/dialog";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
-import { createFamilyAction } from "@/app/actions/guests";
-import { parseFamilyMembers } from "@/lib/planning/family-input";
 import { MealChoice } from "@/components/meal-choice";
-import { createGuestPortalLinkAction, createPlusOneAction, deleteGuestAction, deleteGuestHouseholdAction, exportGuestsAction, importGuestsAction, previewGuestDuplicatesAction, recordGuestRsvpAction, resolveGuestImportDuplicateAction, revokeGuestPortalLinkAction, saveGuestAction, saveGuestInvitationsBulkAction, saveHouseholdAction, setGuestPortalProxiesAction, type GuestActionState } from "@/app/actions/guests";
+import { deleteGuestAction, deleteGuestHouseholdAction, exportGuestsAction, importGuestsAction, previewGuestDuplicatesAction, resolveGuestImportDuplicateAction, saveGuestAction, saveHouseholdAction, type GuestActionState } from "@/app/actions/guests";
 import { parseCsv } from "@/lib/planning/guest-csv";
 
 type GuestData=Loose;
@@ -18,8 +17,6 @@ type GuestRecord=Loose;
 type Owner={userId:string;name:string};
 type ImportRow={rowNumber:number;raw:Record<string,string>;fullName:string;householdName:string;email:string;phone:string;familySide:"couple_one"|"couple_two"|"shared"|"unknown";mealPreference:string;allergies:string;assistanceNeeds:string;errors:string[];allowDuplicate:boolean;suggestions:Array<{id:string;name:string;household:string}>};
 const initial:GuestActionState={};
-
-const responseName:Record<string,string>={yes:"Attending",no:"Declined",maybe:"Maybe"};
 
 function HouseholdMembers({members}:{members:GuestRecord[]}){
   if(!members.length)return <span>0</span>;
@@ -31,8 +28,8 @@ function GuestDeleteButton({weddingId,id,name,kind,updatedAt,memberCount=0,membe
   const [open,setOpen]=useState(false);const [result,setResult]=useState<GuestActionState>({});const [pending,startTransition]=useTransition();
   const household=kind==="household";
   const description=household
-    ? `${memberCount?`This permanently deletes “${name}” and all ${memberCount} individual guest record${memberCount===1?"":"s"}${memberNames.length?` (${memberNames.join(", ")})`:""}, including their invitations, RSVP history and linked personal planning records.`:`This permanently deletes the empty household “${name}”.`} Active stays, upcoming rides, or attached documents will block deletion. This cannot be undone.`
-    : `This permanently deletes “${name}”, their invitations, RSVP history and linked personal guest records. Active stays, upcoming rides, or a named plus-one will block deletion. This cannot be undone.`;
+    ? `${memberCount?`This permanently deletes “${name}” and all ${memberCount} individual guest record${memberCount===1?"":"s"}${memberNames.length?` (${memberNames.join(", ")})`:""}, including their replies and linked personal planning records.`:`This permanently deletes the empty household “${name}”.`} Active stays, upcoming rides, or attached documents will block deletion. This cannot be undone.`
+    : `This permanently deletes “${name}”, their linked personal guest records. Active stays, upcoming rides, or a named plus-one will block deletion. This cannot be undone.`;
   function confirm(){
     if(!updatedAt&&!household)return;
     startTransition(async()=>{
@@ -49,7 +46,7 @@ function GuestEditor({open,onClose,weddingId,households,owners,familySideLabels,
   const [householdId,setHouseholdId]=useState<string>(guest?.household_id??"");
   const selectedHousehold=households.find((household:GuestRecord)=>household.id===householdId);
   return <Dialog open={open} onClose={onClose} titleId="guest-editor-title" descriptionId="guest-editor-description" className="planning-editor-dialog">
-    <h2 id="guest-editor-title" className="dialog-title">{guest?"Edit guest":"Add individual guest"}</h2><p id="guest-editor-description" className="dialog-copy">Each person has their own invitation and response for every function. Allergies and meal preferences are separate records.</p>
+    <h2 id="guest-editor-title" className="dialog-title">{guest?"Edit guest":"Add individual guest"}</h2><p id="guest-editor-description" className="dialog-copy">Names and needs of the people in a family, for stays, rides, seating and the caterer. Invitations and replies are per family, on the Guest desk.</p>
     <form action={action} className="function-editor-form"><input type="hidden" name="weddingId" value={weddingId}/><input type="hidden" name="guestId" value={guest?.id??""}/><input type="hidden" name="expectedUpdatedAt" value={guest?.updated_at??""}/>
       <div className="field-grid">
         <Field label="Full name" name="fullName" required maxLength={180} defaultValue={guest?.full_name??""}/>
@@ -68,116 +65,12 @@ function GuestEditor({open,onClose,weddingId,households,owners,familySideLabels,
   </Dialog>;
 }
 
-function HouseholdPortalSummary({members,links}:{members:GuestRecord[];links:GuestRecord[]}){
-  const active=links.filter((link)=>link.guest_id&&link.active).length;
-  return <span className="table-secondary">{active} of {members.length} individual links active · manage per person in Individuals</span>;
-}
-
-function GuestPortalLinkControls({weddingId,guest,householdGuests,invitedGuestIds,links,canEdit}:{weddingId:string;guest:GuestRecord;householdGuests:GuestRecord[];invitedGuestIds:string[];links:GuestRecord[];canEdit:boolean}){
-  const router=useRouter();
-  const [createState,setCreateState]=useState<GuestActionState>({});const [createPending,startCreate]=useTransition();const [proxyState,setProxyState]=useState<GuestActionState>({});const [proxyPending,startProxy]=useTransition();const [copied,setCopied]=useState(false);const [origin,setOrigin]=useState("");
-  const [revokeState,revokeAction,revokePending]=useActionState(revokeGuestPortalLinkAction,initial);
-  useEffect(()=>setOrigin(window.location.origin),[]);
-  const active=links.find(link=>link.guest_id===guest.id&&link.active);
-  const savedProxyIds=(active?.proxy_guest_ids??[]) as string[];
-  const [proxyIds,setProxyIds]=useState<string[]>(savedProxyIds);
-  const savedProxyKey=[...savedProxyIds].sort().join(":");
-  // Reset the selection only when the saved link or its proxies change, not on every render.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>setProxyIds(savedProxyIds),[active?.id,savedProxyKey]);
-  const selectedProxyKey=[...proxyIds].sort().join(":");
-  const proxyDirty=selectedProxyKey!==savedProxyKey;
-  const created=createState.data as {token:string;expiresAt:string}|undefined;
-  const candidates=householdGuests.filter((person:GuestRecord)=>person.id!==guest.id&&(invitedGuestIds.includes(person.id)||savedProxyIds.includes(person.id)));
-  function createOrReplace(){startCreate(async()=>{const result=await createGuestPortalLinkAction(weddingId,guest.id,proxyIds);setCreateState(result);if(!result.error)router.refresh();});}
-  function saveProxies(){if(!active)return;startProxy(async()=>{const result=await setGuestPortalProxiesAction(weddingId,active.id,proxyIds);setProxyState(result);if(!result.error)router.refresh();});}
-  function closeCreatedLink(){setCreateState({});setCopied(false);}
-  async function copyLink(){if(!created)return;try{await navigator.clipboard.writeText(`${window.location.origin}/guest#${created.token}`);setCopied(true);}catch{setCreateState(current=>({...current,error:"Copy was blocked by the browser. Select and copy the private link below."}));}}
-  return <div className="guest-portal-link-controls">
-    {active?<span className="table-secondary">Active until {new Date(active.expires_at).toLocaleDateString("en-IN",{timeZone:"UTC"})}</span>:<span className="table-secondary">No individual link</span>}
-    <details className="guest-proxy-controls"><summary>Proxy access · {proxyIds.length}</summary><p className="field-help">This guest’s link can respond only for them unless you explicitly authorize another invited person in the same household. Uncheck someone to revoke that access.</p>
-      {candidates.length?candidates.map((person:GuestRecord)=><label className="guest-proxy-option" key={person.id}><input type="checkbox" checked={proxyIds.includes(person.id)} disabled={!canEdit||proxyPending||createPending} onChange={(event)=>setProxyIds((current)=>event.target.checked?[...current,person.id]:current.filter((id)=>id!==person.id))}/> Allow this link to respond for {person.full_name}</label>):<span className="table-secondary">No one else in this family is invited, so there’s no one to reply for.</span>}
-      {canEdit&&active&&<Button type="button" variant="quiet" disabled={!proxyDirty||proxyPending} onClick={saveProxies}>{proxyPending?"Saving…":"Save who they can reply for"}</Button>}
-      {proxyState.error&&<span className="field-error" role="alert">{proxyState.error}</span>}{proxyState.message&&<span className="field-help" role="status">{proxyState.message}</span>}
-    </details>
-    {canEdit&&<div className="guest-portal-link-actions"><Button type="button" variant="secondary" disabled={createPending} onClick={createOrReplace}>{createPending?"Creating…":active?"Replace link":"Create individual link"}</Button>
-      {active&&<form action={revokeAction}><input type="hidden" name="weddingId" value={weddingId}/><input type="hidden" name="linkId" value={active.id}/><Button type="submit" variant="quiet" disabled={revokePending}>{revokePending?"Revoking…":"Revoke"}</Button></form>}</div>}
-    {createState.error&&!created&&<span className="field-error" role="alert">{createState.error}</span>}{revokeState.error&&<span className="field-error" role="alert">{revokeState.error}</span>}{revokeState.message&&<span className="field-help" role="status">{revokeState.message}</span>}
-    {created&&<Dialog open titleId={`portal-link-title-${guest.id}`} descriptionId={`portal-link-description-${guest.id}`} className="guest-portal-link-dialog" onClose={closeCreatedLink}>
-      <h2 id={`portal-link-title-${guest.id}`} className="dialog-title">Individual private link ready</h2>
-      <p id={`portal-link-description-${guest.id}`} className="dialog-copy">This link is for {guest.full_name}{proxyIds.length?` and ${proxyIds.length} explicitly authorized guest${proxyIds.length===1?"":"s"}`:" only"}. Copy it now; it is shown once and expires {new Date(created.expiresAt).toLocaleDateString("en-IN",{timeZone:"UTC"})}.</p>
-      <label className="field-label" htmlFor={`portal-link-${guest.id}`}>Private invitation link</label>
-      <input id={`portal-link-${guest.id}`} className="field-control" readOnly onFocus={event=>event.currentTarget.select()} value={`${origin}/guest#${created.token}`}/>
-      {createState.error&&<p className="auth-alert" role="alert">{createState.error}</p>}{copied&&<p className="auth-success" role="status">Private link copied.</p>}
-      <div className="dialog-actions"><Button type="button" variant="secondary" onClick={closeCreatedLink}>Done</Button><Button type="button" variant="secondary" onClick={()=>void copyLink()}>{copied?"Copy again":"Copy private link"}</Button></div>
-    </Dialog>}
-  </div>;
-}
-
-/** The names box, with a live count. It starts empty again after each family is added (the form is re-keyed). */
-function FamilyMembersField(){
-  const [members,setMembers]=useState("");
-  const parsed=parseFamilyMembers(members);
-  return <TextAreaField label="Who's in the family? One name per line" name="members" rows={5} required value={members} onChange={event=>setMembers(event.target.value)} placeholder={"Ramesh Rao\nSunita Rao\nAnanya Rao"} className="field-full" hint={members.trim()?(parsed.error??`${parsed.names.length} ${parsed.names.length===1?"person":"people"}. The first one is the contact.`):"The first name is used as the family's contact."}/>;
-}
-
-/** Add a family in one step: name, side, a phone number, everyone in it, and what they're invited to. */
-function FamilyDialog({open,onClose,weddingId,functions,familySideLabels}:{open:boolean;onClose:()=>void;weddingId:string;functions:GuestRecord[];familySideLabels:Record<string,string>}){
-  const router=useRouter();
-  const [state,action,pending]=useActionState(createFamilyAction,initial);
-  useEffect(()=>{if(state.savedId)router.refresh();},[state.savedId,router]);
-  return <Dialog open={open} onClose={onClose} titleId="family-title" descriptionId="family-description" className="planning-editor-dialog"><h2 id="family-title" className="dialog-title">Add a family</h2><p className="dialog-copy" id="family-description">Everyone in the family, in one go. Each person still gets their own invitation and reply.</p>
-    <form key={state.savedId??"new"} action={action} className="function-editor-form"><input type="hidden" name="weddingId" value={weddingId}/><div className="field-grid">
-      <Field label="Family name" name="name" required maxLength={180} placeholder="e.g. Rao family (Udupi)"/>
-      <SelectField label="Whose side?" name="familySide" defaultValue="unknown"><option value="couple_one">{familySideLabels.couple_one}</option><option value="couple_two">{familySideLabels.couple_two}</option><option value="shared">{familySideLabels.shared}</option><option value="unknown">{familySideLabels.unknown}</option></SelectField>
-      <FamilyMembersField/>
-      <Field label="Contact phone (optional)" name="contactPhone" type="tel" maxLength={80} placeholder="98450 12345"/>
-    </div>
-    {functions.length>0?<fieldset className="starter-list family-invite-list"><legend className="field-label">Invite them to</legend><p className="field-help">All functions are ticked. Untick any they&apos;re not invited to.</p>
-      {functions.map((fn:GuestRecord)=><label key={fn.id} className="checkbox-row"><input type="checkbox" name="inviteTo" value={fn.id} defaultChecked/><span>{fn.name}</span></label>)}
-    </fieldset>:<p className="field-help">Add your functions first if you want to invite them now. You can invite them later too.</p>}
-    {state.error&&<p className="auth-alert" role="alert">{state.error}</p>}{state.message&&<p role="status" className="auth-success">{state.message} Add another family, or close.</p>}
-    <div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose}>Close</Button><Button disabled={pending}>{pending?"Adding…":"Add family"}</Button></div></form>
-  </Dialog>;
-}
-
-/** Replies at a glance: one line per function, each opening that function's list. */
-function ReplySummary({families,guests,functions,onOpen}:{families:number;guests:number;functions:GuestRecord[];onOpen:(functionId:string,response:string)=>void}){
-  const invited=functions.filter((fn:GuestRecord)=>fn.invited>0);
-  return <Card title="Replies" subtitle={`${families} ${families===1?"family":"families"} · ${guests} ${guests===1?"guest":"guests"}`} className="reply-summary">
-    {!invited.length?<p className="field-help">{guests?"Nobody is invited to a function yet. Use “Who's invited to what” below, or tick functions when you add a family.":"Add your first family to get started."}</p>
-      :<ul className="reply-summary-list">{invited.map((fn:GuestRecord)=>{const replied=fn.invited-fn.pending;return <li key={fn.id}>
-        <span className="reply-summary-name">{fn.name}</span>
-        <span className="reply-summary-counts"><span className="is-yes">{fn.yes} coming</span><span className="is-no">{fn.no} not coming</span>{fn.maybe>0&&<span>{fn.maybe} maybe</span>}<span className="is-waiting">{fn.pending} waiting</span></span>
-        <span className="dash-bar" aria-hidden="true"><span style={{width:`${fn.invited?Math.round((replied/fn.invited)*100):0}%`}}/></span>
-        {fn.pending>0&&<button type="button" className="text-link reply-summary-link" onClick={()=>onOpen(fn.id,"pending")}>See who hasn&apos;t replied</button>}
-      </li>;})}</ul>}
-  </Card>;
-}
-
 function HouseholdDialog({open,onClose,weddingId,household,familySideLabels}:{open:boolean;onClose:()=>void;weddingId:string;household?:GuestRecord;familySideLabels:Record<string,string>}){
   const [state,action,pending]=useActionState(saveHouseholdAction,initial);
-  return <Dialog open={open} onClose={onClose} titleId="household-title" descriptionId="household-description" className="planning-editor-dialog"><h2 id="household-title" className="dialog-title">{household?"Edit household":"Add household"}</h2><p className="dialog-copy" id="household-description">Households group people for planning. Invitations and responses remain individual.</p>
+  return <Dialog open={open} onClose={onClose} titleId="household-title" descriptionId="household-description" className="planning-editor-dialog"><h2 id="household-title" className="dialog-title">{household?"Edit household":"Add household"}</h2><p className="dialog-copy" id="household-description">A family on your list. Its invitation link and reply are on the Guest desk.</p>
     <form action={action} className="function-editor-form"><input type="hidden" name="weddingId" value={weddingId}/><input type="hidden" name="householdId" value={household?.id??""}/><div className="field-grid">
       <Field label="Household name" name="name" required maxLength={180} defaultValue={household?.name??""}/><SelectField label="Family side" name="familySide" defaultValue={household?.family_side??"unknown"}><option value="unknown">{familySideLabels.unknown}</option><option value="couple_one">{familySideLabels.couple_one}</option><option value="couple_two">{familySideLabels.couple_two}</option><option value="shared">{familySideLabels.shared}</option></SelectField><Field label="Contact name" name="contactName" maxLength={160} defaultValue={household?.contact_name??""}/><Field label="Contact email" name="contactEmail" type="email" maxLength={320} defaultValue={household?.contact_email??""}/><Field label="Contact phone" name="contactPhone" type="tel" maxLength={80} defaultValue={household?.contact_phone??""}/><TextAreaField label="Address" name="address" rows={2} maxLength={1200} defaultValue={household?.address??""}/><TextAreaField label="Notes" name="notes" rows={2} maxLength={4000} defaultValue={household?.notes??""}/>
     </div>{state.error&&<p className="auth-alert" role="alert">{state.error}</p>}{state.message&&<p role="status" className="auth-success">{state.message}</p>}<div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose}>Close</Button><Button disabled={pending}>{pending?"Saving…":household?"Save household":"Add household"}</Button></div></form>
-  </Dialog>;
-}
-
-function InvitationCell({guest,invitation,invited,plusOneAllowed,disabled,onChange}:{guest:GuestRecord;invitation?:GuestRecord;invited:boolean;plusOneAllowed:boolean;disabled:boolean;onChange:(next:{invited:boolean;plusOneAllowed:boolean})=>void}){
-  return <div className="guest-invitation-cell">
-    <label className="field-label"><input type="checkbox" checked={invited} disabled={disabled} onChange={(event)=>onChange({invited:event.currentTarget.checked,plusOneAllowed:event.currentTarget.checked&&plusOneAllowed})}/> Invited</label>
-    {!guest.plus_one_for_guest_id&&<label className="field-label"><input type="checkbox" checked={plusOneAllowed} disabled={disabled||!invited} onChange={(event)=>onChange({invited,plusOneAllowed:event.currentTarget.checked})}/> Plus-one approved</label>}
-    {!invitation&&<p className="field-help">No invitation saved</p>}
-  </div>;
-}
-
-function PlusOneDialog({open,onClose,weddingId,guest,data}:{open:boolean;onClose:()=>void;weddingId:string;guest?:GuestRecord;data:GuestData}){
-  const [state,action,pending]=useActionState(createPlusOneAction,initial);
-  if(!guest)return null;
-  const allowed=data.invitations.filter((inv:GuestRecord)=>inv.guest_id===guest.id&&inv.status==="invited"&&inv.plus_one_allowed).map((inv:GuestRecord)=>data.functions.find((fn:GuestRecord)=>fn.id===inv.function_id)).filter(Boolean);
-  return <Dialog open={open} onClose={onClose} titleId="plus-one-title" descriptionId="plus-one-description" className="planning-editor-dialog"><h2 id="plus-one-title" className="dialog-title">Add an approved plus-one</h2><p id="plus-one-description" className="dialog-copy">This creates one individual guest linked to {guest.full_name}. Choose only functions where the primary invitation approves a plus-one.</p>
-    {allowed.length===0?<EmptyState title="No approved functions" description="Save an invitation with plus-one approval before adding a plus-one."/>:<form action={action} className="function-editor-form"><input type="hidden" name="weddingId" value={weddingId}/><input type="hidden" name="primaryGuestId" value={guest.id}/><Field label="Plus-one full name" name="fullName" required maxLength={180}/><fieldset className="guest-function-checks"><legend>Invited functions</legend>{allowed.map((fn:GuestRecord)=><label key={fn.id}><input type="checkbox" name="functionIds" value={fn.id}/> {fn.name}</label>)}</fieldset>{state.error&&<p className="auth-alert" role="alert">{state.error}</p>}{state.message&&<p className="auth-success" role="status">{state.message}</p>}<div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose}>Close</Button><Button disabled={pending}>{pending?"Adding…":"Add plus-one"}</Button></div></form>}
   </Dialog>;
 }
 
@@ -208,62 +101,20 @@ function ImportPanel({weddingId,batches,canEdit,familySideLabels}:{weddingId:str
   <Card title="Past imports" subtitle="Each past import keeps its rows, any problems found and possible duplicates."><DataTable label="Recent guest CSV import batches" headers={["File","Created","Rows","Imported","Review","Errors"]}>{batches.map((batch:GuestRecord)=><tr key={batch.id}><td>{batch.file_name}<span className="table-secondary">{batch.author_name}</span></td><td>{new Date(batch.created_at).toLocaleString()}</td><td>{batch.row_count}</td><td>{batch.imported_count}</td><td>{batch.review_count}</td><td>{batch.error_count}<details className="guest-batch-details"><summary>Row details</summary>{batch.rows.map((row:GuestRecord)=><ImportBatchRow key={row.id} weddingId={weddingId} row={row}/>)}</details></td></tr>)}</DataTable>{!batches.length&&<EmptyState title="No import batches" description="CSV import history will appear here after an import is submitted."/>}</Card></div>;
 }
 
-export function GuestManager({data,initialView="households",initialFunctionId,initialResponse="all",initialQuery="",initialAdd}:{data:GuestData;initialView?:"households"|"people"|"invitations"|"imports";initialFunctionId?:string;initialResponse?:string;initialQuery?:string;initialAdd?:"household"|"guest"}){
-  const router=useRouter();
+export function GuestManager({data,initialView="households",initialQuery="",initialAdd}:{data:GuestData;initialView?:"households"|"people"|"imports";initialQuery?:string;initialAdd?:"household"|"guest"}){
   const familySideLabels=data.familySideLabels as Record<string,string>;
-  const [view,setView]=useState<"households"|"people"|"invitations"|"imports">(initialView);const [query,setQuery]=useState(initialQuery);const [familySide,setFamilySide]=useState("all");const [responseFilter,setResponseFilter]=useState(initialResponse);const [functionId,setFunctionId]=useState(data.functions.find((fn:GuestRecord)=>fn.id===initialFunctionId&&!fn.archived_at)?.id??data.functions.find((fn:GuestRecord)=>!fn.archived_at)?.id??"");const [guestEditor,setGuestEditor]=useState<GuestRecord|undefined>();const [guestDialog,setGuestDialog]=useState(initialAdd==="guest"&&Boolean(data.canEdit));const [guestEditorSession,setGuestEditorSession]=useState(0);const [householdEditor,setHouseholdEditor]=useState<GuestRecord|undefined>();const [householdDialog,setHouseholdDialog]=useState(false);const [familyDialog,setFamilyDialog]=useState(initialAdd==="household"&&Boolean(data.canEdit));const [householdEditorSession,setHouseholdEditorSession]=useState(0);const [plusOneGuest,setPlusOneGuest]=useState<GuestRecord|undefined>();
-  const [invitationDrafts,setInvitationDrafts]=useState<Record<string,{invited:boolean;plusOneAllowed:boolean}>>({});const [invitationSaveState,setInvitationSaveState]=useState<GuestActionState>({});const [savingInvitations,startSavingInvitations]=useTransition();
-  const activeFunctions=data.functions.filter((fn:GuestRecord)=>!fn.archived_at&&fn.status!=="cancelled");const lower=query.toLocaleLowerCase();
+  const [view,setView]=useState<"households"|"people"|"imports">(initialView);const [query,setQuery]=useState(initialQuery);const [familySide,setFamilySide]=useState("all");const [guestEditor,setGuestEditor]=useState<GuestRecord|undefined>();const [guestDialog,setGuestDialog]=useState(initialAdd==="guest"&&Boolean(data.canEdit));const [guestEditorSession,setGuestEditorSession]=useState(0);const [householdEditor,setHouseholdEditor]=useState<GuestRecord|undefined>();const [householdDialog,setHouseholdDialog]=useState(false);const [householdEditorSession,setHouseholdEditorSession]=useState(0);
+  const lower=query.toLocaleLowerCase();
   const people=data.guests.filter((guest:GuestRecord)=>`${guest.full_name} ${guest.household_name} ${guest.email} ${guest.phone}`.toLocaleLowerCase().includes(lower)&&(familySide==="all"||guest.family_side===familySide));
-  const filteredHouseholds=data.households.filter((household:GuestRecord)=>`${household.name} ${household.contact_name} ${household.contact_email}`.toLocaleLowerCase().includes(lower));
-  const selectedFunction=data.functionSummaries.find((fn:GuestRecord)=>fn.id===functionId);
-  const invitationDirty=Object.keys(invitationDrafts).length>0;
-  const matrixPeople=people.filter((guest:GuestRecord)=>{const saved=data.invitations.find((item:GuestRecord)=>item.guest_id===guest.id&&item.function_id===functionId);const isInvited=invitationDrafts[guest.id]?.invited??saved?.status==="invited";if(responseFilter==="not_invited")return !isInvited;if(responseFilter==="pending")return isInvited&&!saved?.rsvp;if(responseFilter==="yes"||responseFilter==="no"||responseFilter==="maybe")return isInvited&&saved?.rsvp?.response===responseFilter;return true;});
-  function updateInvitationDraft(guest:GuestRecord,next:{invited:boolean;plusOneAllowed:boolean}){
-    const saved=data.invitations.find((item:GuestRecord)=>item.guest_id===guest.id&&item.function_id===functionId);
-    const normalized={invited:next.invited,plusOneAllowed:next.invited&&next.plusOneAllowed};
-    const matchesSaved=normalized.invited===(saved?.status==="invited")&&normalized.plusOneAllowed===(saved?.plus_one_allowed??false);
-    setInvitationDrafts(current=>{const updated={...current};if(matchesSaved)delete updated[guest.id];else updated[guest.id]=normalized;return updated;});
-    setInvitationSaveState({});
-  }
-  /** Tick everyone shown who isn't invited to this function yet; nothing is saved until "Save all". */
-  function inviteEveryoneShown(){
-    for(const guest of matrixPeople){
-      const saved=data.invitations.find((item:GuestRecord)=>item.guest_id===guest.id&&item.function_id===functionId);
-      const current=invitationDrafts[guest.id]?.invited??saved?.status==="invited";
-      if(!current)updateInvitationDraft(guest,{invited:true,plusOneAllowed:false});
-    }
-  }
-  function saveAllInvitations(){
-    const changes=Object.entries(invitationDrafts).map(([guestId,entry])=>({guestId,functionId,invited:entry.invited,plusOneAllowed:entry.plusOneAllowed}));
-    if(!changes.length)return;
-    startSavingInvitations(async()=>{
-      const result=await saveGuestInvitationsBulkAction(data.weddingId,changes);
-      setInvitationSaveState(result);
-      if(!result.error){setInvitationDrafts({});router.refresh();}
-    });
-  }
-  const topActions=<div className="guest-header-actions">{data.canEdit&&<><Button onClick={()=>setFamilyDialog(true)}><Plus size={15}/> Add a family</Button><Button variant="secondary" onClick={()=>{setGuestEditor(undefined);setGuestEditorSession(session=>session+1);setGuestDialog(true)}}><Plus size={15}/> Add one person</Button></>}<Button variant="quiet" onClick={()=>setView("imports")}><FileUp size={15}/> Import or export a list</Button></div>;
+  const filteredHouseholds=data.households.filter((household:GuestRecord)=>`${household.name} ${household.contact_name} ${household.contact_email}`.toLocaleLowerCase().includes(lower)&&(familySide==="all"||household.family_side===familySide));
+  const topActions=<div className="guest-header-actions">{data.canEdit&&<><Link className="button button-primary" href="/guests/simple"><Plus size={15}/> Add families</Link><Button variant="secondary" onClick={()=>{setGuestEditor(undefined);setGuestEditorSession(session=>session+1);setGuestDialog(true)}}><Plus size={15}/> Add a person</Button></>}<Button variant="quiet" onClick={()=>setView("imports")}><FileUp size={15}/> Import or export a list</Button></div>;
   return <>
-    <PageHeading eyebrow="Guest list" title="Guests" description="Add families and the people in them, choose who is invited to which function, and see every reply." action={topActions}/>
-    {view!=="imports"&&<ReplySummary families={data.households.length} guests={data.guests.length} functions={data.functionSummaries} onOpen={(id,response)=>{setFunctionId(id);setResponseFilter(response);setView("invitations");}}/>}
-    {view==="imports"?<div className="guest-import-back"><Button variant="secondary" onClick={()=>setView("households")}>← Back to guests</Button></div>:<div className="guest-view-tabs" role="tablist" aria-label="Guest management views">{([["households","Families"],["people","People"],["invitations","Who's invited to what"]] as const).map(([key,label])=><button key={key} role="tab" aria-selected={view===key} className={view===key?"guest-tab is-active":"guest-tab"} onClick={()=>setView(key)}>{label}</button>)}</div>}
-    {view!=="imports"&&<div className="guest-filter-bar"><div className="field guest-search"><label className="field-label" htmlFor="guest-search">Search families and guests</label><div className="input-wrap"><Search size={15} aria-hidden="true"/><input id="guest-search" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Name, household, email or phone"/></div></div><SelectField label="Family side" value={familySide} onChange={event=>setFamilySide(event.target.value)}><option value="all">All sides</option><option value="couple_one">{familySideLabels.couple_one}</option><option value="couple_two">{familySideLabels.couple_two}</option><option value="shared">{familySideLabels.shared}</option><option value="unknown">{familySideLabels.unknown}</option></SelectField></div>}
-    {view==="households"&&<Card title="Families" subtitle={`${filteredHouseholds.length} ${filteredHouseholds.length===1?"family":"families"} · each person keeps their own invitation and reply`}><DataTable label="Guest households and their members" className="guest-household-table" columnWidths={data.canEdit?["13%","7%","11%","17%","11%","29%","12%"]:["14%","8%","13%","20%","13%","32%"]} headers={["Household","Members","Family side","Primary contact","Details","Individual links",...(data.canEdit?["Actions"]:[])]}>{filteredHouseholds.map((household:GuestRecord)=>{const members=data.guests.filter((guest:GuestRecord)=>guest.household_id===household.id);const links=data.portalLinks.filter((link:GuestRecord)=>link.household_id===household.id);return <tr key={household.id}><td><span className="table-primary">{household.name}</span></td><td><HouseholdMembers members={members}/></td><td>{familySideLabels[household.family_side]??familySideLabels.unknown}</td><td>{household.contact_name||"Not set"}<span className="table-secondary">{household.contact_email}</span><span className="table-secondary">{household.contact_phone}</span></td><td>{household.address||"No address"}</td><td><HouseholdPortalSummary members={members} links={links}/></td>{data.canEdit&&<td><div className="guest-row-actions"><button type="button" className="table-action" onClick={()=>{setHouseholdEditor(household);setHouseholdEditorSession(session=>session+1);setHouseholdDialog(true)}}>Edit</button><GuestDeleteButton weddingId={data.weddingId} id={household.id} name={household.name} kind="household" memberCount={members.length} memberNames={members.map((member:GuestRecord)=>member.full_name)}/></div></td>}</tr>})}</DataTable>{!filteredHouseholds.length&&<EmptyState title="No households found" description={query?"Try another search.":"Add a household, then add individual people to it."}/>}</Card>}
-    {view==="people"&&<Card title="People" subtitle={`${people.length} people · each private link opens only that guest's records unless proxy access is explicitly granted`}><DataTable label="Individual wedding guests" headers={["Person","Household","Contact","Family side","Follow-up owner","Invitations","Private link",...(data.canEdit?["Actions"]:[])]}>{people.map((guest:GuestRecord)=>{const householdGuests=data.guests.filter((person:GuestRecord)=>person.household_id===guest.household_id);const guestLinks=data.portalLinks.filter((link:GuestRecord)=>link.guest_id===guest.id);const invitedGuestIds:string[]=Array.from(new Set<string>(data.invitations.filter((invitation:GuestRecord)=>invitation.status==="invited").map((invitation:GuestRecord)=>String(invitation.guest_id))));return <tr key={guest.id}><td><span className="table-primary">{guest.full_name}</span>{guest.plus_one_for_name&&<span className="table-secondary">Plus-one of {guest.plus_one_for_name}</span>}</td><td>{guest.household_name}</td><td>{guest.email}<span className="table-secondary">{guest.phone}</span></td><td>{familySideLabels[guest.family_side]??familySideLabels.unknown}</td><td>{guest.follow_up_owner_name}</td><td>{data.invitations.filter((item:GuestRecord)=>item.guest_id===guest.id&&item.status==="invited").length} functions</td><td><GuestPortalLinkControls key={guest.id} weddingId={data.weddingId} guest={guest} householdGuests={householdGuests} invitedGuestIds={invitedGuestIds} links={guestLinks} canEdit={data.canEdit}/></td>{data.canEdit&&<td><div className="guest-row-actions"><button type="button" className="table-action" onClick={()=>{setGuestEditor(guest);setGuestEditorSession(session=>session+1);setGuestDialog(true)}}>Edit</button><GuestDeleteButton weddingId={data.weddingId} id={guest.id} name={guest.full_name} kind="person" updatedAt={guest.updated_at}/></div></td>}</tr>})}</DataTable>{!people.length&&<EmptyState title="No individual guests" description="Add individual people; household grouping does not create invitations."/>}</Card>}
-    {view==="invitations"&&<div className="section-stack"><div className="guest-summary-grid">{data.functionSummaries.map((fn:GuestRecord)=><button type="button" className={functionId===fn.id?"guest-function-summary selected":"guest-function-summary"} key={fn.id} disabled={invitationDirty&&fn.id!==functionId} onClick={()=>setFunctionId(fn.id)}><strong>{fn.name}</strong><span>{fn.invited} invited · {fn.pending} pending</span><span>{fn.yes} attending · {fn.no} declined · {fn.maybe} maybe</span></button>)}</div>
-      <Card title="Who's invited to what" subtitle="Edit each person's invitation for this function, then save all changes together."><div className="guest-matrix-toolbar"><SelectField label="Function" value={functionId} disabled={invitationDirty} onChange={event=>setFunctionId(event.target.value)}><option value="">Choose a function</option>{activeFunctions.map((fn:GuestRecord)=><option key={fn.id} value={fn.id}>{fn.name}</option>)}</SelectField><SelectField label="Response filter" value={responseFilter} onChange={event=>setResponseFilter(event.target.value)}><option value="all">All people</option><option value="not_invited">Not invited</option><option value="pending">Awaiting response</option><option value="yes">Attending</option><option value="no">Declined</option><option value="maybe">Maybe</option></SelectField></div>{selectedFunction&&<p className="guest-count-line"><strong>{selectedFunction.name}:</strong> {selectedFunction.invited} invited · {selectedFunction.yes} attending · {selectedFunction.no} declined · {selectedFunction.maybe} maybe · {selectedFunction.pending} awaiting</p>}
-        {invitationDirty&&<p className="field-help" role="status">{Object.keys(invitationDrafts).length} unsaved invitation change{Object.keys(invitationDrafts).length===1?"":"s"}. Save before switching functions.</p>}
-        {data.canEdit&&<div className="guest-invitation-batch-actions">{functionId&&<Button type="button" variant="secondary" disabled={savingInvitations} onClick={inviteEveryoneShown}>Invite everyone shown</Button>}<Button type="button" disabled={!invitationDirty||savingInvitations} onClick={saveAllInvitations}>{savingInvitations?"Saving all invitations…":"Save all invitation changes"}</Button>{invitationSaveState.error&&<p className="auth-alert" role="alert">{invitationSaveState.error}</p>}{invitationSaveState.message&&<p className="auth-success" role="status">{invitationSaveState.message}</p>}</div>}
-        {functionId?<DataTable label={`Individual invitations for ${selectedFunction?.name??"selected function"}`} headers={["Person","Household","Invitation / plus-one","RSVP"]}>{matrixPeople.map((guest:GuestRecord)=>{const saved=data.invitations.find((i:GuestRecord)=>i.guest_id===guest.id&&i.function_id===functionId);const draft=invitationDrafts[guest.id];return <tr key={guest.id}><td><span className="table-primary">{guest.full_name}</span>{guest.plus_one_for_name&&<span className="table-secondary">Plus-one of {guest.plus_one_for_name}</span>}</td><td>{guest.household_name}</td><td>{data.canEdit?<InvitationCell guest={guest} invitation={saved} invited={draft?.invited??saved?.status==="invited"} plusOneAllowed={draft?.plusOneAllowed??saved?.plus_one_allowed??false} disabled={savingInvitations} onChange={next=>updateInvitationDraft(guest,next)}/>:<StatusLabel>{saved?.status??"Not invited"}</StatusLabel>}{data.canEdit&&!guest.plus_one_for_guest_id&&saved?.status==="invited"&&saved.plus_one_allowed&&!data.guests.some((g:GuestRecord)=>g.plus_one_for_guest_id===guest.id)&&<Button variant="quiet" onClick={()=>setPlusOneGuest(guest)}><UserRoundPlus size={15}/> Add approved plus-one</Button>}</td><td>{data.invitations.filter((i:GuestRecord)=>i.guest_id===guest.id&&i.function_id===functionId&&i.status==="invited").map((inv:GuestRecord)=><div key={inv.id}><StatusLabel>{inv.rsvp?responseName[inv.rsvp.response]:"Pending"}</StatusLabel>{inv.rsvp&&<span className="table-secondary">{inv.rsvp.response_source} · {new Date(inv.rsvp.updated_at).toLocaleString()} · {inv.rsvp.recorded_by_name??"Authorised member"}</span>}{data.canEdit&&<InvitationCellRsvp weddingId={data.weddingId} invitation={inv} history={data.rsvpHistory.filter((entry:GuestRecord)=>entry.invitation_id===inv.id)}/>}</div>)}{!data.invitations.some((i:GuestRecord)=>i.guest_id===guest.id&&i.function_id===functionId&&i.status==="invited")&&"—"}</td></tr>})}</DataTable>:<EmptyState title="No functions available" description="Create a wedding function before managing invitations."/>}
-      </Card>
-    </div>}
+    <PageHeading eyebrow="Guest list" title="People" description="Who is in each family: names, phone numbers, food and other needs, for stays, rides and seating. Invitations and replies are on the Guest desk." action={topActions}/>
+    {view==="imports"?<div className="guest-import-back"><Button variant="secondary" onClick={()=>setView("households")}>← Back to people</Button></div>:<div className="guest-view-tabs" role="tablist" aria-label="Guest list views">{([["households","Families"],["people","People"]] as const).map(([key,label])=><button key={key} role="tab" aria-selected={view===key} className={view===key?"guest-tab is-active":"guest-tab"} onClick={()=>setView(key)}>{label}</button>)}</div>}
+    {view!=="imports"&&<div className="guest-filter-bar"><div className="field guest-search"><label className="field-label" htmlFor="guest-search">Search families and people</label><div className="input-wrap"><Search size={15} aria-hidden="true"/><input id="guest-search" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Name, family, email or phone"/></div></div><SelectField label="Family side" value={familySide} onChange={event=>setFamilySide(event.target.value)}><option value="all">All sides</option><option value="couple_one">{familySideLabels.couple_one}</option><option value="couple_two">{familySideLabels.couple_two}</option><option value="shared">{familySideLabels.shared}</option><option value="unknown">{familySideLabels.unknown}</option></SelectField></div>}
+    {view==="households"&&<Card title="Families" subtitle={`${filteredHouseholds.length} ${filteredHouseholds.length===1?"family":"families"}`}><DataTable label="Families and their members" className="guest-household-table stack-on-phone" headers={["Family","People","Family side","Contact","Address",...(data.canEdit?["Actions"]:[])]}>{filteredHouseholds.map((household:GuestRecord)=>{const members=data.guests.filter((guest:GuestRecord)=>guest.household_id===household.id);return <tr key={household.id}><td><span className="table-primary">{household.name}</span></td><td><HouseholdMembers members={members}/></td><td>{familySideLabels[household.family_side]??familySideLabels.unknown}</td><td>{household.contact_name||"Not set"}<span className="table-secondary">{household.contact_email}</span><span className="table-secondary">{household.contact_phone}</span></td><td>{household.address||"No address"}</td>{data.canEdit&&<td><div className="guest-row-actions"><button type="button" className="table-action" onClick={()=>{setHouseholdEditor(household);setHouseholdEditorSession(session=>session+1);setHouseholdDialog(true)}}>Edit</button><GuestDeleteButton weddingId={data.weddingId} id={household.id} name={household.name} kind="household" memberCount={members.length} memberNames={members.map((member:GuestRecord)=>member.full_name)}/></div></td>}</tr>})}</DataTable>{!filteredHouseholds.length&&<EmptyState title="No families found" description={query?"Try another search.":"Add families on the Guest desk."}/>}</Card>}
+    {view==="people"&&<Card title="People" subtitle={`${people.length} ${people.length===1?"person":"people"}`}><DataTable label="People in each family" className="stack-on-phone" headers={["Person","Family","Contact","Family side","Food",...(data.canEdit?["Actions"]:[])]}>{people.map((guest:GuestRecord)=><tr key={guest.id}><td><span className="table-primary">{guest.full_name}</span>{guest.plus_one_for_name&&<span className="table-secondary">Plus-one of {guest.plus_one_for_name}</span>}</td><td>{guest.household_name}</td><td>{guest.email}<span className="table-secondary">{guest.phone}</span></td><td>{familySideLabels[guest.family_side]??familySideLabels.unknown}</td><td>{guest.meal_preference||"Not said"}{guest.allergies&&<span className="table-secondary">Allergies: {guest.allergies}</span>}</td>{data.canEdit&&<td><div className="guest-row-actions"><button type="button" className="table-action" onClick={()=>{setGuestEditor(guest);setGuestEditorSession(session=>session+1);setGuestDialog(true)}}>Edit</button><GuestDeleteButton weddingId={data.weddingId} id={guest.id} name={guest.full_name} kind="person" updatedAt={guest.updated_at}/></div></td>}</tr>)}</DataTable>{!people.length&&<EmptyState title="No people yet" description="Each family added on the Guest desk starts with one contact person. Add others here when you need their names."/>}</Card>}
     {view==="imports"&&<ImportPanel weddingId={data.weddingId} batches={data.batches} canEdit={data.canEdit} familySideLabels={familySideLabels}/>}
-    {data.canEdit&&<><GuestEditor key={`guest-${guestEditor?.id??"new"}-${guestEditorSession}`} open={guestDialog} onClose={()=>setGuestDialog(false)} weddingId={data.weddingId} households={data.households} owners={data.followUpOwners} familySideLabels={familySideLabels} guest={guestEditor}/><HouseholdDialog key={`household-${householdEditor?.id??"new"}-${householdEditorSession}`} open={householdDialog} onClose={()=>setHouseholdDialog(false)} weddingId={data.weddingId} household={householdEditor} familySideLabels={familySideLabels}/><FamilyDialog open={familyDialog} onClose={()=>setFamilyDialog(false)} weddingId={data.weddingId} functions={activeFunctions} familySideLabels={familySideLabels}/><PlusOneDialog open={Boolean(plusOneGuest)} onClose={()=>setPlusOneGuest(undefined)} weddingId={data.weddingId} guest={plusOneGuest} data={data}/></>}
+    {data.canEdit&&<><GuestEditor key={`guest-${guestEditor?.id??"new"}-${guestEditorSession}`} open={guestDialog} onClose={()=>setGuestDialog(false)} weddingId={data.weddingId} households={data.households} owners={data.followUpOwners} familySideLabels={familySideLabels} guest={guestEditor}/><HouseholdDialog key={`household-${householdEditor?.id??"new"}-${householdEditorSession}`} open={householdDialog} onClose={()=>setHouseholdDialog(false)} weddingId={data.weddingId} household={householdEditor} familySideLabels={familySideLabels}/></>}
   </>;
-}
-
-function InvitationCellRsvp({weddingId,invitation,history}:{weddingId:string;invitation:GuestRecord;history:GuestRecord[]}){
-  const [state,action,pending]=useActionState(recordGuestRsvpAction,initial);const [response,setResponse]=useState(invitation.rsvp?.response??"yes");
-  return <><form action={action} className="guest-rsvp-form"><input type="hidden" name="weddingId" value={weddingId}/><input type="hidden" name="invitationId" value={invitation.id}/><input type="hidden" name="expectedUpdatedAt" value={invitation.rsvp?.updated_at??""}/><SelectField label={`Record response for ${invitation.guest_name}`} name="response" value={response} onChange={event=>setResponse(event.target.value)}><option value="yes">Attending</option><option value="no">Declined</option><option value="maybe">Maybe</option></SelectField><SelectField label="Response source" name="source" defaultValue={["phone","email","in_person","other"].includes(invitation.rsvp?.response_source)?invitation.rsvp.response_source:"phone"}><option value="phone">Phone response</option><option value="email">Email</option><option value="in_person">In person</option><option value="other">Other</option></SelectField><TextAreaField label="Response note" name="note" rows={1} maxLength={2000} defaultValue={invitation.rsvp?.response_note??""}/><Button type="submit" variant="secondary" disabled={pending}>{pending?"Saving…":"Save response"}</Button>{state.error&&<span className="field-error" role="alert">{state.error}</span>}{state.message&&<span className="field-help" role="status">{state.message}</span>}</form>{history.length>1&&<details className="guest-rsvp-history"><summary>Response history ({history.length})</summary>{history.map((entry:GuestRecord)=><p key={entry.id}>{responseName[entry.response]} · {entry.response_source} · {new Date(entry.responded_at).toLocaleString()} · {entry.author_name}{entry.response_note?` · ${entry.response_note}`:""}</p>)}</details>}</>;
 }

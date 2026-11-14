@@ -1,31 +1,28 @@
 import "server-only";
 import { cache } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { monogramFor } from "@/lib/invitations/card-data";
-import { readableAccent, themeById, type ThemeId } from "@/lib/invitations/content";
 
 export type WorkspaceBranding = { coupleNames: string; monogram: string | null; accent: string; accentText: string; background: string };
 
-/**
- * The couple's monogram and their invitation theme colours, for the workspace chrome. Members who
- * cannot see invitation designs (RLS) simply get the neutral defaults; a failure never blocks a page.
- */
+/** The invitation's own colours (from the couple's emblem), used for the workspace chrome. */
+const INVITATION_COLOURS = { accent: "#b9853a", accentText: "#5e0b12", background: "#f5e5d1" };
+
+/** "Priya & Arjun" → "P · A". Uses the first letter (grapheme) of each name; null when there are none. */
+export function monogramFor(couple: string): string | null {
+  const names = couple.split(/\s*(?:&|and|\+)\s*/i).map((name) => name.trim()).filter(Boolean).slice(0, 2);
+  const initials = names.map((name) => typeof Intl !== "undefined" && "Segmenter" in Intl
+    ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(name), (part) => part.segment)[0]!
+    : Array.from(name)[0]!).map((letter) => letter.toLocaleUpperCase());
+  return initials.length ? initials.join(" · ") : null;
+}
+
+/** The couple's monogram and the invitation colours. A failure never blocks a page. */
 export const getWorkspaceBranding = cache(async (weddingId: string): Promise<WorkspaceBranding | null> => {
   try {
     const supabase = await createSupabaseServerClient();
-    const [wedding, design] = await Promise.all([
-      supabase.from("weddings").select("name,partner_one_display_name,partner_two_display_name").eq("id", weddingId).maybeSingle(),
-      supabase.from("invitation_designs").select("theme,accent").eq("wedding_id", weddingId).eq("is_default", true).maybeSingle(),
-    ]);
-    const coupleNames = [wedding.data?.partner_one_display_name, wedding.data?.partner_two_display_name].filter(Boolean).join(" & ");
-    const theme = themeById((design.data?.theme as ThemeId | undefined) ?? "mallige");
-    return {
-      coupleNames: coupleNames || wedding.data?.name || "",
-      monogram: coupleNames ? monogramFor(coupleNames) : null,
-      accent: design.data?.accent || theme.accent,
-      accentText: readableAccent(theme.id, design.data?.accent),
-      background: theme.background,
-    };
+    const { data } = await supabase.from("weddings").select("name,partner_one_display_name,partner_two_display_name").eq("id", weddingId).maybeSingle();
+    const coupleNames = [data?.partner_one_display_name, data?.partner_two_display_name].filter(Boolean).join(" & ");
+    return { coupleNames: coupleNames || data?.name || "", monogram: coupleNames ? monogramFor(coupleNames) : null, ...INVITATION_COLOURS };
   } catch {
     return null;
   }

@@ -40,7 +40,7 @@ export function reminderPlan(weddingDate: string | null, today: string, reminder
   if (!weddingDate) return [];
   const remind = reminderFunctionId ? `/messages?function=${reminderFunctionId}&kind=reminder` : "/messages?kind=reminder";
   const steps = [
-    { key: "invite", days: -56, title: "Send the invitations", detail: "About 8 weeks before. Each family gets their own private link.", href: "/invitations", action: "Open Invitations" },
+    { key: "invite", days: -56, title: "Send the invitations", detail: "About 8 weeks before. Each family gets its own link.", href: "/guests/simple", action: "Open Invitations" },
     { key: "gentle", days: -28, title: "Gentle reminder", detail: "About 4 weeks before, to anyone who hasn't replied.", href: remind, action: "Prepare reminders" },
     { key: "final", days: -14, title: "Last call", detail: "About 2 weeks before, so you can give the caterer final numbers.", href: remind, action: "Prepare reminders" },
     { key: "directions", days: -3, title: "Directions and timings", detail: "A few days before, for everyone coming.", href: "/messages?kind=update", action: "Prepare the message" },

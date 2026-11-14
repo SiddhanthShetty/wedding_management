@@ -28,23 +28,22 @@ test("application starts and the sign-in screen works on mobile", async ({ page 
   await expect(page.getByLabel("Password")).toBeVisible();
 });
 
-test("private guest portal is no-store, no-referrer, and fails closed without a link", async ({ page }) => {
-  const response = await page.goto("/guest");
+test("family invitation pages are private and fail closed for a bad link", async ({ page }) => {
+  // A malformed code is refused before any database call.
+  const response = await page.goto("/i/not-a-real-code");
   expect(response?.ok()).toBeTruthy();
-  await expect(page.getByRole("heading", { name: "Private invitation" })).toBeVisible();
   expect(response?.headers()["cache-control"]).toContain("no-store");
   expect(response?.headers()["referrer-policy"]).toBe("no-referrer");
   expect(response?.headers()["x-robots-tag"]).toContain("noindex");
-  await expect(page.getByText(/Checking your private invitation|This invitation link is not available/)).toBeVisible();
-  const exchange = await page.evaluate(async () => {
-    const result = await fetch("/api/guest-portal/exchange", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: "invalid-synthetic-token" }),
-    });
-    return { status: result.status, body: await result.text() };
-  });
-  expect(exchange.status).toBe(404);
-  expect(exchange.body).toContain("This invitation link is not available");
-  expect(exchange.body).not.toContain("household");
+  await expect(page.getByRole("heading", { name: "This invitation link isn’t working" })).toBeVisible();
+  await expect(page.getByText("Rao family")).toHaveCount(0);
+});
+
+test("old per-person links explain that the link has changed", async ({ page }) => {
+  const response = await page.goto("/guest#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+  expect(response?.ok()).toBeTruthy();
+  expect(response?.headers()["x-robots-tag"]).toContain("noindex");
+  await expect(page.getByRole("heading", { name: "This invitation link has changed" })).toBeVisible();
 });
 
 test("document and upload endpoints refuse anonymous and cross-site requests", async ({ page, request }) => {
@@ -67,22 +66,12 @@ test("document and upload endpoints refuse anonymous and cross-site requests", a
   expect(download.headers()["location"] ?? "").not.toContain("supabase");
 });
 
-test("invitation media refuses anonymous, cross-site and session-less requests", async ({ page, request }) => {
+test("the removed invitation studio endpoints are gone", async ({ request }) => {
   const id = "a0000000-0000-4000-8000-000000000099";
-  const crossSite = await request.post("/api/invitations/media", { headers: { Origin: "https://attacker.example" }, multipart: { weddingId: id } });
-  expect(crossSite.status()).toBe(403);
-  await page.goto("/sign-in");
-  const anonymous = await page.evaluate(async (weddingId) => {
-    const form = new FormData();
-    form.set("weddingId", weddingId); form.set("designId", weddingId); form.set("kind", "gallery"); form.set("caption", "");
-    form.set("file", new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0])], "photo.jpg", { type: "image/jpeg" }));
-    const result = await fetch("/api/invitations/media", { method: "POST", body: form });
-    return { status: result.status, body: await result.json() };
-  }, id);
-  expect(anonymous, JSON.stringify(anonymous)).toMatchObject({ status: 401 });
-  for (const path of [`/guest/media/${id}`, `/guest/preview/media/${id}`, `/api/invitations/media/${id}/${id}`, "/guest/media/not-a-uuid"]) {
+  for (const path of ["/api/invitations/media", `/guest/media/${id}`, `/guest/preview/media/${id}`, "/api/guest-portal/exchange"]) {
     const response = await request.get(path, { maxRedirects: 0 });
-    expect([307, 404], path).toContain(response.status());
+    expect([307, 404, 405], path).toContain(response.status());
     expect(response.headers()["content-type"] ?? "", path).not.toMatch(/image|audio/);
   }
 });
+

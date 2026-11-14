@@ -3,7 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnvironment } from "@/lib/supabase/env";
 
 export async function updateSupabaseSession(request: NextRequest) {
-  const isGuestPortal = request.nextUrl.pathname === "/guest" || request.nextUrl.pathname.startsWith("/guest/") || request.nextUrl.pathname.startsWith("/api/guest-portal/");
+  const path = request.nextUrl.pathname;
+  // Guests' pages: family invitation links (/i/<code>) and the retired per-person links (/guest).
+  const isGuestPortal = path === "/guest" || path.startsWith("/guest/") || path.startsWith("/i/") || path.startsWith("/api/guest-portal/");
   const securePortalHeaders = (response: NextResponse) => {
     if (isGuestPortal) {
       response.headers.set("Cache-Control", "private, no-store, max-age=0");

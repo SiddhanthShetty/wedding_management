@@ -1,4 +1,5 @@
-import { mealCountsByFunction, type MealCounts } from "@/lib/planning/meals";
+import type { MealCounts } from "@/lib/planning/meals";
+import { mealsByFunction } from "@/lib/family-invites/rules";
 import type { LooseRow } from "@/lib/types/loose";
 import "server-only";
 import { AuthorizationDeniedError, authorizeWeddingOperation } from "@/lib/auth/access";
@@ -124,24 +125,23 @@ export async function saveCateringTasting(weddingId: string, values: Row) {
 }
 
 /**
- * Veg / Non-veg / Jain / Vegan counts per function from guests who replied yes. Needs guest-list
- * access as well as Wedding week access; returns null when the member can't see the guest list.
+ * Veg / Non-veg / Jain / Vegan counts per function from family replies: each family's food choice,
+ * counted once per person coming. Needs guest-list access as well as Wedding week access; returns
+ * null when the member can't see the guest list.
  */
 export async function getMealCounts(weddingId: string): Promise<Array<MealCounts & { name: string; date: string | null }> | null> {
   const context = await authorizeWeddingOperation(weddingId, "logistics", "read");
   const owner = context.membership.role === "owner" || context.membership.role === "co_owner";
   if (!owner && !context.moduleAccess.guests) return null;
   const supabase = await createSupabaseServerClient();
-  const [invitations, rsvps, guests, functions] = await Promise.all([
-    supabase.from("guest_invitations").select("id,guest_id,function_id").eq("wedding_id", weddingId).eq("status", "invited"),
-    supabase.from("guest_rsvps").select("invitation_id,response").eq("wedding_id", weddingId),
-    supabase.from("guests").select("id,meal_preference").eq("wedding_id", weddingId),
+  const [replies, households, functions] = await Promise.all([
+    supabase.from("family_replies").select("household_id,attending,guest_count,function_ids,dietary").eq("wedding_id", weddingId),
+    supabase.from("guest_households").select("id,invite_removed_at").eq("wedding_id", weddingId),
     supabase.from("functions").select("id,name,function_date,archived_at,status").eq("wedding_id", weddingId),
   ]);
-  if ([invitations, rsvps, guests, functions].some((result) => result.error)) fail("Could not load meal counts.");
-  const response = new Map((rsvps.data ?? []).map((row) => [String(row.invitation_id), String(row.response)]));
-  const meal = new Map((guests.data ?? []).map((row) => [String(row.id), String(row.meal_preference ?? "")]));
-  const counts = mealCountsByFunction((invitations.data ?? []).map((row) => ({ function_id: String(row.function_id), response: response.get(String(row.id)) ?? null, meal_preference: meal.get(String(row.guest_id)) ?? null })));
+  if ([replies, households, functions].some((result) => result.error)) fail("Could not load meal counts.");
+  const removed = new Set((households.data ?? []).filter((row) => row.invite_removed_at).map((row) => String(row.id)));
   const active = (functions.data ?? []).filter((fn) => !fn.archived_at && fn.status !== "cancelled").sort((a, b) => String(a.function_date ?? "9999").localeCompare(String(b.function_date ?? "9999")));
-  return active.map((fn) => ({ ...(counts.find((row) => row.functionId === fn.id) ?? { functionId: String(fn.id), coming: 0, veg: 0, nonveg: 0, jain: 0, vegan: 0, other: 0, notSaid: 0 }), name: String(fn.name), date: (fn.function_date as string | null) ?? null }));
+  const counts = mealsByFunction(active.map((fn) => String(fn.id)), ((replies.data ?? []) as Array<{ household_id: string; attending: boolean; guest_count: number; function_ids: string[]; dietary: string }>).filter((row) => !removed.has(String(row.household_id))));
+  return active.map((fn, index) => ({ ...counts[index]!, name: String(fn.name), date: (fn.function_date as string | null) ?? null }));
 }

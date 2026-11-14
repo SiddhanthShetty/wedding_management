@@ -8,7 +8,7 @@ import { listWeddingTasks } from "@/lib/data/tasks";
 import { listWeddingDecisions } from "@/lib/data/decisions";
 import { listWeddingSuppliers } from "@/lib/data/suppliers";
 import { getFinanceDashboard } from "@/lib/data/finance";
-import { getGuestWorkspace } from "@/lib/data/guests";
+import { getInviteDesk } from "@/lib/data/family-invites";
 import { getCateringWorkspace } from "@/lib/data/catering";
 import { getTravelWorkspace } from "@/lib/data/travel";
 import { getOperationsWorkspace } from "@/lib/data/operations";
@@ -85,8 +85,13 @@ export const loadFinanceSection = cache(async (weddingId: string) => {
 export const loadRsvpSection = cache(async (weddingId: string) => {
   const { context } = await dashboardBase(weddingId);
   return section(context, "guests", async () => {
-    const data = await getGuestWorkspace(weddingId);
-    return { guests: data.guests.length, functions: data.functionSummaries.map((fn) => ({ id: fn.id, name: fn.name, date: fn.date, invited: fn.invited, yes: fn.yes, no: fn.no, maybe: fn.maybe, pending: fn.pending })) };
+    // Families reply once for everyone: "yes" counts people coming, the rest count families.
+    const desk = await getInviteDesk(weddingId);
+    const dates = new Map(desk.functions.map((fn) => [fn.id, fn.date]));
+    return {
+      families: desk.families.length + desk.removed.length, invited: desk.totals.invited, replied: desk.totals.replied, coming: desk.totals.coming,
+      functions: desk.headcounts.filter((fn) => fn.families > 0).map((fn) => ({ id: fn.id, name: fn.name, date: dates.get(fn.id) ?? null, invited: fn.families, yes: fn.people, no: fn.notComing, pending: fn.waiting })),
+    };
   });
 });
 export const loadCateringSection = cache(async (weddingId: string) => {
@@ -159,7 +164,7 @@ export function dashboardRows(dashboard: Dashboard) {
       add("Budget", `Outstanding (${total.currency})`, total.outstanding, "/budget");
     }
   }
-  if (dashboard.rsvp.state === "ok") for (const fn of dashboard.rsvp.data.functions) add("RSVPs", `${fn.name}: yes / no / maybe / awaiting of invited`, `${fn.yes} / ${fn.no} / ${fn.maybe} / ${fn.pending} of ${fn.invited}`, `/guests?view=invitations&function=${fn.id}`);
+  if (dashboard.rsvp.state === "ok") for (const fn of dashboard.rsvp.data.functions) add("RSVPs", `${fn.name}: people coming / families not coming / families waiting / families invited`, `${fn.yes} / ${fn.no} / ${fn.pending} / ${fn.invited}`, "/guests/simple");
   if (dashboard.catering.state === "ok") add("Catering", "Meal services needing review", dashboard.catering.data.flagged.length, "/logistics");
   if (dashboard.travel.state === "ok") {
     add("Stays & transport", "Need a room, not assigned", dashboard.travel.data.roomsNotAssigned, "/travel?tab=needs&filter=rooms-missing");

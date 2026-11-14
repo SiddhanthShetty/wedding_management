@@ -1,28 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { percent, trackInvites } from "../src/lib/invitations/tracking";
 import { READY_MESSAGES, reminderPlan } from "../src/lib/planning/reminder-plan";
 import { MESSAGE_STATE_LABELS, PLACEHOLDERS, unknownPlaceholders } from "../src/lib/planning/communications";
-
-describe("invite and track", () => {
-  const invitations = [
-    { id: "i1", guest_id: "g1", function_id: "f1" }, { id: "i2", guest_id: "g1", function_id: "f2" },
-    { id: "i3", guest_id: "g2", function_id: "f1" }, { id: "i4", guest_id: "g3", function_id: "f2" },
-  ];
-  const summary = trackInvites(["g1", "g2", "g3"], new Set(["g1", "g2"]), new Set(["g1"]), invitations, new Set(["i1", "i3"]));
-
-  it("counts invited, sent, opened and fully replied guests", () => {
-    expect([summary.invited, summary.sent, summary.opened, summary.replied]).toEqual([3, 2, 1, 1]);
-    expect([...summary.repliedGuestIds]).toEqual(["g2"]);
-  });
-  it("counts who's still waiting for each function", () => {
-    expect(summary.waiting).toEqual([{ functionId: "f2", waiting: 2 }]);
-  });
-  it("draws safe progress bars", () => {
-    expect(percent(1, 3)).toBe(33);
-    expect(percent(5, 3)).toBe(100);
-    expect(percent(0, 0)).toBe(0);
-  });
-});
 
 describe("reminder plan", () => {
   it("counts back from the wedding and marks where you are", () => {

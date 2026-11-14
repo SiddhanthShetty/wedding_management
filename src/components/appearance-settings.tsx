@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LOOK_COOKIE, LOOK_EVENT, type Look } from "@/lib/soft-look";
 
@@ -19,6 +18,6 @@ export function AppearanceSettings() {
       <input type="checkbox" role="switch" checked={look === "soft"} disabled={look === null} onChange={(event) => change(event.target.checked ? "soft" : "classic")} />
       <span><strong>Soft look</strong><span className="row-meta">Softer cards and buttons. Only on this device; your partner chooses their own.</span></span>
     </label>
-    <p className="field-help">The colours come from your invitation theme. To change them, pick another theme in <Link className="text-link" href="/invitations">Guests → Invitations</Link>.</p>
+    <p className="field-help">The colours come from your invitation: the maroon and gold of your emblem.</p>
   </div>;
 }

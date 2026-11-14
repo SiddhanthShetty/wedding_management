@@ -34,7 +34,7 @@ export function attentionItems(input: AttentionInput, limit = 7): AttentionItem[
   }
   const soon = addDaysIso(input.today, 14);
   for (const fn of (input.rsvp ?? []).filter((row) => row.pending > 0 && row.date && row.date >= input.today && row.date <= soon)) {
-    items.push({ id: `rsvp-${fn.id}`, tone: "warn", title: `${plural(fn.pending, "guest hasn't", "guests haven't")} replied for ${fn.name}`, detail: "It is less than two weeks away.", href: `/messages?function=${fn.id}&kind=reminder`, action: "Send reminders" });
+    items.push({ id: `rsvp-${fn.id}`, tone: "warn", title: `${plural(fn.pending, "family hasn't", "families haven't")} replied for ${fn.name}`, detail: "It is less than two weeks away.", href: "/guests/simple", action: "Send reminders" });
   }
   if (input.catering?.flagged.length) items.push({ id: "catering", tone: "warn", title: `${plural(input.catering.flagged.length, "meal service needs", "meal services need")} a catering review`, detail: input.catering.flagged.slice(0, 2).map((row) => `${row.function_name} · ${row.name}`).join(", "), href: `/logistics#service-${input.catering.flagged[0]!.id}`, action: "Review counts" });
   const travelGaps = (input.travel?.roomsNotAssigned ?? 0) + (input.travel?.arrivalsNotAssigned ?? 0) + (input.travel?.departuresNotAssigned ?? 0);

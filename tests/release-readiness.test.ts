@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { assumeUser, createTestDatabase } from "./support/database";
-import { clientAddress } from "../src/lib/guest-portal/server";
+import { clientAddress } from "../src/lib/family-invites/public";
 
 describe("guest-page rate limits sized for a venue", () => {
   let db: Awaited<ReturnType<typeof createTestDatabase>>;

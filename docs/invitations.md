@@ -1,3 +1,5 @@
+> **Retired (2026-11-14).** The invitation studio and per-person guest links were replaced by family invitations: see [guest-desk.md](guest-desk.md). Kept for history; the database tables it describes stay in place, unused, until a later migration removes them.
+
 # Personalised Invitations (Option A: share-assisted)
 
 **Route:** `/invitations` (Guests → Invitations). **Module:** `guests` (read to view, edit to change and share).

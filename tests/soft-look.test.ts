@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { contrastRatio, THEMES } from "../src/lib/invitations/content";
+import { contrastRatio } from "../src/lib/color";
 import { softPalette } from "../src/lib/soft-look";
 
-const accents = [...THEMES.map((theme) => theme.accent), "#000000", "#ffffff", "#ff0000", "#0000ff", undefined];
+// The invitation's gold and maroon, older theme accents, and extremes.
+const accents = ["#b9853a", "#5e0b12", "#e2b45a", "#e98b1d", "#d9a23a", "#000000", "#ffffff", "#ff0000", "#0000ff", undefined];
 
 describe("soft look stays readable for every theme and custom accent", () => {
   for (const accent of accents) it(`accent ${accent ?? "default"}`, () => {

@@ -13,13 +13,12 @@ export function moneyLine(totals: Total[], dueSoon: number, currency: string): s
   return parts.join(" · ");
 }
 
-type FunctionReplies = { invited: number; pending: number };
+type FamilyReplies = { families: number; invited: number; replied: number; coming: number };
 
-/** For example "120 guests · 45 of 200 invitations answered". */
-export function guestLine(guests: number, functions: FunctionReplies[]): string | null {
-  if (!guests) return null;
-  const invited = functions.reduce((sum, fn) => sum + fn.invited, 0);
-  const answered = functions.reduce((sum, fn) => sum + Math.max(0, fn.invited - fn.pending), 0);
-  const people = `${guests} guest${guests === 1 ? "" : "s"}`;
-  return invited ? `${people} · ${answered} of ${invited} invitation${invited === 1 ? "" : "s"} answered` : `${people} · not invited to any function yet`;
+/** For example "40 families · 25 of 38 replied · 96 guests coming". */
+export function guestLine({ families, invited, replied, coming }: FamilyReplies): string | null {
+  if (!families) return null;
+  const list = `${families} famil${families === 1 ? "y" : "ies"}`;
+  if (!invited) return `${list} · not invited to any event yet`;
+  return `${list} · ${replied} of ${invited} replied${coming ? ` · ${coming} ${coming === 1 ? "guest" : "guests"} coming` : ""}`;
 }

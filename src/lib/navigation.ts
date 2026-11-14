@@ -8,7 +8,7 @@ export type AreaId = "plan" | "guests" | "money" | "week";
 /** Pages that belong together share one menu entry and show section tabs at the top. */
 export const AREAS: Record<AreaId, Array<{ href: string; label: string }>> = {
   plan: [{ href: "/tasks", label: "To do" }, { href: "/decisions", label: "To decide" }, { href: "/functions", label: "Functions" }],
-  guests: [{ href: "/guests/simple", label: "Guest desk" }, { href: "/guests", label: "People & RSVPs" }, { href: "/invitations", label: "Invitations" }, { href: "/messages", label: "Messages" }],
+  guests: [{ href: "/guests/simple", label: "Invitations" }, { href: "/guests", label: "People" }, { href: "/messages", label: "Messages" }],
   money: [{ href: "/venues-vendors", label: "Vendors" }, { href: "/budget", label: "Budget" }],
   week: [{ href: "/schedule", label: "Run sheets" }, { href: "/today", label: "Day-of" }, { href: "/logistics", label: "Catering" }, { href: "/travel", label: "Stays & travel" }],
 };
