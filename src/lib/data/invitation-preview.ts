@@ -2,7 +2,7 @@ import "server-only";
 
 import { authorizeWeddingOperation, AuthorizationDeniedError } from "@/lib/auth/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { invitationConfig } from "@/config/invitation";
+import { draftConfig, loadInvitationEditor } from "@/lib/data/invitation-settings";
 import { invitationChecklist, previewInvitation, SAMPLE_FAMILY, type FunctionRecord, type ReplyRecord } from "@/lib/family-invites/preview";
 
 export type PreviewFamily = { id: string; name: string; code: string | null; linkOff: boolean };
@@ -15,12 +15,15 @@ export type PreviewFamily = { id: string; name: string; code: string | null; lin
 export async function getInvitationPreview(weddingId: string, familyId: string | null) {
   const context = await authorizeWeddingOperation(weddingId, "guests", "read");
   const supabase = await createSupabaseServerClient();
-  const [families, invites, functions, replies] = await Promise.all([
+  const [families, invites, functions, replies, editor] = await Promise.all([
     supabase.from("guest_households").select("id,name,invite_code,invite_max_guests,invite_removed_at").eq("wedding_id", weddingId).order("name"),
     supabase.from("family_function_invites").select("household_id,function_id").eq("wedding_id", weddingId),
     supabase.from("functions").select("id,name,function_type,description,function_date,start_time,end_time,venue_name,guest_map_url,dress_code,status,archived_at").eq("wedding_id", weddingId),
     supabase.from("family_replies").select("household_id,attending,guest_count,function_ids,dietary,dietary_notes,message,updated_at").eq("wedding_id", weddingId),
+    loadInvitationEditor(supabase, weddingId, context.membership.role),
   ]);
+  // The preview shows the draft wording; family links show the published one.
+  const config = draftConfig(editor);
   for (const result of [families, invites, functions, replies]) {
     if (result.error?.code === "42501") throw new AuthorizationDeniedError();
     if (result.error) throw new Error("Could not load the invitation preview.");
@@ -44,7 +47,9 @@ export async function getInvitationPreview(weddingId: string, familyId: string |
     selected: chosen ? String(chosen.id) : SAMPLE_FAMILY,
     invitation,
     canSeeFunctions,
-    checklist: invitationChecklist({ config: invitationConfig, functions: records, weddingDate: wedding.date, familiesWithoutLink: list.filter((family) => !family.code && !family.linkOff).length, canSeeFunctions }),
+    editor,
+    config,
+    checklist: invitationChecklist({ config, functions: records, weddingDate: wedding.date, familiesWithoutLink: list.filter((family) => !family.code && !family.linkOff).length, canSeeFunctions }),
   };
 }
 export type InvitationPreview = Awaited<ReturnType<typeof getInvitationPreview>>;

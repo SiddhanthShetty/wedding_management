@@ -13,5 +13,5 @@ export default async function InvitationPreviewPage({ searchParams }: { searchPa
   const family = z.uuid().safeParse((await searchParams).family);
   const preview = await getInvitationPreview(workspace.wedding.id, family.success ? family.data : SAMPLE_FAMILY);
   // "preview" isn't a valid link code, so even a reply sent by mistake would be refused.
-  return <InvitationView code="preview" invitation={preview.invitation} preview />;
+  return <InvitationView code="preview" invitation={preview.invitation} config={preview.config} preview draft={preview.editor.status === "unpublished" || preview.editor.status === "changes"} />;
 }

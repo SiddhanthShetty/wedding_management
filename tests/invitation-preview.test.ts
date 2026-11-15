@@ -79,8 +79,9 @@ describe("matches the family link", () => {
     const functions = (await db.query<FunctionRecord>("select id,name,function_type,description,function_date::text,start_time::text,end_time::text,venue_name,guest_map_url,dress_code,status::text,archived_at::text from public.functions where wedding_id=$1", [WEDDING_A])).rows;
     const weddingRow = (await db.query<{ date: string | null; timezone: string }>("select wedding_date::text date, timezone from public.weddings where id=$1", [WEDDING_A])).rows[0]!;
     await assumeUser(db, null, "anon");
-    const fromLink = (await db.query<{ d: unknown }>("select public.get_family_invitation($1) d", [code])).rows[0]!.d;
+    const { settings, ...fromLink } = (await db.query<{ d: Record<string, unknown> }>("select public.get_family_invitation($1) d", [code])).rows[0]!.d;
     const preview = previewInvitation({ family: { name: family.name, max_guests: family.invite_max_guests, function_ids: invited }, functions, reply: null, wedding: weddingRow });
     expect(preview).toEqual(fromLink);
+    expect(settings).toBeNull(); // nothing published yet: the link uses the code file's wording
   });
 });

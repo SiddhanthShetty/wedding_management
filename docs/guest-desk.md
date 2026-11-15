@@ -43,12 +43,29 @@ the per-person guest links are gone.
 - Families added before this change have no link yet: tap **Make their link**. Their events were copied from
   the per-person invitations they had (the migration's backfill).
 
+## Guests → Invitation: preview and wording
+
+- **Preview:** "See it as" any family (or a sample family with every event), at phone or computer
+  width. It's the family's own invitation page in preview mode, shown in a frame from this app only
+  (`/invitation-preview`, sign-in required): the reply form never sends, and missing lines are shown.
+  "Still to fill in" lists what's empty, with links to fix it.
+- **Wording** (owners and co-owners only, enforced in the database): names and place, family lines,
+  event notes, Good to know, reply-by date and contact, and the music (one of the two included tracks).
+  **Save draft** shows it in the preview only; **Publish to families** makes it what every family link
+  shows. Every published version is kept; **Put in draft** brings an old one back to check and publish.
+  **Discard draft** goes back to what families see. If a partner saved in the meantime, nothing is
+  overwritten and you're asked to reload. Events (dates, venues, maps) stay in Plan → Functions.
+- Until the first publish, family links use `src/config/invitation.ts`, which is also the first draft.
+- Migration `20261123100000_invitation_settings.sql` (additive): tables `invitation_settings` and
+  `invitation_settings_history`, functions to save, publish, discard and restore, and
+  `get_family_invitation` also returns the published wording. Apply it before deploying this code.
+
 ## For the family: `/i/<code>`
 
 The invitation site's page, greeting the family by name only: the family's phone number and guest
 limit are never shown, and the page is never sent who replied before or their phone. The events are read from **Plan → Functions** (date, time, venue, map link,
-dress code) and only the events this family is invited to. Wording, family lines, notes and music are in
-`src/config/invitation.ts`. The reply form asks: name, phone, coming or not, how many (a list that stops at
+dress code) and only the events this family is invited to. Wording, family lines, notes and music are edited
+in Guests → Invitation (published version only). The reply form asks: name, phone, coming or not, how many (a list that stops at
 the family's limit, without stating it), which events, food choice and notes, a message. Anyone in the family can reply, from any phone; the
 latest reply counts and every version is kept in `family_reply_history`.
 

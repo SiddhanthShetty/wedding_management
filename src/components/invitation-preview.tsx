@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, ExternalLink, Laptop, MessageCircle, Smartphone } from "lucide-react";
 import { Card } from "@/components/ui";
@@ -17,7 +17,7 @@ const DEVICES = ["phone", "computer"] as const;
  * page never sends replies), with a family picker, phone or computer width, quick actions and
  * the list of what's still missing.
  */
-export function InvitationPreviewPanel({ families, selected, checklist, canSeeFunctions, eventCount }: { families: PreviewFamily[]; selected: string; checklist: ChecklistItem[]; canSeeFunctions: boolean; eventCount: number }) {
+export function InvitationPreviewPanel({ families, selected, checklist, canSeeFunctions, eventCount, editor, draftVersion }: { families: PreviewFamily[]; selected: string; checklist: ChecklistItem[]; canSeeFunctions: boolean; eventCount: number; editor?: ReactNode; draftVersion?: string | null }) {
   const router = useRouter();
   const [device, setDevice] = useRememberedState("invitation-device", "phone", DEVICES, false);
   const [copied, setCopied] = useState(false);
@@ -25,7 +25,8 @@ export function InvitationPreviewPanel({ families, selected, checklist, canSeeFu
   const family = families.find((item) => item.id === selected) ?? null;
   // Relative, so the server and the browser render the same address.
   const link = family?.code && !family.linkOff ? `/i/${family.code}` : null;
-  const src = `/invitation-preview?family=${encodeURIComponent(selected)}`;
+  // The draft's save time is in the address, so the preview reloads after each save.
+  const src = `/invitation-preview?family=${encodeURIComponent(selected)}${draftVersion ? `&v=${encodeURIComponent(draftVersion)}` : ""}`;
 
   const copy = async () => {
     if (!family?.code) return;
@@ -64,13 +65,16 @@ export function InvitationPreviewPanel({ families, selected, checklist, canSeeFu
         {/* Same-site frame only: the preview page allows this app, and nothing else, to show it. */}
         <iframe key={src} src={src} title={`Invitation preview for ${family?.name ?? "the sample family"}`} loading="lazy" referrerPolicy="no-referrer" />
       </div>
+      <div className="invite-side">
+      {editor}
       <Card title="Still to fill in" subtitle={checklist.length ? "Families don't see these notes. Each one is left out of the invitation until it's filled in." : undefined} className="invite-checklist">
         {!canSeeFunctions && <p className="field-help">Events need Plan access to show here; families still see them on their link.</p>}
         {canSeeFunctions && family && eventCount === 0 && <p className="field-error">{family.name} isn&apos;t invited to any events yet, so their invitation has none. Choose them under More → Events and guests.</p>}
         {checklist.length ? <ul>{checklist.map((item) => <li key={item.text}>{item.href ? <Link href={item.href}>{item.text}</Link> : item.text}</li>)}</ul>
           : <p className="field-success">Everything is filled in.</p>}
-        <p className="field-help">Wording, family lines, notes and music are in <code>src/config/invitation.ts</code>; events come from Plan → Functions.</p>
+        <p className="field-help">Events come from Plan → Functions; everything else is under Wording.</p>
       </Card>
+      </div>
     </div>
   </div>;
 }

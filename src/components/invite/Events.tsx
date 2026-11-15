@@ -1,6 +1,6 @@
 import { CalendarDays, Clock, MapPin, Navigation, Shirt } from "lucide-react";
 import type { ReactNode } from "react";
-import { eventArtFor, invitationConfig } from "@/config/invitation";
+import { eventArtFor, type InvitationConfig } from "@/config/invitation";
 import type { InviteEvent } from "@/lib/family-invites/rules";
 import { formatDate, formatTimeRange } from "@/lib/invite/datetime";
 import { EventArt, eventGround } from "./art";
@@ -28,13 +28,13 @@ function Row({ icon, term, children, pending }: { icon: ReactNode; term: string;
   );
 }
 
-function EventCard({ event, flip }: { event: InviteEvent; flip: boolean }) {
+function EventCard({ event, flip, descriptions }: { event: InviteEvent; flip: boolean; descriptions: InvitationConfig["eventDescriptions"] }) {
   const art = eventArtFor(event.type, event.name);
   const { ground } = eventGround(art);
   const date = event.date ? formatDate(event.date) : null;
   const start = hhmm(event.start_time);
   const directions = directionsUrl(event);
-  const description = event.description.trim() || invitationConfig.eventDescriptions[art];
+  const description = event.description.trim() || descriptions[art];
   return (
     <li className="grid items-center gap-7 md:grid-cols-2 md:gap-14">
       <div className={`mx-auto w-full max-w-[21rem] ${flip ? "md:order-2" : ""}`}>
@@ -81,7 +81,7 @@ function EventCard({ event, flip }: { event: InviteEvent; flip: boolean }) {
   );
 }
 
-export function Events({ events }: { events: InviteEvent[] }) {
+export function Events({ events, descriptions }: { events: InviteEvent[]; descriptions: InvitationConfig["eventDescriptions"] }) {
   return (
     <section id="events" aria-labelledby="events-title" className="bg-parchment px-5 py-20 sm:py-28">
       <SectionHeading
@@ -91,7 +91,7 @@ export function Events({ events }: { events: InviteEvent[] }) {
       />
       {events.length ? (
         <ol className="mx-auto max-w-4xl space-y-16 md:space-y-20">
-          {events.map((event, i) => <EventCard key={event.id} event={event} flip={i % 2 === 1} />)}
+          {events.map((event, i) => <EventCard key={event.id} event={event} flip={i % 2 === 1} descriptions={descriptions} />)}
         </ol>
       ) : (
         <p className="mx-auto max-w-md text-center text-maroon/80">The details will appear here soon.</p>

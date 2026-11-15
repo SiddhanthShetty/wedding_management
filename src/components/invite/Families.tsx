@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { invitationConfig, type Families as FamiliesConfig } from "@/config/invitation";
+import type { Families as FamiliesConfig, InvitationConfig } from "@/config/invitation";
 import { Corner, Divider } from "./art";
 
 type Person = { name: string; parents: string | null; grandparents: string[] | null; relation: "daughter" | "son" };
@@ -124,8 +124,8 @@ function Couple({ person, previewName, preview }: { person: Person; previewName:
 }
 
 /** `hints`: show the couple where missing lines will go (their preview, or running locally). Never on family links. */
-export function Families({ hints = process.env.NODE_ENV !== "production" }: { hints?: boolean }) {
-  const l = familyLines(invitationConfig.families, invitationConfig.brideName, invitationConfig.groomName);
+export function Families({ config, hints = process.env.NODE_ENV !== "production" }: { config: InvitationConfig; hints?: boolean }) {
+  const l = familyLines(config.families, config.brideName, config.groomName);
   return (
     <section id="families" aria-labelledby="families-title" className="bg-paper px-5 pb-20 sm:pb-28">
       <h2 id="families-title" className="sr-only">
@@ -141,10 +141,10 @@ export function Families({ hints = process.env.NODE_ENV !== "production" }: { hi
         <div className="relative font-display text-maroon">
           <p className="mx-auto max-w-md text-[1.2rem] leading-relaxed text-pretty italic">{l.intro}</p>
           <div className="mt-6">
-            <Couple person={l.bride} previewName={invitationConfig.brideName} preview={hints} />
+            <Couple person={l.bride} previewName={config.brideName} preview={hints} />
           </div>
           <p className="my-5 font-label text-[1rem] tracking-[0.2em] text-gold-deep">{l.joiner}</p>
-          <Couple person={l.groom} previewName={invitationConfig.groomName} preview={hints} />
+          <Couple person={l.groom} previewName={config.groomName} preview={hints} />
           {l.closing ? <p className="mx-auto mt-5 max-w-md text-[1.15rem] leading-relaxed text-pretty italic">{l.closing}</p> : null}
           <Divider className="mt-8" color="#B9853A" />
         </div>

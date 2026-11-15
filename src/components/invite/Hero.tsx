@@ -1,11 +1,13 @@
 import { CalendarDays, MapPin } from "lucide-react";
-import { coupleNames, invitationConfig } from "@/config/invitation";
+import type { InvitationConfig } from "@/config/invitation";
+import { coupleNamesOf } from "@/lib/invitation/settings";
 import { formatDate } from "@/lib/invite/datetime";
 import { Divider, SeaAtDusk } from "./art";
 import { Emblem } from "./Monogram";
 
-export function Hero({ family, weddingDate }: { family: string | null; weddingDate: string | null }) {
-  const { location } = invitationConfig;
+export function Hero({ family, weddingDate, config }: { family: string | null; weddingDate: string | null; config: InvitationConfig }) {
+  const { location } = config;
+  const coupleNames = coupleNamesOf(config);
   const date = weddingDate ? formatDate(weddingDate) : null;
   return (
     <section id="top" className="relative isolate flex min-h-svh flex-col overflow-hidden bg-paper text-maroon">

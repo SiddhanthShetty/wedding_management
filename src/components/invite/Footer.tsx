@@ -1,10 +1,12 @@
-import { coupleNames, invitationConfig } from "@/config/invitation";
+import type { InvitationConfig } from "@/config/invitation";
+import { coupleNamesOf } from "@/lib/invitation/settings";
 import { formatDate } from "@/lib/invite/datetime";
 import { Divider } from "./art";
 import { Emblem } from "./Monogram";
 
-export function Footer({ weddingDate }: { weddingDate: string | null }) {
-  const { location, contact } = invitationConfig;
+export function Footer({ weddingDate, config }: { weddingDate: string | null; config: InvitationConfig }) {
+  const { location, contact } = config;
+  const coupleNames = coupleNamesOf(config);
   const date = weddingDate ? formatDate(weddingDate) : null;
   const hasContact = contact.name || contact.phone || contact.email;
   return (
@@ -51,9 +53,9 @@ export function Footer({ weddingDate }: { weddingDate: string | null }) {
         <p className="mt-10 text-[0.95rem] text-maroon/70">
           &copy; {new Date().getFullYear()} {coupleNames}. Made with love for our families and friends.
         </p>
-        {invitationConfig.music.credit ? (
+        {config.music.credit ? (
           <p className="mt-1 text-[0.95rem] text-maroon/70">
-            Music: &ldquo;{invitationConfig.music.title}&rdquo; by {invitationConfig.music.credit}
+            Music: &ldquo;{config.music.title}&rdquo; by {config.music.credit}
           </p>
         ) : null}
       </div>

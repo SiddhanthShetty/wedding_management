@@ -13,6 +13,8 @@ export type FamilyInvitation = {
   wedding: { date: string | null; timezone: string };
   functions: InviteEvent[];
   reply: null | { attending: boolean; guest_count: number; function_ids: string[]; dietary: string; dietary_notes: string; message: string; name: string; phone: string; updated_at: string };
+  /** The couple's published wording (Guests → Invitation), or null to use src/config/invitation.ts. */
+  settings?: unknown;
 };
 
 /** The guest's side uses the publishable key only: the database functions check the link code. */
