@@ -3,11 +3,12 @@ import type { AccessLevel, MemberRole, WeddingModule } from "@/lib/auth/access";
 
 export type NavLink = { href: string; label: string; icon: LucideIcon; module?: WeddingModule; area?: AreaId };
 export type NavGroup = { id: string; label: string | null; links: NavLink[] };
-export type AreaId = "plan" | "money" | "week";
+export type AreaId = "plan" | "guests" | "money" | "week";
 
 /** Pages that belong together share one menu entry and show section tabs at the top. */
 export const AREAS: Record<AreaId, Array<{ href: string; label: string }>> = {
   plan: [{ href: "/tasks", label: "To do" }, { href: "/decisions", label: "To decide" }, { href: "/functions", label: "Functions" }],
+  guests: [{ href: "/guests/simple", label: "Families" }, { href: "/guests/invitation", label: "Invitation" }],
   money: [{ href: "/venues-vendors", label: "Vendors" }, { href: "/budget", label: "Budget" }],
   week: [{ href: "/schedule", label: "Run sheets" }, { href: "/today", label: "Day-of" }, { href: "/logistics", label: "Catering" }, { href: "/travel", label: "Stays & travel" }],
 };
@@ -19,7 +20,7 @@ export const AREAS: Record<AreaId, Array<{ href: string; label: string }>> = {
 export const NAV_GROUPS: NavGroup[] = [
   { id: "home", label: null, links: [{ href: "/overview", label: "Home", icon: LayoutDashboard }] },
   { id: "plan", label: null, links: [{ href: "/tasks", label: "Plan", icon: CheckSquare2, module: "planning", area: "plan" }] },
-  { id: "guests", label: null, links: [{ href: "/guests/simple", label: "Guests", icon: UsersRound, module: "guests" }] },
+  { id: "guests", label: null, links: [{ href: "/guests/simple", label: "Guests", icon: UsersRound, module: "guests", area: "guests" }] },
   { id: "money", label: null, links: [{ href: "/venues-vendors", label: "Money", icon: Wallet, module: "suppliers_finance", area: "money" }] },
   { id: "week", label: null, links: [{ href: "/schedule", label: "Wedding week", icon: CalendarHeart, module: "logistics", area: "week" }] },
   { id: "sheets", label: null, links: [{ href: "/sheets", label: "Sheets", icon: Sheet, module: "planning" }] },

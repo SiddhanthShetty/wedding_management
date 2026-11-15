@@ -46,8 +46,9 @@ describe("Decisions live under Tasks", () => {
     expect(links).toContain("/tasks");
     expect(links).not.toContain("/decisions");
     expect(AREAS.plan.map((tab) => tab.href)).toEqual(["/tasks", "/decisions", "/functions"]);
-    expect(Object.keys(AREAS)).toEqual(["plan", "money", "week"]);
-    expect(areaForPath("/guests/simple")).toBeNull();
+    expect(Object.keys(AREAS)).toEqual(["plan", "guests", "money", "week"]);
+    expect(AREAS.guests.map((tab) => tab.href)).toEqual(["/guests/simple", "/guests/invitation"]);
+    expect(areaForPath("/guests/invitation")).toBe("guests");
     expect(areaForPath("/decisions")).toBe("plan");
     const tasksLink = NAV_GROUPS.flatMap((group) => group.links).find((link) => link.href === "/tasks")!;
     expect(isActiveLink("/decisions", tasksLink)).toBe(true);

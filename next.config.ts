@@ -29,6 +29,8 @@ const csp = [
   "frame-ancestors 'none'",
   ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
+// Guests → Invitation shows the preview page in a frame on this site only; nothing else may frame it.
+const previewCsp = csp.replace("frame-ancestors 'none'", "frame-ancestors 'self'");
 
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
@@ -45,7 +47,11 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   async headers() {
     // Referrer-Policy is set per area: the guest portal sends none at all (see the Supabase proxy).
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      // Later rules override earlier ones for the same header.
+      { source: "/invitation-preview", headers: [{ key: "Content-Security-Policy", value: previewCsp }, { key: "X-Frame-Options", value: "SAMEORIGIN" }, { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }, { key: "Cache-Control", value: "private, no-store, max-age=0" }] },
+    ];
   },
   // `next dev` is started on localhost while some browsers and local test
   // tools open the same server as 127.0.0.1. Allow that dev origin so the

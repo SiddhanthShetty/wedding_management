@@ -147,6 +147,7 @@ function FamilyLine({ desk, row, onDeleted }: { desk: InviteDesk; row: FamilyRow
 }
 
 function FamilyActions({ desk, row, onDeleted }: { desk: InviteDesk; row: FamilyRow; onDeleted: (message: string) => void }) {
+  const router = useRouter();
   const [panel, setPanel] = useState<null | "edit" | "reply" | "details">(null);
   const [confirm, setConfirm] = useState<null | "replace" | "delete">(null);
   const [busy, setBusy] = useState(false);
@@ -191,6 +192,7 @@ function FamilyActions({ desk, row, onDeleted }: { desk: InviteDesk; row: Family
         { label: "Record their reply", onSelect: () => setPanel(panel === "reply" ? null : "reply") },
         ...(row.code ? [{ label: "Make a new link", onSelect: () => setConfirm("replace"), disabled: busy }] : []),
         { label: "Family details and people", onSelect: () => setPanel(panel === "details" ? null : "details") },
+        { label: "Preview their invitation", onSelect: () => router.push(`/guests/invitation?family=${row.id}`) },
         { label: "Delete family", onSelect: () => setConfirm("delete"), disabled: busy, danger: true },
       ]} />
     </div>

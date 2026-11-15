@@ -84,10 +84,9 @@ function Names({ text, lead }: { text: string; lead?: React.ReactNode }) {
   );
 }
 
-function Couple({ person, previewName }: { person: Person; previewName: string }) {
+function Couple({ person, previewName, preview }: { person: Person; previewName: string; preview: boolean }) {
   const rel = RELATION[person.relation];
-  // A missing grandparents line is left out for guests; the local preview shows where it will go.
-  const preview = process.env.NODE_ENV !== "production";
+  // A missing grandparents line is left out for guests; the couple's preview shows where it will go.
   return (
     <>
       <p className="text-[clamp(2.4rem,9vw,3.2rem)] leading-tight font-medium italic">{person.name}</p>
@@ -124,7 +123,8 @@ function Couple({ person, previewName }: { person: Person; previewName: string }
   );
 }
 
-export function Families() {
+/** `hints`: show the couple where missing lines will go (their preview, or running locally). Never on family links. */
+export function Families({ hints = process.env.NODE_ENV !== "production" }: { hints?: boolean }) {
   const l = familyLines(invitationConfig.families, invitationConfig.brideName, invitationConfig.groomName);
   return (
     <section id="families" aria-labelledby="families-title" className="bg-paper px-5 pb-20 sm:pb-28">
@@ -141,10 +141,10 @@ export function Families() {
         <div className="relative font-display text-maroon">
           <p className="mx-auto max-w-md text-[1.2rem] leading-relaxed text-pretty italic">{l.intro}</p>
           <div className="mt-6">
-            <Couple person={l.bride} previewName={invitationConfig.brideName} />
+            <Couple person={l.bride} previewName={invitationConfig.brideName} preview={hints} />
           </div>
           <p className="my-5 font-label text-[1rem] tracking-[0.2em] text-gold-deep">{l.joiner}</p>
-          <Couple person={l.groom} previewName={invitationConfig.groomName} />
+          <Couple person={l.groom} previewName={invitationConfig.groomName} preview={hints} />
           {l.closing ? <p className="mx-auto mt-5 max-w-md text-[1.15rem] leading-relaxed text-pretty italic">{l.closing}</p> : null}
           <Divider className="mt-8" color="#B9853A" />
         </div>

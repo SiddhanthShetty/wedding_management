@@ -17,11 +17,11 @@ export function hasGoodToKnow(notes: Notes): boolean {
   return ITEMS.some((i) => notes[i.key]);
 }
 
-export function GoodToKnow({ notes }: { notes: Notes }) {
+export function GoodToKnow({ notes, hints = process.env.NODE_ENV !== "production" }: { notes: Notes; hints?: boolean }) {
   const items = ITEMS.filter((i) => notes[i.key]);
   if (!items.length) {
-    // Nothing filled in yet: guests see nothing; the local preview shows what to add.
-    if (process.env.NODE_ENV === "production") return null;
+    // Nothing filled in yet: guests see nothing; the couple's preview shows what to add.
+    if (!hints) return null;
     return (
       <section id="good-to-know" aria-labelledby="gtk-title" className="bg-paper px-5 py-16">
         <div className="mx-auto max-w-xl border border-dashed border-gold-deep/60 bg-ivory p-6 text-center">

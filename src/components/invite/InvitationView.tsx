@@ -28,8 +28,12 @@ function savedReply(reply: FamilyInvitation["reply"]): SavedReply | null {
   return { attending, guest_count, function_ids, dietary, dietary_notes, message };
 }
 
-/** The couple's invitation for one family: their name on the cover, their events and their reply. */
-export function InvitationView({ code, invitation }: { code: string; invitation: FamilyInvitation }) {
+/**
+ * The couple's invitation for one family: their name on the cover, their events and their reply.
+ * `preview` is the couple's own view (Guests → Invitation): a banner, hints where lines are
+ * missing, and a reply form that is never sent.
+ */
+export function InvitationView({ code, invitation, preview = false }: { code: string; invitation: FamilyInvitation; preview?: boolean }) {
   const weddingDate = invitation.wedding.date;
   const target = weddingInstant(weddingDate, invitation.wedding.timezone, invitation.functions);
   const date = weddingDate ? formatDate(weddingDate) : null;
@@ -37,16 +41,17 @@ export function InvitationView({ code, invitation }: { code: string; invitation:
   return (
     <MusicProvider track={invitationConfig.music}>
       <script dangerouslySetInnerHTML={{ __html: COVER_SCRIPT }} />
+      {preview ? <p role="note" className="pointer-events-none fixed inset-x-0 bottom-0 z-[70] bg-maroon/95 px-4 py-1.5 text-center font-label text-[0.9rem] tracking-wide text-ivory">Preview for {invitation.family} · replies here aren&rsquo;t saved</p> : null}
       <Cover bride={invitationConfig.brideName} groom={invitationConfig.groomName} family={invitation.family} />
       <PetalShower />
       <Nav names={coupleNames} logo={<Seal className="size-10" size={80} />} showGoodToKnow={hasGoodToKnow(invitationConfig.goodToKnow)} />
       <main>
         <Hero family={invitation.family} weddingDate={weddingDate} />
         <Story />
-        <Families />
+        <Families {...(preview ? { hints: true } : {})} />
         <Events events={invitation.functions} />
-        <GoodToKnow notes={invitationConfig.goodToKnow} />
-        <FamilyReply code={code} family={invitation.family} maxGuests={invitation.max_guests} events={invitation.functions.map((fn) => ({ id: fn.id, name: fn.name }))} saved={savedReply(invitation.reply)} respondBy={respondBy} />
+        <GoodToKnow notes={invitationConfig.goodToKnow} {...(preview ? { hints: true } : {})} />
+        <FamilyReply code={code} family={invitation.family} maxGuests={invitation.max_guests} events={invitation.functions.map((fn) => ({ id: fn.id, name: fn.name }))} saved={savedReply(invitation.reply)} respondBy={respondBy} preview={preview} />
         <Countdown targetMs={target ? target.getTime() : null} dateLabel={date ? `${date.weekday}, ${date.long} (${invitation.wedding.timezone === "Asia/Kolkata" ? "India time" : invitation.wedding.timezone})` : null} />
       </main>
       <Footer weddingDate={weddingDate} />

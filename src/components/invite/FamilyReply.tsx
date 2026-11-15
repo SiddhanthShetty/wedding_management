@@ -7,7 +7,7 @@ import { databaseFieldMessage, DIETARY_OPTIONS, replyErrors, replySchema, type R
 import type { FamilyInvitation } from "@/lib/family-invites/public";
 import { SectionHeading } from "./Section";
 
-type Status = { kind: "idle" } | { kind: "sending" } | { kind: "error"; message: string } | { kind: "done"; attending: boolean; name: string };
+type Status = { kind: "idle" } | { kind: "sending" } | { kind: "error"; message: string } | { kind: "done"; attending: boolean; name: string; preview?: boolean };
 /** The family's saved answers. Who replied, and their phone, are never sent to the page. */
 export type SavedReply = Pick<NonNullable<FamilyInvitation["reply"]>, "attending" | "guest_count" | "function_ids" | "dietary" | "dietary_notes" | "message">;
 
@@ -19,7 +19,7 @@ function Err({ id, message }: { id: string; message?: string }) {
  * One reply for the whole family, as on the invitation site. Replying again, from any phone,
  * updates the same reply.
  */
-export function FamilyReply({ code, family, maxGuests, events, saved, respondBy }: { code: string; family: string; maxGuests: number | null; events: Array<{ id: string; name: string }>; saved: SavedReply | null; respondBy: string | null }) {
+export function FamilyReply({ code, family, maxGuests, events, saved, respondBy, preview = false }: { code: string; family: string; maxGuests: number | null; events: Array<{ id: string; name: string }>; saved: SavedReply | null; respondBy: string | null; preview?: boolean }) {
   const [status, setStatus] = useState<Status>(saved ? { kind: "done", attending: saved.attending, name: "" } : { kind: "idle" });
   const [attending, setAttending] = useState<"accept" | "decline" | "">(saved ? (saved.attending ? "accept" : "decline") : "");
   const [errors, setErrors] = useState<Partial<Record<ReplyFields, string>>>({});
@@ -46,6 +46,13 @@ export function FamilyReply({ code, family, maxGuests, events, saved, respondBy 
       setStatus({ kind: "error", message: "Please check the highlighted fields." });
       const first = Object.keys(found)[0];
       if (first) (form.current?.querySelector(`[name="${first}"]`) as HTMLElement | null)?.focus();
+      return;
+    }
+    // The couple's preview checks the form like the real one but never sends it.
+    if (preview) {
+      setErrors({});
+      setStatus({ kind: "done", attending: checked.data.attending, name: checked.data.fullName.split(" ")[0] ?? "", preview: true });
+      requestAnimationFrame(() => result.current?.focus());
       return;
     }
     sending.current = true;
@@ -92,6 +99,7 @@ export function FamilyReply({ code, family, maxGuests, events, saved, respondBy 
           <div ref={result} tabIndex={-1} role="status" className="py-6 text-center outline-none">
             <CircleCheck className="mx-auto size-12 text-leaf" aria-hidden="true" />
             <h3 className="mt-4 font-display text-[2rem] leading-tight font-medium">Thank you{status.name ? `, ${status.name}` : ""}. {status.name ? "Your response is saved." : "Your family\u2019s response is saved."}</h3>
+            {status.preview ? <p className="mx-auto mt-3 max-w-md border border-dashed border-maroon/40 bg-parchment/60 px-3 py-2 text-maroon">Preview: this reply was not sent or saved. The family sees this message after replying.</p> : null}
             <p className="mx-auto mt-3 max-w-md text-maroon/85">
               {status.attending ? "We are so glad you can come, and we look forward to celebrating with you." : "We will miss you, and we are grateful for your blessings."}
             </p>
@@ -99,6 +107,7 @@ export function FamilyReply({ code, family, maxGuests, events, saved, respondBy 
           </div>
         ) : (
           <form ref={form} onSubmit={onSubmit} onInput={clearError} onChange={clearError} noValidate className="space-y-6">
+            {preview ? <p className="border border-dashed border-maroon/40 bg-parchment/60 px-3 py-2">Preview: you can try this form, but nothing is sent or saved.</p> : null}
             <p className="border-l-2 border-gold bg-parchment/60 px-3 py-2">
               Replying for <span className="font-semibold">{family}</span>. Anyone in the family can reply; the latest reply counts.
             </p>

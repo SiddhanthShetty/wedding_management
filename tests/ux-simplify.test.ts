@@ -15,8 +15,9 @@ describe("grouped navigation", () => {
 
   it("names the current section, including nested pages", () => {
     expect(currentSectionLabel("/schedule/pack")).toBe("Run sheets");
-    // Guests is one page now: no Invitations / People / Messages tabs.
-    expect(currentSectionLabel("/guests/simple")).toBe("Guests");
+    // Guests has two tabs: the families list and the invitation preview (no People / Messages tabs).
+    expect(currentSectionLabel("/guests/simple")).toBe("Families");
+    expect(currentSectionLabel("/guests/invitation")).toBe("Invitation");
     expect(areaForPath("/today")).toBe("week");
     expect(areaForPath("/messages")).toBeNull();
     expect(areaForPath("/budget")).toBe("money");
